@@ -1,3 +1,51 @@
+<?php
+session_start();
+require_once '../config.php';
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../login.php');
+    exit();
+}
+
+// Initialize database connection
+$database = new Database();
+$db = $database->getConnection();
+
+// Get user information
+$user_query = "SELECT * FROM users WHERE id = :user_id";
+$stmt = $db->prepare($user_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get dashboard statistics
+$stats_query = "SELECT 
+    COUNT(*) as total_vendors,
+    AVG(score) as avg_score,
+    COUNT(CASE WHEN rank IN ('C', 'D') THEN 1 END) as high_risk_count,
+    COUNT(CASE WHEN rank = 'A' THEN 1 END) as low_risk_count
+    FROM vendor_assessments";
+$stmt = $db->prepare($stats_query);
+$stmt->execute();
+$stats = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get recent assessments
+$recent_query = "SELECT va.*, v.name as vendor_name 
+    FROM vendor_assessments va 
+    JOIN vendors v ON va.vendor_id = v.id 
+    ORDER BY va.created_at DESC 
+    LIMIT 10";
+$stmt = $db->prepare($recent_query);
+$stmt->execute();
+$recent_assessments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Get vendors for dropdowns
+$vendors_query = "SELECT id, name FROM vendors ORDER BY name";
+$stmt = $db->prepare($vendors_query);
+$stmt->execute();
+$vendors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -19,16 +67,16 @@
     </div>
     <div class="sb-section">
       <div class="sb-label">Navigation</div>
-      <a class="sb-item active" id="nav-dashboard" onclick="switchSection('dashboard')"><span class="sb-icon">📊</span><span class="sb-text">Dashboard</span></a>
-      <a class="sb-item" id="nav-reports" onclick="switchSection('reports')"><span class="sb-icon">📈</span><span class="sb-text">Reports</span></a>
-      <a class="sb-item" id="nav-users" onclick="switchSection('users')"><span class="sb-icon">👥</span><span class="sb-text">Users</span></a>
-      <a class="sb-item" id="nav-heatmap" onclick="switchSection('heatmap')"><span class="sb-icon">🔥</span><span class="sb-text">Risk Heatmap</span></a>
-      <a class="sb-item" id="nav-activity" onclick="switchSection('activity')"><span class="sb-icon">📋</span><span class="sb-text">Activity Log</span></a>
-      <a class="sb-item" id="nav-profile" onclick="switchSection('profile')"><span class="sb-icon">⚙️</span><span class="sb-text">Settings</span></a>
-      <a class="sb-item" id="nav-compare" onclick="switchSection('compare')"><span class="sb-icon">⚖️</span><span class="sb-text">Compare</span></a>
-      <a class="sb-item" id="nav-forecast" onclick="switchSection('forecast')"><span class="sb-icon">🔮</span><span class="sb-text">Forecast</span></a>
-      <a class="sb-item" id="nav-compliance" onclick="switchSection('compliance')"><span class="sb-icon">✅</span><span class="sb-text">Compliance</span></a>
-      <a class="sb-item" id="nav-email" onclick="switchSection('email')"><span class="sb-icon">📧</span><span class="sb-text">Email Report</span></a>
+      <a class="sb-item active" id="nav-dashboard" href="dashboard.php"><span class="sb-icon">📊</span><span class="sb-text">Dashboard</span></a>
+      <a class="sb-item" id="nav-reports" href="reports.php"><span class="sb-icon">📈</span><span class="sb-text">Reports</span></a>
+      <a class="sb-item" id="nav-users" href="user.php"><span class="sb-icon">👥</span><span class="sb-text">Users</span></a>
+      <a class="sb-item" id="nav-heatmap" href="heatmap.php"><span class="sb-icon">🔥</span><span class="sb-text">Risk Heatmap</span></a>
+      <a class="sb-item" id="nav-activity" href="activity.php"><span class="sb-icon">📋</span><span class="sb-text">Activity Log</span></a>
+      <a class="sb-item" id="nav-profile" href="settings.php"><span class="sb-icon">⚙️</span><span class="sb-text">Settings</span></a>
+      <a class="sb-item" id="nav-compare" href="compare.php"><span class="sb-icon">⚖️</span><span class="sb-text">Compare</span></a>
+      <a class="sb-item" id="nav-forecast" href="forecast.php"><span class="sb-icon">🔮</span><span class="sb-text">Forecast</span></a>
+      <a class="sb-item" id="nav-compliance" href="compliance.php"><span class="sb-icon">✅</span><span class="sb-text">Compliance</span></a>
+      <a class="sb-item" id="nav-email" href="email.php"><span class="sb-icon">📧</span><span class="sb-text">Email Report</span></a>
       <div class="sb-divider"></div>
       <div class="sb-label">Tools</div>
       <a class="sb-item" onclick="exportCSV()"><span class="sb-icon">⬇</span><span class="sb-text">Export CSV</span></a>
@@ -37,8 +85,8 @@
     </div>
     <div class="sb-footer">
       <div class="sb-user">
-        <div class="sb-avatar">A</div>
-        <div class="sb-user-info"><p id="sb-admin-name">Administrator</p><span id="sb-admin-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c6a7a2abafa886a5bfa4a3b4b5aeafa3aaa2e8a5a9ab">[email&#160;protected]</a></span></div>
+        <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+        <div class="sb-user-info"><p id="sb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></p><span id="sb-admin-email"><?php echo htmlspecialchars($user['email']); ?></span></div>
       </div>
       <button class="btn-sb-logout" onclick="doSignOut()">Sign Out</button>
     </div>
@@ -55,7 +103,7 @@
           <input type="text" class="topbar-search" id="global-search" placeholder="Search vendors, scores…" oninput="onGlobalSearch(this.value)" />
           <div class="search-results-panel hidden" id="search-results"></div>
         </div>
-        <span class="topbar-date" id="topbar-date"></span>
+        <span class="topbar-date" id="topbar-date"><?php echo date('D, M d, Y'); ?></span>
         <div class="notif-wrap">
           <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()">🔔<span class="notif-dot hidden" id="notif-dot"></span></button>
           <div class="notif-panel hidden" id="notif-panel">
@@ -70,7 +118,36 @@
 
     <div class="content">
       <div class="section-page active" id="sec-dashboard">
-        <div class="stats-row" id="stats-row"></div>
+        <div class="stats-row" id="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <div class="stat-value"><?php echo $stats['total_vendors']; ?></div>
+              <div class="stat-label">Total Vendors</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+              <div class="stat-value"><?php echo round($stats['avg_score'], 1); ?>%</div>
+              <div class="stat-label">Average Score</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-content">
+              <div class="stat-value"><?php echo $stats['high_risk_count']; ?></div>
+              <div class="stat-label">High Risk</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-content">
+              <div class="stat-value"><?php echo $stats['low_risk_count']; ?></div>
+              <div class="stat-label">Low Risk</div>
+            </div>
+          </div>
+        </div>
         <div class="charts-grid">
           <div class="card chart-card"><h3>📊 Users per Risk Level</h3><div class="chart-wrap sm"><canvas id="bar-chart"></canvas></div></div>
           <div class="card chart-card"><h3>🥧 Risk Distribution</h3><div class="chart-wrap sm"><canvas id="pie-chart"></canvas></div></div>
@@ -99,7 +176,23 @@
           <div style="overflow-x:auto">
             <table class="tbl">
               <thead><tr><th style="width:36px;"></th><th>#</th><th>Vendor</th><th>Score</th><th>Rank</th><th>Password</th><th>Phishing</th><th>Device</th><th>Network</th><th>Date</th><th>Action</th></tr></thead>
-              <tbody id="table-body"></tbody>
+              <tbody id="table-body">
+                <?php foreach ($recent_assessments as $index => $assessment): ?>
+                <tr>
+                  <td><input type="checkbox" class="bulk-check" data-id="<?php echo $assessment['id']; ?>"></td>
+                  <td><?php echo $index + 1; ?></td>
+                  <td><?php echo htmlspecialchars($assessment['vendor_name']); ?></td>
+                  <td><?php echo $assessment['score']; ?>%</td>
+                  <td><span class="rank-badge rank-<?php echo strtolower($assessment['rank']); ?>"><?php echo $assessment['rank']; ?></span></td>
+                  <td><?php echo $assessment['password_score']; ?>%</td>
+                  <td><?php echo $assessment['phishing_score']; ?>%</td>
+                  <td><?php echo $assessment['device_score']; ?>%</td>
+                  <td><?php echo $assessment['network_score']; ?>%</td>
+                  <td><?php echo date('M j, Y', strtotime($assessment['created_at'])); ?></td>
+                  <td><button class="btn btn-xs btn-primary" onclick="viewDetails(<?php echo $assessment['id']; ?>)">View</button></td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
             </table>
           </div>
         </div>
@@ -213,12 +306,12 @@
           <div class="card" style="padding:1.75rem;">
             <h3 class="profile-sec-title">Admin Account</h3>
             <div class="profile-avatar-wrap">
-              <div class="profile-avatar" id="profile-avatar">A</div>
-              <div><div style="font-weight:700;font-size:1.05rem;" id="profile-name-display">Administrator</div><div style="font-size:.82rem;color:var(--text-2);" id="profile-email-display"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="92f3f6fffbfcd2f1ebf0f7e0e1fafbf7fef6bcf1fdff">[email&#160;protected]</a></div></div>
+              <div class="profile-avatar" id="profile-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+              <div><div style="font-weight:700;font-size:1.05rem;" id="profile-name-display"><?php echo htmlspecialchars($user['full_name']); ?></div><div style="font-size:.82rem;color:var(--text-2);" id="profile-email-display"><?php echo htmlspecialchars($user['email']); ?></div></div>
             </div>
-            <div class="form-group" style="margin-top:1.25rem;"><label>Display Name</label><input type="text" id="profile-name" placeholder="Admin name" /></div>
-            <div class="form-group"><label>Email</label><input type="email" id="profile-email" readonly style="opacity:.6;cursor:not-allowed;" /></div>
-            <div class="form-group"><label>Organization</label><input type="text" id="profile-org" placeholder="Your organization" /></div>
+            <div class="form-group" style="margin-top:1.25rem;"><label>Display Name</label><input type="text" id="profile-name" placeholder="Admin name" value="<?php echo htmlspecialchars($user['full_name']); ?>" /></div>
+            <div class="form-group"><label>Email</label><input type="email" id="profile-email" readonly style="opacity:.6;cursor:not-allowed;" value="<?php echo htmlspecialchars($user['email']); ?>" /></div>
+            <div class="form-group"><label>Organization</label><input type="text" id="profile-org" placeholder="Your organization" value="<?php echo htmlspecialchars($user['store_name']); ?>" /></div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveProfile()">Save Changes</button>
           </div>
           <div style="display:flex;flex-direction:column;gap:1.25rem;">
@@ -253,12 +346,20 @@
           <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:1.5rem;align-items:center;margin-bottom:1.5rem;">
             <div>
               <label style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:block;margin-bottom:.5rem;">Vendor A</label>
-              <select class="filter-select" id="compare-a" onchange="renderComparison()" style="width:100%;padding:.65rem 1rem;border-radius:10px;"></select>
+              <select class="filter-select" id="compare-a" onchange="renderComparison()" style="width:100%;padding:.65rem 1rem;border-radius:10px;">
+                <?php foreach ($vendors as $vendor): ?>
+                <option value="<?php echo $vendor['id']; ?>"><?php echo htmlspecialchars($vendor['name']); ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
             <div style="font-size:1.5rem;text-align:center;color:var(--text-3);font-weight:700;">VS</div>
             <div>
               <label style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:block;margin-bottom:.5rem;">Vendor B</label>
-              <select class="filter-select" id="compare-b" onchange="renderComparison()" style="width:100%;padding:.65rem 1rem;border-radius:10px;"></select>
+              <select class="filter-select" id="compare-b" onchange="renderComparison()" style="width:100%;padding:.65rem 1rem;border-radius:10px;">
+                <?php foreach ($vendors as $vendor): ?>
+                <option value="<?php echo $vendor['id']; ?>"><?php echo htmlspecialchars($vendor['name']); ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
           </div>
           <div id="comparison-result"></div>
@@ -288,7 +389,11 @@
         <div class="card" style="padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
           <div class="table-toolbar" style="margin-bottom:1rem;">
             <h3 style="font-size:.9rem;font-weight:700;">Select Vendor</h3>
-            <select class="filter-select" id="compliance-vendor" onchange="renderCompliance()" style="min-width:220px;padding:.5rem 1rem;border-radius:9px;"></select>
+            <select class="filter-select" id="compliance-vendor" onchange="renderCompliance()" style="min-width:220px;padding:.5rem 1rem;border-radius:9px;">
+              <?php foreach ($vendors as $vendor): ?>
+              <option value="<?php echo $vendor['id']; ?>"><?php echo htmlspecialchars($vendor['name']); ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
           <div id="compliance-content"></div>
         </div>
@@ -302,7 +407,11 @@
             <h3 style="font-family:'Outfit',sans-serif;font-size:.92rem;font-weight:700;margin-bottom:1.25rem;">Compose Report Email</h3>
             <div class="form-group">
               <label>Vendor</label>
-              <select class="filter-select" id="email-vendor" onchange="updateEmailPreview()" style="width:100%;padding:.65rem 1rem;border-radius:9px;"></select>
+              <select class="filter-select" id="email-vendor" onchange="updateEmailPreview()" style="width:100%;padding:.65rem 1rem;border-radius:9px;">
+                <?php foreach ($vendors as $vendor): ?>
+                <option value="<?php echo $vendor['id']; ?>"><?php echo htmlspecialchars($vendor['name']); ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
             <div class="form-group">
               <label>Recipient Email</label>
@@ -345,6 +454,15 @@
   </div>
 </div>
 
-<script src="dashboard.js"></script>
+<script>
+// Pass PHP data to JavaScript
+const dashboardData = {
+    stats: <?php echo json_encode($stats); ?>,
+    recentAssessments: <?php echo json_encode($recent_assessments); ?>,
+    vendors: <?php echo json_encode($vendors); ?>,
+    user: <?php echo json_encode($user); ?>
+};
+</script>
+<script src="dashboard.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

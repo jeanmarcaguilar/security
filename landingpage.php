@@ -1233,7 +1233,7 @@ function verifyOTP() {
     
     // Determine redirect URL based on user role
     let redirect_url = currentUserRole === 'Admin' ? 
-      'http://localhost/security/Admin/dashboard.html?role=admin&user=' + currentUsername : 
+      'http://localhost/security/Admin/dashboard.php' : 
       'http://localhost/security/Client/index.html?role=' + currentUserRole.toLowerCase() + '&user=' + currentUsername;
     
     setTimeout(() => {

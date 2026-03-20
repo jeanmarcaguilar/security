@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Endpoint Test</h1>
+    <div id="results"></div>
+    
+    <script>
+    async function testAPI() {
+        const results = document.getElementById('results');
+        results.innerHTML = '<p>Testing API endpoints...</p>';
+        
+        try {
+            // Test direct API call
+            const response = await fetch('api.php?action=get_stats');
+            const status = response.status;
+            const text = await response.text();
+            
+            results.innerHTML = `
+                <h2>API Test Results:</h2>
+                <p><strong>Status:</strong> ${status}</p>
+                <p><strong>URL:</strong> api.php?action=get_stats</p>
+                <p><strong>Response:</strong></p>
+                <pre>${text}</pre>
+            `;
+        } catch (error) {
+            results.innerHTML = `
+                <h2>API Test Failed:</h2>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <p><strong>Current URL:</strong> ${window.location.href}</p>
+            `;
+        }
+    }
+    
+    // Run test when page loads
+    testAPI();
+    </script>
+</body>
+</html>

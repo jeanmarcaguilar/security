@@ -1,11 +1,132 @@
 // ══════════════════════════════════
-// MOCK DATA
+// API FUNCTIONS
 // ══════════════════════════════════
-const VENDORS = [
-  'Acme Logistics','BrightEdge Solutions','ClearPath Systems','Delta Dynamics',
-  'Echo Technologies','Frontier Supplies','GlobalNet Partners','HorizonTech',
-  'Integrated Dynamics','Javelin Corp','Keystone Ventures','Luminary Systems'
-];
+async function apiCall(action, params = {}) {
+  try {
+    const url = API_BASE + '?action=' + encodeURIComponent(action) + '&_=' + Date.now(); // Cache busting
+    console.log('API Call URL:', url); // Debug log
+    
+    const options = {
+      method: 'GET',
+      credentials: 'same-origin'
+    };
+    
+    if (Object.keys(params).length > 0) {
+      options.method = 'POST';
+      options.body = new FormData();
+      for (const [key, value] of Object.entries(params)) {
+        options.body.append(key, value);
+      }
+    }
+    
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Response Error:', response.status, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('API Error:', error);
+    toast('❌ Error: ' + error.message);
+    throw error;
+  }
+}
+
+async function loadDashboardData() {
+  try {
+    const [vendors, stats, assessments] = await Promise.all([
+      apiCall('get_vendors'),
+      apiCall('get_stats'),
+      apiCall('get_assessments')
+    ]);
+    
+    // Transform data to match expected structure
+    VENDORS_DATA = vendors.map(vendor => {
+      const vendorAssessments = assessments.filter(a => a.vendor_id === vendor.id);
+      return {
+        id: vendor.id,
+        name: vendor.name,
+        flagged: vendor.flagged || false,
+        history: vendorAssessments.map(assessment => ({
+          pct: assessment.score,
+          rank: assessment.rank,
+          date: assessment.created_at,
+          catPct: {
+            password: assessment.password_score || assessment.score,
+            phishing: assessment.phishing_score || assessment.score,
+            device: assessment.device_score || assessment.score,
+            network: assessment.network_score || assessment.score
+          }
+        })).sort((a, b) => new Date(b.date) - new Date(a.date))
+      };
+    });
+    
+    dashboardStats = stats;
+    
+    // Update stats display
+    updateStatsDisplay(stats);
+    
+    // Update charts
+    renderCharts();
+    
+    // Update tables
+    renderTable();
+    renderUsersTable();
+    
+    // Check for alerts
+    checkHighRiskAlerts();
+    
+    logActivity('refresh', '↻', 'Data Refreshed', 'Dashboard data loaded from server');
+    
+  } catch (error) {
+    console.error('Failed to load dashboard data:', error);
+  }
+}
+
+function updateStatsDisplay(stats) {
+  const statsRow = document.getElementById('stats-row');
+  if (!statsRow) return;
+  
+  statsRow.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-content">
+        <div class="stat-value">${stats.total_vendors || 0}</div>
+        <div class="stat-label">Total Vendors</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-content">
+        <div class="stat-value">${Math.round(stats.avg_score || 0)}%</div>
+        <div class="stat-label">Average Score</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⚠️</div>
+      <div class="stat-content">
+        <div class="stat-value">${stats.high_risk_count || 0}</div>
+        <div class="stat-label">High Risk</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-content">
+        <div class="stat-value">${stats.low_risk_count || 0}</div>
+        <div class="stat-label">Low Risk</div>
+      </div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════
+// CONFIGURATION
+// ══════════════════════════════════
+const API_BASE = 'api.php';
 
 const RANK_CFG = {
   A:{color:'#10D982',faint:'rgba(16,217,130,.12)',label:'Low Risk'},
@@ -20,22 +141,9 @@ function fmtDate(iso){return new Date(iso).toLocaleDateString('en-US',{month:'sh
 function fmtTime(iso){return new Date(iso).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}
 function clamp(v){return Math.max(0,Math.min(100,v))}
 
-function generateMockData(){
-  const now=Date.now(), vendors=[];
-  VENDORS.forEach((name,i)=>{
-    const assessmentCount=rnd(2,8), baseScore=rnd(30,95), history=[];
-    for(let a=0;a<assessmentCount;a++){
-      const drift=rnd(-15,15), pct=clamp(baseScore+drift);
-      const catPct={password:clamp(pct+rnd(-12,12)),phishing:clamp(pct+rnd(-15,10)),device:clamp(pct+rnd(-8,14)),network:clamp(pct+rnd(-10,12))};
-      history.push({date:new Date(now-(assessmentCount-a)*14*86400000+rnd(0,7)*86400000).toISOString(),pct,rank:getRank(pct),catPct,score:Math.round(pct*.36),max:36});
-    }
-    vendors.push({id:i,name,history,flagged:false});
-  });
-  return vendors;
-}
-
-let VENDORS_DATA=[], barChart=null, pieChart=null, lineChart=null, barChart2=null, pieChart2=null, sidebarCollapsed=false;
+let VENDORS_DATA = [], barChart=null, pieChart=null, lineChart=null, barChart2=null, pieChart2=null, sidebarCollapsed=false;
 let selectedRows = new Set();
+let dashboardStats = {};
 
 // ══════════════════════════════════
 // THEME
@@ -193,18 +301,15 @@ function bootApp(){
   const theme=localStorage.getItem('cs_admin_theme')||'dark';
   applyTheme(theme==='dark');
 
-  const stored=localStorage.getItem('cs_admin_vendors');
-  VENDORS_DATA=stored?JSON.parse(stored):generateMockData();
-  if(!stored)localStorage.setItem('cs_admin_vendors',JSON.stringify(VENDORS_DATA));
-
   document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 
-  // Load profile
-  const prof=JSON.parse(localStorage.getItem('cs_admin_profile')||'{}');
-  const sbName=document.getElementById('sb-admin-name');
-  const sbEmail=document.getElementById('sb-admin-email');
-  if(sbName)sbName.textContent=prof.name||'Administrator';
-  if(sbEmail)sbEmail.textContent=prof.email||'admin@cybershield.com';
+  // Load profile from PHP data if available
+  if (typeof dashboardData !== 'undefined' && dashboardData.user) {
+    const sbName=document.getElementById('sb-admin-name');
+    const sbEmail=document.getElementById('sb-admin-email');
+    if(sbName)sbName.textContent=dashboardData.user.full_name;
+    if(sbEmail)sbEmail.textContent=dashboardData.user.email;
+  }
 
   // Seed prefs
   const prefAutoRefresh=document.getElementById('pref-autorefresh');
@@ -213,12 +318,9 @@ function bootApp(){
   if(prefAlerts)prefAlerts.checked=getPref('alerts');
 
   renderNotifBadge();
-  // Remove login activity logging
 
-  // Check high-risk vendors on boot
-  checkHighRiskAlerts();
-
-  renderAll();
+  // Load data from server
+  loadDashboardData();
 }
 
 function initApp(){
@@ -245,13 +347,9 @@ function checkHighRiskAlerts(){
 }
 
 function refreshData(){
-  VENDORS_DATA=generateMockData();
-  localStorage.setItem('cs_admin_vendors',JSON.stringify(VENDORS_DATA));
-  selectedRows.clear();
-  renderAll();
-  checkHighRiskAlerts();
+  loadDashboardData();
   toast('🔄 Data refreshed!');
-  logActivity('refresh','↻','Data Refreshed','Vendor data regenerated');
+  logActivity('refresh','↻','Data Refreshed','Dashboard data loaded from server');
 }
 
 function renderAll(){
