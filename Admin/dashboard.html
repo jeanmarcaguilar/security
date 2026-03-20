@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CyberShield — Admin Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="dashboard.css"/>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div id="app" class="hidden">
+  <div id="sidebar">
+    <div class="sb-brand">
+      <div class="shield">🛡️</div>
+      <div class="sb-brand-text"><h2>CyberShield</h2><span>Admin Panel</span></div>
+      <button class="sb-toggle" onclick="toggleSidebar()" title="Collapse">⇤</button>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Navigation</div>
+      <a class="sb-item active" id="nav-dashboard" onclick="switchSection('dashboard')"><span class="sb-icon">📊</span><span class="sb-text">Dashboard</span></a>
+      <a class="sb-item" id="nav-reports" onclick="switchSection('reports')"><span class="sb-icon">📈</span><span class="sb-text">Reports</span></a>
+      <a class="sb-item" id="nav-users" onclick="switchSection('users')"><span class="sb-icon">👥</span><span class="sb-text">Users</span></a>
+      <a class="sb-item" id="nav-heatmap" onclick="switchSection('heatmap')"><span class="sb-icon">🔥</span><span class="sb-text">Risk Heatmap</span></a>
+      <a class="sb-item" id="nav-activity" onclick="switchSection('activity')"><span class="sb-icon">📋</span><span class="sb-text">Activity Log</span></a>
+      <a class="sb-item" id="nav-profile" onclick="switchSection('profile')"><span class="sb-icon">⚙️</span><span class="sb-text">Settings</span></a>
+      <a class="sb-item" id="nav-compare" onclick="switchSection('compare')"><span class="sb-icon">⚖️</span><span class="sb-text">Compare</span></a>
+      <a class="sb-item" id="nav-forecast" onclick="switchSection('forecast')"><span class="sb-icon">🔮</span><span class="sb-text">Forecast</span></a>
+      <a class="sb-item" id="nav-compliance" onclick="switchSection('compliance')"><span class="sb-icon">✅</span><span class="sb-text">Compliance</span></a>
+      <a class="sb-item" id="nav-email" onclick="switchSection('email')"><span class="sb-icon">📧</span><span class="sb-text">Email Report</span></a>
+      <div class="sb-divider"></div>
+      <div class="sb-label">Tools</div>
+      <a class="sb-item" onclick="exportCSV()"><span class="sb-icon">⬇</span><span class="sb-text">Export CSV</span></a>
+      <a class="sb-item" onclick="exportPDF()"><span class="sb-icon">📄</span><span class="sb-text">Export PDF</span></a>
+      <a class="sb-item" onclick="refreshData()"><span class="sb-icon">↻</span><span class="sb-text">Refresh Data</span></a>
+    </div>
+    <div class="sb-footer">
+      <div class="sb-user">
+        <div class="sb-avatar">A</div>
+        <div class="sb-user-info"><p id="sb-admin-name">Administrator</p><span id="sb-admin-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c6a7a2abafa886a5bfa4a3b4b5aeafa3aaa2e8a5a9ab">[email&#160;protected]</a></span></div>
+      </div>
+      <button class="btn-sb-logout" onclick="doSignOut()">Sign Out</button>
+    </div>
+  </div>
+  <div id="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h2 id="topbar-title">Dashboard Overview</h2>
+        <p id="topbar-sub">Vendor cybersecurity risk summary</p>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-search-wrap">
+          <span class="topbar-search-icon">🔍</span>
+          <input type="text" class="topbar-search" id="global-search" placeholder="Search vendors, scores…" oninput="onGlobalSearch(this.value)" />
+          <div class="search-results-panel hidden" id="search-results"></div>
+        </div>
+        <span class="topbar-date" id="topbar-date"></span>
+        <div class="notif-wrap">
+          <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()">🔔<span class="notif-dot hidden" id="notif-dot"></span></button>
+          <div class="notif-panel hidden" id="notif-panel">
+            <div class="notif-header"><span>Alerts</span><button onclick="clearNotifs()">Clear all</button></div>
+            <div id="notif-list"><p class="notif-empty">No alerts</p></div>
+          </div>
+        </div>
+        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        <button class="btn btn-secondary btn-sm" onclick="refreshData()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="section-page active" id="sec-dashboard">
+        <div class="stats-row" id="stats-row"></div>
+        <div class="charts-grid">
+          <div class="card chart-card"><h3>📊 Users per Risk Level</h3><div class="chart-wrap sm"><canvas id="bar-chart"></canvas></div></div>
+          <div class="card chart-card"><h3>🥧 Risk Distribution</h3><div class="chart-wrap sm"><canvas id="pie-chart"></canvas></div></div>
+          <div class="card chart-card chart-full"><h3>📈 System Risk Trend Over Time</h3><div class="chart-wrap md"><canvas id="line-chart"></canvas></div></div>
+        </div>
+        <div class="sec-header"><h2>Advanced Analytics</h2><p>Aggregated insights across all vendors.</p></div>
+        <div class="analytics-grid" id="analytics-grid"></div>
+        <div class="card table-card">
+          <div class="table-toolbar">
+            <h3>Recent Assessments</h3>
+            <div class="filter-row">
+              <label class="bulk-check-label"><input type="checkbox" id="bulk-all" onchange="toggleBulkAll(this)"> All</label>
+              <select class="filter-select" id="filter-rank" onchange="renderTable()">
+                <option value="">All Ranks</option>
+                <option value="A">A — Low Risk</option>
+                <option value="B">B — Moderate</option>
+                <option value="C">C — High Risk</option>
+                <option value="D">D — Critical</option>
+                <option value="CD">⚠ High + Critical</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="resetFilter()">Clear</button>
+              <button class="btn btn-secondary btn-sm" id="bulk-action-btn" style="display:none;" onclick="bulkExportSelected()">⬇ Export Selected</button>
+              <button class="btn btn-secondary btn-sm" id="bulk-flag-btn" style="display:none;" onclick="bulkFlagSelected()">🚩 Flag Selected</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl">
+              <thead><tr><th style="width:36px;"></th><th>#</th><th>Vendor</th><th>Score</th><th>Rank</th><th>Password</th><th>Phishing</th><th>Device</th><th>Network</th><th>Date</th><th>Action</th></tr></thead>
+              <tbody id="table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTS SECTION -->
+      <div class="section-page" id="sec-reports">
+        <div class="sec-header"><h2>Reports &amp; Export</h2><p>Generate and download assessment reports.</p></div>
+        <div class="card" style="padding:1.75rem;margin-bottom:1.75rem">
+          <h3 style="font-family:'Outfit',sans-serif;font-size:.92rem;font-weight:700;margin-bottom:1rem;color:var(--text)">Export Options</h3>
+          <div class="export-bar">
+            <button class="btn btn-primary" onclick="exportCSV()">⬇ Export All Data (CSV)</button>
+            <button class="btn btn-secondary" onclick="exportPDF()">📄 Generate PDF Report</button>
+          </div>
+          <p style="font-size:.76rem;color:var(--text-3);margin-top:1rem;line-height:1.5">CSV exports all vendor records. PDF includes risk distribution summary, vendor breakdown, and top findings.</p>
+        </div>
+        <div class="charts-grid">
+          <div class="card chart-card"><h3>📊 Risk Level Breakdown</h3><div class="chart-wrap sm"><canvas id="bar-chart-2"></canvas></div></div>
+          <div class="card chart-card"><h3>🥧 Distribution Overview</h3><div class="chart-wrap sm"><canvas id="pie-chart-2"></canvas></div></div>
+        </div>
+        <div class="card table-card">
+          <div class="table-toolbar">
+            <h3>Full Vendor Report</h3>
+            <select class="filter-select" id="filter-rank-2" onchange="renderReportTable()">
+              <option value="">All Ranks</option>
+              <option value="A">A — Low</option><option value="B">B — Moderate</option>
+              <option value="C">C — High</option><option value="D">D — Critical</option>
+              <option value="CD">⚠ High + Critical</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl"><thead><tr><th>#</th><th>Vendor</th><th>Score %</th><th>Rank</th><th>Date</th></tr></thead><tbody id="report-table-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- USERS SECTION -->
+      <div class="section-page" id="sec-users">
+        <div class="sec-header"><h2>User Management</h2><p>View all vendors, their latest scores, and full assessment history.</p></div>
+        <div class="card" style="padding:1.5rem;margin-bottom:1.5rem">
+          <div class="table-toolbar">
+            <h3>All Vendors</h3>
+            <div class="filter-row">
+              <input type="text" class="filter-select" id="users-search" placeholder="🔍 Search vendor…" oninput="renderUsersTable()" style="min-width:180px;" />
+              <select class="filter-select" id="filter-users" onchange="renderUsersTable()">
+                <option value="">All Risk Levels</option>
+                <option value="A">A — Low Risk</option><option value="B">B — Moderate</option>
+                <option value="C">C — High Risk</option><option value="D">D — Critical</option>
+              </select>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl"><thead><tr><th>#</th><th>Vendor Name</th><th>Latest Score</th><th>Latest Rank</th><th>Assessments</th><th>Last Active</th><th>Flagged</th><th>Action</th></tr></thead><tbody id="users-table-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- HEATMAP SECTION -->
+      <div class="section-page" id="sec-heatmap">
+        <div class="sec-header"><h2>🔥 Risk Heatmap</h2><p>Visual map of weak areas per vendor across all categories.</p></div>
+        <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
+          <div class="table-toolbar" style="margin-bottom:1.25rem;">
+            <h3 style="font-size:.9rem;font-weight:700;">Category Performance Matrix</h3>
+            <div class="filter-row">
+              <select class="filter-select" id="heatmap-sort" onchange="renderHeatmap()">
+                <option value="score">Sort by Score</option>
+                <option value="name">Sort by Name</option>
+                <option value="password">Sort by Password</option>
+                <option value="phishing">Sort by Phishing</option>
+                <option value="device">Sort by Device</option>
+                <option value="network">Sort by Network</option>
+              </select>
+            </div>
+          </div>
+          <div class="heatmap-legend">
+            <span class="hm-legend-label">Poor</span>
+            <div class="hm-legend-bar"></div>
+            <span class="hm-legend-label">Excellent</span>
+          </div>
+          <div style="overflow-x:auto;"><div id="heatmap-grid"></div></div>
+        </div>
+      </div>
+
+      <!-- ACTIVITY LOG SECTION -->
+      <div class="section-page" id="sec-activity">
+        <div class="sec-header"><h2>📋 Activity Log</h2><p>History of admin actions and system events.</p></div>
+        <div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+          <div class="table-toolbar" style="margin-bottom:1rem;">
+            <h3 style="font-size:.9rem;font-weight:700;">Recent Activity</h3>
+            <div class="filter-row">
+              <select class="filter-select" id="activity-filter" onchange="renderActivityLog()">
+                <option value="">All Events</option>
+                <option value="export">Export</option>
+                <option value="flag">Flag</option>
+                <option value="refresh">Refresh</option>
+                <option value="alert">Alert</option>
+                <option value="theme">Theme</option>
+                <option value="profile">Profile</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="clearActivityLog()">Clear Log</button>
+            </div>
+          </div>
+          <div id="activity-list"></div>
+        </div>
+      </div>
+
+      <!-- PROFILE / SETTINGS SECTION -->
+      <div class="section-page" id="sec-profile">
+        <div class="sec-header"><h2>⚙️ Admin Settings</h2><p>Manage your account and dashboard preferences.</p></div>
+        <div class="profile-grid">
+          <div class="card" style="padding:1.75rem;">
+            <h3 class="profile-sec-title">Admin Account</h3>
+            <div class="profile-avatar-wrap">
+              <div class="profile-avatar" id="profile-avatar">A</div>
+              <div><div style="font-weight:700;font-size:1.05rem;" id="profile-name-display">Administrator</div><div style="font-size:.82rem;color:var(--text-2);" id="profile-email-display"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="92f3f6fffbfcd2f1ebf0f7e0e1fafbf7fef6bcf1fdff">[email&#160;protected]</a></div></div>
+            </div>
+            <div class="form-group" style="margin-top:1.25rem;"><label>Display Name</label><input type="text" id="profile-name" placeholder="Admin name" /></div>
+            <div class="form-group"><label>Email</label><input type="email" id="profile-email" readonly style="opacity:.6;cursor:not-allowed;" /></div>
+            <div class="form-group"><label>Organization</label><input type="text" id="profile-org" placeholder="Your organization" /></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveProfile()">Save Changes</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1.25rem;">
+            <div class="card" style="padding:1.5rem;">
+              <h3 class="profile-sec-title">System Stats</h3>
+              <div id="profile-stats-grid" class="profile-stats-grid"></div>
+            </div>
+            <div class="card" style="padding:1.5rem;">
+              <h3 class="profile-sec-title">Preferences</h3>
+              <div class="pref-row">
+                <div><div style="font-size:.88rem;font-weight:600;">Dark Mode</div><div style="font-size:.76rem;color:var(--text-2);">Toggle light/dark theme</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="pref-dark" checked onchange="toggleTheme()"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="pref-row">
+                <div><div style="font-size:.88rem;font-weight:600;">High-Risk Alerts</div><div style="font-size:.76rem;color:var(--text-2);">Notify on critical vendor scores</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="pref-alerts" checked onchange="savePref('alerts',this.checked)"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="pref-row">
+                <div><div style="font-size:.88rem;font-weight:600;">Auto-Refresh</div><div style="font-size:.76rem;color:var(--text-2);">Refresh data on dashboard load</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="pref-autorefresh"><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- VENDOR COMPARISON SECTION -->
+      <div class="section-page" id="sec-compare">
+        <div class="sec-header"><h2>⚖️ Vendor Comparison</h2><p>Compare two vendors side by side across all risk categories.</p></div>
+        <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:1.5rem;align-items:center;margin-bottom:1.5rem;">
+            <div>
+              <label style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:block;margin-bottom:.5rem;">Vendor A</label>
+              <select class="filter-select" id="compare-a" onchange="renderComparison()" style="width:100%;padding:.65rem 1rem;border-radius:10px;"></select>
+            </div>
+            <div style="font-size:1.5rem;text-align:center;color:var(--text-3);font-weight:700;">VS</div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:block;margin-bottom:.5rem;">Vendor B</label>
+              <select class="filter-select" id="compare-b" onchange="renderComparison()" style="width:100%;padding:.65rem 1rem;border-radius:10px;"></select>
+            </div>
+          </div>
+          <div id="comparison-result"></div>
+        </div>
+      </div>
+
+      <!-- RISK FORECAST SECTION -->
+      <div class="section-page" id="sec-forecast">
+        <div class="sec-header"><h2>🔮 Risk Score Forecast</h2><p>Predicted next score based on each vendor's historical trend.</p></div>
+        <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+            <h3 style="font-size:.9rem;font-weight:700;">Trend-Based Forecast (next assessment)</h3>
+            <div style="display:flex;gap:.5rem;">
+              <button class="btn btn-secondary btn-sm forecast-filter active" onclick="filterForecast('all',this)">All</button>
+              <button class="btn btn-secondary btn-sm forecast-filter" onclick="filterForecast('improving',this)">↑ Improving</button>
+              <button class="btn btn-secondary btn-sm forecast-filter" onclick="filterForecast('declining',this)">↓ Declining</button>
+              <button class="btn btn-secondary btn-sm forecast-filter" onclick="filterForecast('atrisk',this)">⚠ At Risk</button>
+            </div>
+          </div>
+          <div id="forecast-grid"></div>
+        </div>
+      </div>
+
+      <!-- COMPLIANCE CHECKLIST SECTION -->
+      <div class="section-page" id="sec-compliance">
+        <div class="sec-header"><h2>✅ Compliance Checklist</h2><p>Per-vendor action items based on their weak areas.</p></div>
+        <div class="card" style="padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
+          <div class="table-toolbar" style="margin-bottom:1rem;">
+            <h3 style="font-size:.9rem;font-weight:700;">Select Vendor</h3>
+            <select class="filter-select" id="compliance-vendor" onchange="renderCompliance()" style="min-width:220px;padding:.5rem 1rem;border-radius:9px;"></select>
+          </div>
+          <div id="compliance-content"></div>
+        </div>
+      </div>
+
+      <!-- EMAIL REPORT SECTION -->
+      <div class="section-page" id="sec-email">
+        <div class="sec-header"><h2>📧 Send Email Report</h2><p>Send a simulated risk assessment report to a vendor.</p></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+          <div class="card" style="padding:1.75rem;">
+            <h3 style="font-family:'Outfit',sans-serif;font-size:.92rem;font-weight:700;margin-bottom:1.25rem;">Compose Report Email</h3>
+            <div class="form-group">
+              <label>Vendor</label>
+              <select class="filter-select" id="email-vendor" onchange="updateEmailPreview()" style="width:100%;padding:.65rem 1rem;border-radius:9px;"></select>
+            </div>
+            <div class="form-group">
+              <label>Recipient Email</label>
+              <input type="email" id="email-to" placeholder="vendor@company.com" oninput="updateEmailPreview()" />
+            </div>
+            <div class="form-group">
+              <label>Subject</label>
+              <input type="text" id="email-subject" value="CyberShield Risk Assessment Report" oninput="updateEmailPreview()" />
+            </div>
+            <div class="form-group">
+              <label>Additional Note (optional)</label>
+              <textarea id="email-note" rows="3" placeholder="Add a personal message…" oninput="updateEmailPreview()" style="width:100%;padding:.72rem 1rem;background:var(--navy-3);border:1.5px solid var(--border-2);border-radius:9px;font-family:inherit;font-size:.88rem;color:var(--text);outline:none;resize:vertical;"></textarea>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="sendEmailReport()">📧 Send Report →</button>
+          </div>
+          <div class="card" style="padding:1.75rem;">
+            <h3 style="font-family:'Outfit',sans-serif;font-size:.92rem;font-weight:700;margin-bottom:1.25rem;">Email Preview</h3>
+            <div id="email-preview" class="email-preview-box"></div>
+          </div>
+        </div>
+        <!-- Sent log -->
+        <div class="card" style="padding:1.5rem;margin-top:1.5rem;">
+          <h3 style="font-size:.9rem;font-weight:700;margin-bottom:1rem;">📬 Sent Reports Log</h3>
+          <div id="email-sent-log"><p style="color:var(--text-3);font-size:.84rem;">No reports sent yet.</p></div>
+        </div>
+      </div>
+
+    </div><!-- end content -->
+  </div><!-- end main -->
+</div><!-- end app -->
+
+<!-- VENDOR DETAIL MODAL -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="modal-title">Vendor Detail</h3>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

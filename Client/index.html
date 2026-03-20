@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CyberShield — Hygiene Assessment</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="bg-grid"></div>
+<!-- APP -->
+<div id="app" class="hidden">
+
+  <nav id="main-nav">
+    <a class="nav-brand" href="#"><div class="shield">🛡️</div>CyberShield</a>
+    <div class="nav-right">
+      <div class="notif-wrap">
+        <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()">🔔<span class="notif-dot hidden" id="notif-dot"></span></button>
+        <div class="notif-panel hidden" id="notif-panel">
+          <div class="notif-header"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
+          <div id="notif-list"><p class="notif-empty">No notifications</p></div>
+        </div>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+      <div class="nav-user" onclick="showPage('profile')" style="cursor:pointer;" title="Profile">
+        <div class="avatar" id="nav-avatar">D</div>
+        <span id="nav-name" style="padding-right:.3rem;">Demo User</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="lang-btn" onclick="cycleLang()" title="Language" style="font-size:.8rem;padding:.3rem .7rem;">🌐 EN</button>
+      <button class="btn btn-secondary btn-sm" id="a11y-btn" onclick="toggleAccessibility()" title="Accessibility" style="font-size:.8rem;padding:.3rem .7rem;">♿</button>
+      <button class="btn-logout" onclick="doLogout()">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page hidden">
+    <div class="container fade-in">
+      <div class="dash-header">
+        <div>
+          <h2>Good day, <span id="dash-greeting">User</span> 👋</h2>
+          <p>Here's your cybersecurity hygiene overview for today.</p>
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-secondary btn-sm" onclick="showPage('leaderboard')">🏆 Leaderboard</button>
+          <button class="btn btn-secondary btn-sm" onclick="showPage('results')">📊 View Results</button>
+          <button class="btn btn-primary" onclick="startAssessment()">🚀 Start Assessment</button>
+        </div>
+      </div>
+      <div class="stats-grid fade-in" id="stats-grid">
+        <div class="card stat-card"><div class="stat-label">Latest Score</div><div class="stat-val mono" id="stat-score">—</div><div class="stat-sub" id="stat-rank-text">No assessments yet</div></div>
+        <div class="card stat-card"><div class="stat-label">Risk Rank</div><div class="stat-val" id="stat-rank">—</div><div class="stat-sub" id="stat-rank-sub">—</div></div>
+        <div class="card stat-card"><div class="stat-label">Assessments Done</div><div class="stat-val mono" id="stat-count">0</div><div class="stat-sub">Total sessions</div></div>
+        <div class="card stat-card"><div class="stat-label">Trend</div><div class="stat-val" id="stat-trend">—</div><div class="stat-sub" id="stat-trend-sub">—</div></div>
+      </div>
+      <div class="card" style="padding:1.4rem 1.75rem;margin-bottom:1.5rem;">
+        <div class="section-title" style="margin-bottom:.75rem;">🏅 Your Badges</div>
+        <div id="dash-badges" class="badges-row"></div>
+      </div>
+      <div class="quick-actions">
+        <div class="card action-card fade-in" onclick="startAssessment()"><div class="action-icon blue">📝</div><div><h3>New Assessment</h3><p>Take a fresh 12-question cybersecurity quiz</p></div></div>
+        <div class="card action-card fade-in" onclick="showPage('results')"><div class="action-icon green">📈</div><div><h3>View Detailed Results</h3><p>Charts, scores &amp; AI recommendations</p></div></div>
+      </div>
+      <div class="card chart-card" style="margin-bottom:1.5rem;"><h3>📈 Risk Score Trend</h3><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></div>
+      <div class="card" style="padding:1.75rem;"><div class="section-title">Assessment History</div><div id="history-container"><p style="color:var(--text-2);font-size:.88rem;padding:1rem 0;">No assessments taken yet. Start one now!</p></div></div>
+    </div>
+  </div>
+
+  <!-- ASSESSMENT -->
+  <div id="page-assessment" class="page hidden">
+    <div class="container fade-in">
+      <div class="assess-header">
+        <h2>Cyber Hygiene Assessment</h2>
+        <div class="progress-meta">
+          <span id="progress-label">Question 1 of 12</span>
+          <div style="display:flex;align-items:center;gap:1rem;">
+            <div class="timer-wrap" id="timer-wrap">
+              <span class="timer-icon">⏱</span>
+              <span class="timer-val" id="timer-val">30</span>
+            </div>
+            <span class="progress-pct" id="progress-pct">0%</span>
+          </div>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+        <div class="timer-bar-wrap"><div class="timer-bar-fill" id="timer-bar-fill"></div></div>
+      </div>
+      <div class="card q-card" id="q-card"></div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="page-results" class="page hidden">
+    <div class="container fade-in">
+      <div class="export-bar">
+        <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="exportPDF()">⬇ Export PDF</button>
+        <button class="btn btn-secondary btn-sm" onclick="printResult()">🖨 Print</button>
+        <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
+      </div>
+      <div class="result-hero" id="result-hero"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+      <div class="card" id="badges-card" style="padding:1.5rem;margin-bottom:1.5rem;display:none;">
+        <h3 style="font-size:.95rem;font-weight:700;margin-bottom:1rem;">🏅 Badges Earned</h3>
+        <div id="result-badges" class="badges-row"></div>
+      </div>
+      <div class="results-grid">
+        <div class="card" style="padding:1.75rem;">
+          <h3 style="font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:1.25rem;">📊 Category Breakdown</h3>
+          <div style="position:relative;height:270px;"><canvas id="radar-chart"></canvas></div>
+        </div>
+        <div class="card reco-card" style="padding:1.75rem;"><h3>💡 AI Recommendations</h3><ul class="reco-list" id="reco-list"></ul></div>
+      </div>
+      <!-- Review Mode -->
+      <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <h3 style="font-size:.95rem;font-weight:700;">🔍 Review Your Answers</h3>
+          <button class="btn btn-secondary btn-sm" id="review-toggle-btn" onclick="toggleReview()">Show Review</button>
+        </div>
+        <div id="review-container" class="hidden"></div>
+      </div>
+      <div class="card chart-card" style="margin-bottom:1.5rem;"><h3>📈 Your Progress Over Time</h3><div class="chart-wrap"><canvas id="trend-chart-2"></canvas></div></div>
+      <div class="card" style="padding:1.75rem;margin-bottom:2rem;">
+        <div class="video-section">
+          <h3>🎥 Educational Resources</h3>
+          <p>Curated videos tailored to your weakest areas.</p>
+          <div class="video-grid" id="video-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="page-profile" class="page hidden">
+    <div class="container fade-in">
+      <div class="dash-header">
+        <div><h2>👤 Profile &amp; Settings</h2><p>Manage your account and preferences.</p></div>
+        <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
+      </div>
+      <div class="profile-grid">
+        <div class="card" style="padding:1.75rem;">
+          <h3 class="profile-sec-title">Account Information</h3>
+          <div class="profile-avatar-wrap">
+            <div class="profile-avatar" id="profile-avatar-big">D</div>
+            <div><div style="font-weight:700;font-size:1.05rem;" id="profile-name-display">Demo User</div><div style="font-size:.82rem;color:var(--text-2);" id="profile-email-display"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e783828a88a784888a9786899ec984888a">[email&#160;protected]</a></div></div>
+          </div>
+          <div class="form-group" style="margin-top:1.25rem;"><label>Display Name</label><input type="text" id="profile-name" placeholder="Your name" /></div>
+          <div class="form-group"><label>Email</label><input type="email" id="profile-email" placeholder="you@company.com" readonly style="opacity:.6;cursor:not-allowed;" /></div>
+          <div class="form-group"><label>Company / Organization</label><input type="text" id="profile-company" placeholder="Your company name" /></div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveProfile()">Save Changes</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div class="card" style="padding:1.5rem;"><h3 class="profile-sec-title">My Stats</h3><div id="profile-stats-grid" class="profile-stats-grid"></div></div>
+          <div class="card" style="padding:1.5rem;"><h3 class="profile-sec-title">My Badges</h3><div id="profile-badges" class="badges-row" style="flex-wrap:wrap;gap:.6rem;margin-top:.75rem;"></div></div>
+          <div class="card" style="padding:1.5rem;">
+            <h3 class="profile-sec-title">Preferences</h3>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;">Dark Mode</div><div style="font-size:.76rem;color:var(--text-2);">Toggle light/dark theme</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="pref-dark" checked onchange="toggleTheme()"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;">Question Timer</div><div style="font-size:.76rem;color:var(--text-2);">Enable 30s countdown per question</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="pref-timer" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="pref_notif">Risk Notifications</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="pref_notif_sub">Alert when score is high/critical</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="pref-notif" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="pref_a11y">Accessibility Mode</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="pref_a11y_sub">Larger text &amp; high contrast</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="pref-a11y" onchange="setAccessibility(this.checked)"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="pref_lang">Language</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="pref_lang_sub">Choose display language</div></div>
+              <select id="pref-lang-select" class="filter-select" onchange="setLanguage(this.value)" style="border-radius:8px;padding:.35rem .65rem;">
+                <option value="en">🇺🇸 English</option>
+                <option value="fil">🇵🇭 Filipino</option>
+              </select>
+            </div>
+          </div>
+          <div class="card" style="padding:1.5rem;margin-top:0;">
+            <h3 class="profile-sec-title" data-i18n="legal_title">Legal</h3>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="legal_terms">Terms &amp; Privacy Policy</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="legal_terms_sub">View our terms of service</div></div>
+              <button class="btn btn-secondary btn-sm" onclick="showPage('terms')" data-i18n="legal_view_btn">View →</button>
+            </div>
+            <div class="pref-row">
+              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="legal_clear">Clear All Data</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="legal_clear_sub">Remove all stored assessment data</div></div>
+              <button class="btn btn-secondary btn-sm" onclick="clearAllData()" style="color:var(--red);" data-i18n="legal_clear_btn">🗑 Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="page-leaderboard" class="page hidden">
+    <div class="container fade-in">
+      <div class="dash-header">
+        <div><h2>🏆 Leaderboard</h2><p>See how you rank against other vendors.</p></div>
+        <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
+      </div>
+      <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+          <h3 style="font-size:.95rem;font-weight:700;">Vendor Rankings</h3>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm lb-filter active" onclick="filterLeaderboard('all',this)">All</button>
+            <button class="btn btn-secondary btn-sm lb-filter" onclick="filterLeaderboard('A',this)">🟢 Low Risk</button>
+            <button class="btn btn-secondary btn-sm lb-filter" onclick="filterLeaderboard('B',this)">🟡 Moderate</button>
+            <button class="btn btn-secondary btn-sm lb-filter" onclick="filterLeaderboard('CD',this)">🔴 High Risk</button>
+          </div>
+        </div>
+        <div id="leaderboard-list"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- FORGOT PASSWORD MODAL -->
+  <div id="forgot-overlay" class="fp-overlay hidden" onclick="closeForgotOverlay(event)">
+    <div class="fp-card">
+      <div class="fp-step" id="fp-step-1">
+        <h3 data-i18n="fp_title">Reset Password</h3>
+        <p data-i18n="fp_sub">Enter your registered email address and we'll send you a reset link.</p>
+        <div class="form-group" style="margin-top:1rem;">
+          <label data-i18n="fp_email_label">Email Address</label>
+          <input type="email" id="fp-email" placeholder="you@company.com" />
+        </div>
+        <div id="fp-error" style="color:var(--red);font-size:.82rem;display:none;margin-bottom:.75rem;">Email not found in our system.</div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="doForgotStep1()" data-i18n="fp_send_btn">Send Reset Link →</button>
+        <button class="btn-link" style="margin-top:.75rem;display:block;text-align:center;" onclick="closeForgotPassword()" data-i18n="fp_back">← Back to Sign In</button>
+      </div>
+      <div class="fp-step hidden" id="fp-step-2">
+        <div class="fp-success-icon">📧</div>
+        <h3 data-i18n="fp_sent_title">Check Your Email</h3>
+        <p data-i18n="fp_sent_sub">A password reset link has been sent to <strong id="fp-sent-email"></strong>. Check your inbox and follow the instructions.</p>
+        <div class="fp-code-box">
+          <div style="font-size:.75rem;color:var(--text-2);margin-bottom:.4rem;" data-i18n="fp_demo_note">Demo Reset Code:</div>
+          <div class="fp-code" id="fp-code">CS-RESET-2024</div>
+        </div>
+        <div class="form-group" style="margin-top:1rem;">
+          <label data-i18n="fp_code_label">Enter Reset Code</label>
+          <input type="text" id="fp-code-input" placeholder="CS-RESET-XXXX" />
+        </div>
+        <div id="fp-code-error" style="color:var(--red);font-size:.82rem;display:none;margin-bottom:.75rem;">Invalid code. Please try again.</div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="doForgotStep2()" data-i18n="fp_verify_btn">Verify Code →</button>
+      </div>
+      <div class="fp-step hidden" id="fp-step-3">
+        <div class="fp-success-icon">🔐</div>
+        <h3 data-i18n="fp_new_pass_title">Set New Password</h3>
+        <p data-i18n="fp_new_pass_sub">Choose a strong new password for your account.</p>
+        <div class="form-group" style="margin-top:1rem;">
+          <label data-i18n="fp_new_pass_label">New Password</label>
+          <input type="password" id="fp-newpass" placeholder="••••••••" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="fp_confirm_label">Confirm Password</label>
+          <input type="password" id="fp-confirmpass" placeholder="••••••••" />
+        </div>
+        <div class="pass-strength-bar"><div id="pass-strength-fill" class="pass-strength-fill"></div></div>
+        <div id="pass-strength-label" class="pass-strength-label"></div>
+        <div id="fp-pass-error" style="color:var(--red);font-size:.82rem;display:none;margin-bottom:.75rem;"></div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.75rem;" onclick="doForgotStep3()" data-i18n="fp_reset_btn">Reset Password →</button>
+      </div>
+      <div class="fp-step hidden" id="fp-step-4">
+        <div class="fp-success-icon">✅</div>
+        <h3 data-i18n="fp_done_title">Password Reset!</h3>
+        <p data-i18n="fp_done_sub">Your password has been updated. You can now sign in with your new password.</p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:1rem;" onclick="closeForgotPassword()" data-i18n="fp_signin_btn">← Back to Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TERMS & PRIVACY PAGE -->
+  <div id="page-terms" class="page hidden">
+    <div class="container fade-in">
+      <div class="dash-header">
+        <div><h2 data-i18n="terms_title">📄 Terms &amp; Privacy Policy</h2><p data-i18n="terms_sub">Last updated: March 2025</p></div>
+        <button class="btn btn-outline btn-sm" onclick="goBackFromTerms()">← Back</button>
+      </div>
+      <div style="display:grid;grid-template-columns:220px 1fr;gap:1.5rem;align-items:start;">
+        <div class="card" style="padding:1.25rem;position:sticky;top:80px;">
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:.75rem;">Contents</div>
+          <a class="terms-nav-item" onclick="scrollToSection('terms-s1')">1. Introduction</a>
+          <a class="terms-nav-item" onclick="scrollToSection('terms-s2')">2. Data We Collect</a>
+          <a class="terms-nav-item" onclick="scrollToSection('terms-s3')">3. How We Use Data</a>
+          <a class="terms-nav-item" onclick="scrollToSection('terms-s4')">4. Data Storage</a>
+          <a class="terms-nav-item" onclick="scrollToSection('terms-s5')">5. Your Rights</a>
+          <a class="terms-nav-item" onclick="scrollToSection('terms-s6')">6. Contact Us</a>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div class="card terms-section" id="terms-s1" style="padding:1.75rem;">
+            <h3 class="terms-heading">1. Introduction</h3>
+            <p class="terms-body">CyberShield Vendor Hygiene Assessment Platform ("the Platform") is designed to help organizations evaluate their cybersecurity awareness and practices. By using this Platform, you agree to these Terms of Service and our Privacy Policy.</p>
+            <p class="terms-body" style="margin-top:.75rem;">This Platform is operated for demonstration and assessment purposes. All assessment data is stored locally in your browser and is not transmitted to any external server.</p>
+          </div>
+          <div class="card terms-section" id="terms-s2" style="padding:1.75rem;">
+            <h3 class="terms-heading">2. Data We Collect</h3>
+            <p class="terms-body">The Platform collects and stores the following data <strong>locally in your browser</strong> only:</p>
+            <ul class="terms-list">
+              <li>Display name and email address (as entered by you)</li>
+              <li>Assessment responses and scores</li>
+              <li>Assessment history and timestamps</li>
+              <li>Earned badges and preferences</li>
+            </ul>
+            <div class="terms-highlight">⚠ No data is ever sent to any external server. All data lives in your browser's localStorage and can be deleted at any time.</div>
+          </div>
+          <div class="card terms-section" id="terms-s3" style="padding:1.75rem;">
+            <h3 class="terms-heading">3. How We Use Data</h3>
+            <p class="terms-body">Data collected is used solely to:</p>
+            <ul class="terms-list">
+              <li>Display your assessment scores and risk rankings</li>
+              <li>Track your progress over time</li>
+              <li>Generate personalized recommendations</li>
+              <li>Award badges and maintain leaderboard standings</li>
+            </ul>
+          </div>
+          <div class="card terms-section" id="terms-s4" style="padding:1.75rem;">
+            <h3 class="terms-heading">4. Data Storage &amp; Security</h3>
+            <p class="terms-body">All data is stored exclusively in your browser's <code style="font-family:'DM Mono',monospace;background:var(--navy-3);padding:.1rem .4rem;border-radius:4px;font-size:.85em;">localStorage</code>. This means:</p>
+            <ul class="terms-list">
+              <li>Data is device-specific and browser-specific</li>
+              <li>Clearing browser data will remove all stored assessment records</li>
+              <li>No cookies are used for tracking</li>
+              <li>No third-party analytics or advertising services are employed</li>
+            </ul>
+          </div>
+          <div class="card terms-section" id="terms-s5" style="padding:1.75rem;">
+            <h3 class="terms-heading">5. Your Rights</h3>
+            <p class="terms-body">You have the right to:</p>
+            <ul class="terms-list">
+              <li>Access all data stored by opening your browser's Developer Tools → Application → localStorage</li>
+              <li>Delete all stored data at any time by clearing browser storage or using the Reset button in your Profile settings</li>
+              <li>Export your data at any time using the CSV export feature</li>
+            </ul>
+            <button class="btn btn-secondary btn-sm" onclick="clearAllData()" style="margin-top:1rem;">🗑 Clear All My Data</button>
+          </div>
+          <div class="card terms-section" id="terms-s6" style="padding:1.75rem;">
+            <h3 class="terms-heading">6. Contact Us</h3>
+            <p class="terms-body">For questions regarding these terms or your data, contact the CyberShield platform administrator at <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="751411181c1b35160c171007061d1c1019115b161a18">[email&#160;protected]</a></strong>.</p>
+            <p class="terms-body" style="margin-top:.75rem;">By continuing to use this Platform, you acknowledge that you have read and understood these Terms and Privacy Policy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #app -->
+
+<footer id="main-footer" class="hidden">
+  🛡️ CyberShield Assessment Platform &nbsp;—&nbsp; All data stored locally &nbsp;—&nbsp; <span id="footer-year"></span> &nbsp;|&nbsp; <a href="#" onclick="showPage('terms');return false;" style="color:var(--text-3);text-decoration:none;" data-i18n="footer_terms">Terms & Privacy</a>
+</footer>
+
+<div id="print-area" class="hidden"></div>
+
+<script src="script.js"></script>
+<script>
+// Check if user is already logged in
+if (checkSession()) {
+  bootApp();
+}
+</script>
+</body>
+</html>
