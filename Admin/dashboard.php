@@ -202,7 +202,7 @@ textarea.fi{resize:vertical}
         <div class="sb-avatar">A</div>
         <div class="sb-user-info"><p>Admin User</p><span>admin@cybershield.io</span></div>
       </div>
-      <button class="btn-sb-logout" onclick="showToast('Signed out','red')">
+      <button class="btn-sb-logout" onclick="doLogout()">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span>Sign Out</span>
       </button>
@@ -369,6 +369,11 @@ function showToast(msg,color='blue'){
   t.innerHTML=`<span class="ti" style="background:${cols[color]||cols.blue}"></span><span>${msg}</span>`;
   document.getElementById('toast-c').appendChild(t);
   setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2500);
+}
+function doLogout(){
+  if(confirm('Are you sure you want to sign out?')){
+    window.location.href = 'logout.php';
+  }
 }
 function closeModal(){document.getElementById('modal-overlay').classList.add('hidden')}
 document.addEventListener('DOMContentLoaded',()=>{
