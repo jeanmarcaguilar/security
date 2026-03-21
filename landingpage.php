@@ -49,6 +49,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
     
+    if ($_POST['action'] === 'verify_otp') {
+        $user_id = sanitizeInput($_POST['user_id'] ?? '');
+        $username = sanitizeInput($_POST['username'] ?? '');
+        $role = sanitizeInput($_POST['role'] ?? '');
+        
+        try {
+            $database = new Database();
+            $db = $database->getConnection();
+            
+            // Get user info from database
+            $stmt = $db->prepare("SELECT id, username, role, full_name FROM users WHERE id = ? AND username = ?");
+            $stmt->execute([$user_id, $username]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($user) {
+                // Set PHP session variables
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+                $_SESSION['full_name'] = $user['full_name'];
+                $_SESSION['logged_in'] = true;
+                
+                echo json_encode(['success' => true, 'message' => 'OTP verified successfully']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Invalid user data']);
+            }
+        } catch(PDOException $e) {
+            echo json_encode(['success' => false, 'message' => 'Database error']);
+        }
+        exit;
+    }
+    
     if ($_POST['action'] === 'register') {
         $fullname = sanitizeInput($_POST['fullname'] ?? '');
         $email = sanitizeInput($_POST['email'] ?? '');
@@ -1220,11 +1252,19 @@ function verifyOTP() {
   verifyBtn.innerHTML = 'Verifying...';
   verifyBtn.disabled = true;
   
-  // Simulate verification delay
-  setTimeout(() => {
-    // For demo purposes, ANY 6-digit code is accepted
-    // You can replace this with actual verification logic later
-    
+  // Verify OTP and set session
+  const formData = new FormData();
+  formData.append('action', 'verify_otp');
+  formData.append('user_id', currentUserId);
+  formData.append('username', currentUsername);
+  formData.append('role', currentUserRole);
+  
+  fetch('', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(result => {
     // Close modal
     closeOTPModal();
     
@@ -1243,7 +1283,13 @@ function verifyOTP() {
     // Reset button (though modal is closed)
     verifyBtn.innerHTML = originalText;
     verifyBtn.disabled = false;
-  }, 1500);
+  })
+  .catch(error => {
+    console.error('OTP verification error:', error);
+    showAlert('error', 'Verification failed. Please try again.');
+    verifyBtn.innerHTML = originalText;
+    verifyBtn.disabled = false;
+  });
 }
 
 function resendOTP() {

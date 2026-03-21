@@ -1,364 +1,631 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>CyberShield — Hygiene Assessment</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 <div class="bg-grid"></div>
-<!-- APP -->
 <div id="app" class="hidden">
 
-  <nav id="main-nav">
-    <a class="nav-brand" href="#"><div class="shield">🛡️</div>CyberShield</a>
-    <div class="nav-right">
-      <div class="notif-wrap">
-        <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()">🔔<span class="notif-dot hidden" id="notif-dot"></span></button>
-        <div class="notif-panel hidden" id="notif-panel">
-          <div class="notif-header"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
-          <div id="notif-list"><p class="notif-empty">No notifications</p></div>
-        </div>
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-logo">
+      <div class="shield-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
-      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
-      <div class="nav-user" onclick="showPage('profile')" style="cursor:pointer;" title="Profile">
-        <div class="avatar" id="nav-avatar">D</div>
-        <span id="nav-name" style="padding-right:.3rem;">Demo User</span>
-      </div>
-      <button class="btn btn-secondary btn-sm" id="lang-btn" onclick="cycleLang()" title="Language" style="font-size:.8rem;padding:.3rem .7rem;">🌐 EN</button>
-      <button class="btn btn-secondary btn-sm" id="a11y-btn" onclick="toggleAccessibility()" title="Accessibility" style="font-size:.8rem;padding:.3rem .7rem;">♿</button>
-      <button class="btn-logout" onclick="doLogout()">Sign out</button>
+      <span class="sidebar-brand">CyberShield</span>
     </div>
-  </nav>
 
-  <!-- DASHBOARD -->
-  <div id="page-dashboard" class="page hidden">
-    <div class="container fade-in">
-      <div class="dash-header">
-        <div>
-          <h2>Good day, <span id="dash-greeting">User</span> 👋</h2>
-          <p>Here's your cybersecurity hygiene overview for today.</p>
+    <nav class="sidebar-nav">
+      <p class="sidebar-section-label">Main Menu</p>
+      <a class="sidebar-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span>
+        <span class="sidebar-label">Dashboard</span>
+        <span class="sidebar-tooltip">Dashboard</span>
+      </a>
+      <a class="sidebar-item" id="nav-assessment" onclick="startAssessment()">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        <span class="sidebar-label">Take Assessment</span>
+        <span class="sidebar-tooltip">Assessment</span>
+      </a>
+      <a class="sidebar-item" id="nav-results" onclick="showPage('results')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span class="sidebar-label">My Results</span>
+        <span class="sidebar-tooltip">Results</span>
+      </a>
+      <a class="sidebar-item" id="nav-leaderboard" onclick="showPage('leaderboard')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span>
+        <span class="sidebar-label">Leaderboard</span>
+        <span class="sidebar-tooltip">Leaderboard</span>
+      </a>
+      <p class="sidebar-section-label" style="margin-top:1.25rem;">Seller Hub</p>
+      <a class="sidebar-item" id="nav-seller-store" onclick="showPage('seller-store')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></span>
+        <span class="sidebar-label">My Store</span>
+        <span class="sidebar-tooltip">My Store</span>
+      </a>
+      <a class="sidebar-item" id="nav-seller-analytics" onclick="showPage('seller-analytics')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="2 20 22 20"/></svg></span>
+        <span class="sidebar-label">Analytics</span>
+        <span class="sidebar-tooltip">Analytics</span>
+      </a>
+      <p class="sidebar-section-label" style="margin-top:1.25rem;">Account</p>
+      <a class="sidebar-item" id="nav-profile" onclick="showPage('profile')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+        <span class="sidebar-label">My Profile</span>
+        <span class="sidebar-tooltip">Profile</span>
+      </a>
+      <a class="sidebar-item" id="nav-tips" onclick="showPage('tips')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+        <span class="sidebar-label">Security Tips</span>
+        <span class="sidebar-tooltip">Tips</span>
+      </a>
+      <a class="sidebar-item" id="nav-terms" onclick="showPage('terms')">
+        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span class="sidebar-label">Terms &amp; Privacy</span>
+        <span class="sidebar-tooltip">Terms</span>
+      </a>
+    </nav>
+
+    <!-- Sidebar bottom: user card + sign out ONLY -->
+    <div class="sidebar-bottom">
+      <div class="sidebar-user-card" onclick="showPage('profile')" title="View profile">
+        <div class="sidebar-avatar" id="sidebar-avatar">D</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="sidebar-name">Demo User</div>
+          <div class="sidebar-user-role">Vendor Account</div>
         </div>
-        <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;">
-          <button class="btn btn-secondary btn-sm" onclick="showPage('leaderboard')">🏆 Leaderboard</button>
-          <button class="btn btn-secondary btn-sm" onclick="showPage('results')">📊 View Results</button>
-          <button class="btn btn-primary" onclick="startAssessment()">🚀 Start Assessment</button>
-        </div>
+        <svg class="sidebar-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <div class="stats-grid fade-in" id="stats-grid">
-        <div class="card stat-card"><div class="stat-label">Latest Score</div><div class="stat-val mono" id="stat-score">—</div><div class="stat-sub" id="stat-rank-text">No assessments yet</div></div>
-        <div class="card stat-card"><div class="stat-label">Risk Rank</div><div class="stat-val" id="stat-rank">—</div><div class="stat-sub" id="stat-rank-sub">—</div></div>
-        <div class="card stat-card"><div class="stat-label">Assessments Done</div><div class="stat-val mono" id="stat-count">0</div><div class="stat-sub">Total sessions</div></div>
-        <div class="card stat-card"><div class="stat-label">Trend</div><div class="stat-val" id="stat-trend">—</div><div class="stat-sub" id="stat-trend-sub">—</div></div>
-      </div>
-      <div class="card" style="padding:1.4rem 1.75rem;margin-bottom:1.5rem;">
-        <div class="section-title" style="margin-bottom:.75rem;">🏅 Your Badges</div>
-        <div id="dash-badges" class="badges-row"></div>
-      </div>
-      <div class="quick-actions">
-        <div class="card action-card fade-in" onclick="startAssessment()"><div class="action-icon blue">📝</div><div><h3>New Assessment</h3><p>Take a fresh 12-question cybersecurity quiz</p></div></div>
-        <div class="card action-card fade-in" onclick="showPage('results')"><div class="action-icon green">📈</div><div><h3>View Detailed Results</h3><p>Charts, scores &amp; AI recommendations</p></div></div>
-      </div>
-      <div class="card chart-card" style="margin-bottom:1.5rem;"><h3>📈 Risk Score Trend</h3><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></div>
-      <div class="card" style="padding:1.75rem;"><div class="section-title">Assessment History</div><div id="history-container"><p style="color:var(--text-2);font-size:.88rem;padding:1rem 0;">No assessments taken yet. Start one now!</p></div></div>
+      <button class="sidebar-signout-btn" onclick="doLogout()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Sign Out</span>
+      </button>
     </div>
-  </div>
+  </aside>
 
-  <!-- ASSESSMENT -->
-  <div id="page-assessment" class="page hidden">
-    <div class="container fade-in">
-      <div class="assess-header">
-        <h2>Cyber Hygiene Assessment</h2>
-        <div class="progress-meta">
-          <span id="progress-label">Question 1 of 12</span>
-          <div style="display:flex;align-items:center;gap:1rem;">
-            <div class="timer-wrap" id="timer-wrap">
-              <span class="timer-icon">⏱</span>
-              <span class="timer-val" id="timer-val">30</span>
-            </div>
-            <span class="progress-pct" id="progress-pct">0%</span>
+  <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+    <span id="sidebar-toggle-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
+  </button>
+
+  <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="toggleMobileSidebar()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    Menu
+  </button>
+
+  <!-- MAIN CONTENT -->
+  <div id="main-content" class="main-content">
+
+    <!-- TOPBAR -->
+    <header id="topbar" class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-breadcrumb">
+          <span class="topbar-app-name">CyberShield</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="M6 4l4 4-4 4"/></svg>
+          <span id="topbar-page-title">Dashboard</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-search">
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <input type="text" id="global-search" placeholder="Search…" oninput="handleGlobalSearch(this.value)" autocomplete="off"/>
+        </div>
+        <div class="topbar-divider"></div>
+        <!-- Language -->
+        <button class="topbar-ctrl-btn" id="lang-btn" onclick="cycleLang()" title="Change language">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span id="lang-label">EN</span>
+        </button>
+        <!-- Accessibility -->
+        <button class="topbar-ctrl-btn" id="a11y-btn" onclick="toggleAccessibility()" title="Toggle large text">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M9 11h6M12 11v9"/><path d="M7.5 16h2M14.5 16h2"/></svg>
+        </button>
+        <!-- Theme -->
+        <button class="topbar-ctrl-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+          <svg id="theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+        </button>
+        <div class="topbar-divider"></div>
+        <!-- Notifications -->
+        <div class="notif-wrap">
+          <button class="topbar-ctrl-btn notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notif-dot hidden" id="notif-dot"></span>
+          </button>
+          <div class="notif-panel hidden" id="notif-panel">
+            <div class="notif-header"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
+            <div id="notif-list"><p class="notif-empty">No notifications</p></div>
           </div>
         </div>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
-        <div class="timer-bar-wrap"><div class="timer-bar-fill" id="timer-bar-fill"></div></div>
+        <!-- User -->
+        <div class="topbar-user" onclick="showPage('profile')" title="My Profile">
+          <div class="topbar-avatar" id="nav-avatar">D</div>
+          <div class="topbar-user-info">
+            <span class="topbar-user-name" id="nav-name">Demo User</span>
+            <span class="topbar-user-role">Vendor</span>
+          </div>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </div>
       </div>
-      <div class="card q-card" id="q-card"></div>
-    </div>
-  </div>
+    </header>
 
-  <!-- RESULTS -->
-  <div id="page-results" class="page hidden">
-    <div class="container fade-in">
-      <div class="export-bar">
-        <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
-        <button class="btn btn-primary btn-sm" onclick="exportPDF()">⬇ Export PDF</button>
-        <button class="btn btn-secondary btn-sm" onclick="printResult()">🖨 Print</button>
-        <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Good day, <span id="dash-greeting">User</span></h2>
+            <p class="page-subtitle">Here's your cybersecurity hygiene overview for today.</p>
+          </div>
+          <button class="btn btn-primary" onclick="startAssessment()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Start Assessment
+          </button>
+        </div>
+
+        <div id="welcome-banner" class="welcome-banner hidden">
+          <div class="welcome-inner">
+            <div class="welcome-icon-wrap"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <h3>Welcome to CyberShield</h3>
+            <p>You haven't taken an assessment yet. Start your first quiz to discover your cybersecurity posture — it only takes a few minutes.</p>
+            <button class="btn btn-primary btn-lg" onclick="startAssessment()">Start My First Assessment</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="stats-grid">
+          <div class="card stat-card"><div class="stat-label">Latest Score</div><div class="stat-val mono" id="stat-score">—</div><div class="stat-sub" id="stat-rank-text">No assessments yet</div></div>
+          <div class="card stat-card"><div class="stat-label">Risk Rank</div><div class="stat-val" id="stat-rank">—</div><div class="stat-sub" id="stat-rank-sub">—</div></div>
+          <div class="card stat-card"><div class="stat-label">Assessments Done</div><div class="stat-val mono" id="stat-count">0</div><div class="stat-sub">Total sessions</div></div>
+          <div class="card stat-card"><div class="stat-label">Trend</div><div class="stat-val" id="stat-trend">—</div><div class="stat-sub" id="stat-trend-sub">—</div></div>
+        </div>
+
+        <div class="card tip-card" id="tip-of-day">
+          <div class="tip-card-header">
+            <span class="tip-card-label">Tip of the Day</span>
+            <button class="btn-ghost-sm" onclick="refreshTip()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+          </div>
+          <p class="tip-card-text" id="tip-text">Loading tip…</p>
+        </div>
+
+        <div class="card section-card">
+          <div class="section-title">Badges &amp; Achievements</div>
+          <div id="dash-badges" class="badges-row"></div>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card" onclick="startAssessment()">
+            <div class="action-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <div class="action-text"><h4>New Assessment</h4><p>Take a fresh 12-question quiz</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="action-card" onclick="showPage('results')">
+            <div class="action-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+            <div class="action-text"><h4>View Results</h4><p>Charts &amp; recommendations</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="action-card" onclick="showPage('leaderboard')">
+            <div class="action-icon purple"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></div>
+            <div class="action-text"><h4>Leaderboard</h4><p>Compare with other vendors</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="action-card" onclick="showPage('tips')">
+            <div class="action-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <div class="action-text"><h4>Security Tips</h4><p>Guides to improve your score</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+        </div>
+
+        <div class="card chart-card"><div class="chart-card-header">Risk Score Trend</div><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></div>
+        <div class="card section-card"><div class="section-title">Assessment History</div><div id="history-container"><p class="empty-state">No assessments taken yet. Start one now!</p></div></div>
       </div>
-      <div class="result-hero" id="result-hero"><div class="spinner-wrap"><div class="spinner"></div></div></div>
-      <div class="card" id="badges-card" style="padding:1.5rem;margin-bottom:1.5rem;display:none;">
-        <h3 style="font-size:.95rem;font-weight:700;margin-bottom:1rem;">🏅 Badges Earned</h3>
-        <div id="result-badges" class="badges-row"></div>
+    </div>
+
+    <!-- ASSESSMENT -->
+    <div id="page-assessment" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="assess-header">
+          <div class="assess-topbar">
+            <h2 class="assess-title">Cyber Hygiene Assessment</h2>
+            <button class="btn btn-outline btn-sm" onclick="confirmQuitAssessment()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Quit
+            </button>
+          </div>
+          <div class="progress-meta">
+            <span id="progress-label">Question 1 of 12</span>
+            <div class="progress-meta-right">
+              <div class="timer-wrap" id="timer-wrap">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="timer-val" id="timer-val">30</span>
+              </div>
+              <span class="progress-pct" id="progress-pct">0%</span>
+            </div>
+          </div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+          <div class="timer-bar-wrap"><div class="timer-bar-fill" id="timer-bar-fill"></div></div>
+        </div>
+        <div class="card q-card" id="q-card"></div>
       </div>
-      <div class="results-grid">
+    </div>
+
+    <!-- RESULTS -->
+    <div id="page-results" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header">
+          <div><h2 class="page-title">My Results</h2><p class="page-subtitle">Latest assessment breakdown and recommendations</p></div>
+          <div class="btn-group">
+            <button class="btn btn-outline btn-sm" onclick="exportCSV()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="exportPDF()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> PDF</button>
+            <button class="btn btn-outline btn-sm" onclick="printResult()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
+          </div>
+        </div>
+        <div class="result-hero" id="result-hero"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+        <div class="card section-card" id="badges-card" style="display:none;"><div class="section-title">Badges Earned</div><div id="result-badges" class="badges-row"></div></div>
+        <div class="results-grid">
+          <div class="card" style="padding:1.75rem;"><div class="section-title" style="margin-bottom:1.25rem;">Category Breakdown</div><div style="position:relative;height:270px;"><canvas id="radar-chart"></canvas></div></div>
+          <div class="card reco-card" style="padding:1.75rem;"><div class="section-title" style="margin-bottom:1rem;">Recommendations</div><ul class="reco-list" id="reco-list"></ul></div>
+        </div>
+        <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
+          <div class="card-row-header"><div class="section-title" style="margin:0;">Answer Review</div><button class="btn btn-outline btn-sm" id="review-toggle-btn" onclick="toggleReview()">Show Review</button></div>
+          <div id="review-container" class="hidden" style="margin-top:1.25rem;"></div>
+        </div>
+        <div class="card chart-card" style="margin-bottom:1.5rem;"><div class="chart-card-header">Progress Over Time</div><div class="chart-wrap"><canvas id="trend-chart-2"></canvas></div></div>
+        <div class="card section-card" style="margin-bottom:2rem;"><div class="section-title">Learning Resources</div><p class="section-sub">Targeted videos based on your weakest categories</p><div class="video-grid" id="video-grid"></div></div>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div id="page-leaderboard" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header"><div><h2 class="page-title">Leaderboard</h2><p class="page-subtitle">Vendor cybersecurity rankings across the platform</p></div></div>
         <div class="card" style="padding:1.75rem;">
-          <h3 style="font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:1.25rem;">📊 Category Breakdown</h3>
-          <div style="position:relative;height:270px;"><canvas id="radar-chart"></canvas></div>
-        </div>
-        <div class="card reco-card" style="padding:1.75rem;"><h3>💡 AI Recommendations</h3><ul class="reco-list" id="reco-list"></ul></div>
-      </div>
-      <!-- Review Mode -->
-      <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
-          <h3 style="font-size:.95rem;font-weight:700;">🔍 Review Your Answers</h3>
-          <button class="btn btn-secondary btn-sm" id="review-toggle-btn" onclick="toggleReview()">Show Review</button>
-        </div>
-        <div id="review-container" class="hidden"></div>
-      </div>
-      <div class="card chart-card" style="margin-bottom:1.5rem;"><h3>📈 Your Progress Over Time</h3><div class="chart-wrap"><canvas id="trend-chart-2"></canvas></div></div>
-      <div class="card" style="padding:1.75rem;margin-bottom:2rem;">
-        <div class="video-section">
-          <h3>🎥 Educational Resources</h3>
-          <p>Curated videos tailored to your weakest areas.</p>
-          <div class="video-grid" id="video-grid"></div>
+          <div class="card-row-header">
+            <div class="section-title" style="margin:0;">Vendor Rankings</div>
+            <div class="filter-group">
+              <button class="filter-btn lb-filter-btn active" onclick="filterLeaderboard('all',this)">All</button>
+              <button class="filter-btn lb-filter-btn risk-a" onclick="filterLeaderboard('A',this)">Low Risk</button>
+              <button class="filter-btn lb-filter-btn risk-b" onclick="filterLeaderboard('B',this)">Moderate</button>
+              <button class="filter-btn lb-filter-btn risk-cd" onclick="filterLeaderboard('CD',this)">High Risk</button>
+            </div>
+          </div>
+          <div id="leaderboard-list" style="margin-top:1.25rem;"></div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- PROFILE -->
-  <div id="page-profile" class="page hidden">
-    <div class="container fade-in">
-      <div class="dash-header">
-        <div><h2>👤 Profile &amp; Settings</h2><p>Manage your account and preferences.</p></div>
-        <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
-      </div>
-      <div class="profile-grid">
-        <div class="card" style="padding:1.75rem;">
-          <h3 class="profile-sec-title">Account Information</h3>
-          <div class="profile-avatar-wrap">
-            <div class="profile-avatar" id="profile-avatar-big">D</div>
-            <div><div style="font-weight:700;font-size:1.05rem;" id="profile-name-display">Demo User</div><div style="font-size:.82rem;color:var(--text-2);" id="profile-email-display"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e783828a88a784888a9786899ec984888a">[email&#160;protected]</a></div></div>
-          </div>
-          <div class="form-group" style="margin-top:1.25rem;"><label>Display Name</label><input type="text" id="profile-name" placeholder="Your name" /></div>
-          <div class="form-group"><label>Email</label><input type="email" id="profile-email" placeholder="you@company.com" readonly style="opacity:.6;cursor:not-allowed;" /></div>
-          <div class="form-group"><label>Company / Organization</label><input type="text" id="profile-company" placeholder="Your company name" /></div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveProfile()">Save Changes</button>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:1.25rem;">
-          <div class="card" style="padding:1.5rem;"><h3 class="profile-sec-title">My Stats</h3><div id="profile-stats-grid" class="profile-stats-grid"></div></div>
-          <div class="card" style="padding:1.5rem;"><h3 class="profile-sec-title">My Badges</h3><div id="profile-badges" class="badges-row" style="flex-wrap:wrap;gap:.6rem;margin-top:.75rem;"></div></div>
-          <div class="card" style="padding:1.5rem;">
-            <h3 class="profile-sec-title">Preferences</h3>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;">Dark Mode</div><div style="font-size:.76rem;color:var(--text-2);">Toggle light/dark theme</div></div>
-              <label class="toggle-switch"><input type="checkbox" id="pref-dark" checked onchange="toggleTheme()"><span class="toggle-slider"></span></label>
+    <!-- PROFILE -->
+    <div id="page-profile" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header"><div><h2 class="page-title">My Profile</h2><p class="page-subtitle">Manage your account information and preferences</p></div></div>
+        <div class="profile-grid">
+          <div class="profile-col">
+            <div class="card" style="padding:1.75rem;">
+              <div class="profile-sec-title">Account Information</div>
+              <div class="profile-avatar-wrap">
+                <div class="profile-avatar" id="profile-avatar-big">D</div>
+                <div><div class="profile-display-name" id="profile-name-display">Demo User</div><div class="profile-display-email" id="profile-email-display"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="9df9f8f0f2ddfef2f0edfcf3e4b3fef2f0">[email&#160;protected]</a></div></div>
+              </div>
+              <div class="form-group"><label>Display Name</label><input type="text" id="profile-name" placeholder="Your full name"/></div>
+              <div class="form-group"><label>Email Address</label><input type="text" id="profile-email" readonly/></div>
+              <div class="form-group"><label>Company / Organization</label><input type="text" id="profile-company" placeholder="Your company name"/></div>
+              <button class="btn btn-primary btn-full" onclick="saveProfile()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes</button>
             </div>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;">Question Timer</div><div style="font-size:.76rem;color:var(--text-2);">Enable 30s countdown per question</div></div>
-              <label class="toggle-switch"><input type="checkbox" id="pref-timer" checked><span class="toggle-slider"></span></label>
-            </div>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="pref_notif">Risk Notifications</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="pref_notif_sub">Alert when score is high/critical</div></div>
-              <label class="toggle-switch"><input type="checkbox" id="pref-notif" checked><span class="toggle-slider"></span></label>
-            </div>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="pref_a11y">Accessibility Mode</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="pref_a11y_sub">Larger text &amp; high contrast</div></div>
-              <label class="toggle-switch"><input type="checkbox" id="pref-a11y" onchange="setAccessibility(this.checked)"><span class="toggle-slider"></span></label>
-            </div>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="pref_lang">Language</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="pref_lang_sub">Choose display language</div></div>
-              <select id="pref-lang-select" class="filter-select" onchange="setLanguage(this.value)" style="border-radius:8px;padding:.35rem .65rem;">
-                <option value="en">🇺🇸 English</option>
-                <option value="fil">🇵🇭 Filipino</option>
-              </select>
+            <div class="card" style="padding:1.75rem;">
+              <div class="profile-sec-title">Preferences</div>
+              <div class="pref-row"><div class="pref-text"><div class="pref-label">Dark Mode</div><div class="pref-sub">Switch between dark and light theme</div></div><label class="toggle-switch"><input type="checkbox" id="pref-dark" onchange="applyTheme(this.checked)"/><span class="toggle-slider"></span></label></div>
+              <div class="pref-row"><div class="pref-text"><div class="pref-label">Question Timer</div><div class="pref-sub">30-second countdown per question</div></div><label class="toggle-switch"><input type="checkbox" id="pref-timer" checked/><span class="toggle-slider"></span></label></div>
+              <div class="pref-row"><div class="pref-text"><div class="pref-label">Notifications</div><div class="pref-sub">Alerts after each assessment</div></div><label class="toggle-switch"><input type="checkbox" id="pref-notif" checked/><span class="toggle-slider"></span></label></div>
+              <div class="pref-row"><div class="pref-text"><div class="pref-label">Large Text Mode</div><div class="pref-sub">Bigger text for easier reading</div></div><label class="toggle-switch"><input type="checkbox" id="pref-a11y" onchange="toggleAccessibility()"/><span class="toggle-slider"></span></label></div>
             </div>
           </div>
-          <div class="card" style="padding:1.5rem;margin-top:0;">
-            <h3 class="profile-sec-title" data-i18n="legal_title">Legal</h3>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="legal_terms">Terms &amp; Privacy Policy</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="legal_terms_sub">View our terms of service</div></div>
-              <button class="btn btn-secondary btn-sm" onclick="showPage('terms')" data-i18n="legal_view_btn">View →</button>
-            </div>
-            <div class="pref-row">
-              <div><div style="font-size:.88rem;font-weight:600;" data-i18n="legal_clear">Clear All Data</div><div style="font-size:.76rem;color:var(--text-2);" data-i18n="legal_clear_sub">Remove all stored assessment data</div></div>
-              <button class="btn btn-secondary btn-sm" onclick="clearAllData()" style="color:var(--red);" data-i18n="legal_clear_btn">🗑 Clear</button>
+          <div class="profile-col">
+            <div class="card" style="padding:1.75rem;"><div class="profile-sec-title">Your Statistics</div><div class="profile-stats-grid" id="profile-stats-grid"></div></div>
+            <div class="card" style="padding:1.75rem;"><div class="profile-sec-title">Earned Badges</div><div id="profile-badges" class="badges-row"></div></div>
+            <div class="card danger-card" style="padding:1.75rem;">
+              <div class="profile-sec-title danger-sec-title">Danger Zone</div>
+              <p class="danger-desc">Permanently delete all assessment history, badges, and stored data. This cannot be undone.</p>
+              <button class="btn-danger" onclick="clearAllData()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete All Data</button>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- LEADERBOARD -->
-  <div id="page-leaderboard" class="page hidden">
-    <div class="container fade-in">
-      <div class="dash-header">
-        <div><h2>🏆 Leaderboard</h2><p>See how you rank against other vendors.</p></div>
-        <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
-      </div>
-      <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
-          <h3 style="font-size:.95rem;font-weight:700;">Vendor Rankings</h3>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm lb-filter active" onclick="filterLeaderboard('all',this)">All</button>
-            <button class="btn btn-secondary btn-sm lb-filter" onclick="filterLeaderboard('A',this)">🟢 Low Risk</button>
-            <button class="btn btn-secondary btn-sm lb-filter" onclick="filterLeaderboard('B',this)">🟡 Moderate</button>
-            <button class="btn btn-secondary btn-sm lb-filter" onclick="filterLeaderboard('CD',this)">🔴 High Risk</button>
-          </div>
+    <!-- SECURITY TIPS -->
+    <div id="page-tips" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header"><div><h2 class="page-title">Security Tips</h2><p class="page-subtitle">Practical guides to strengthen your cybersecurity posture</p></div></div>
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="filterTips('all',this)">All Tips</button>
+          <button class="filter-btn" onclick="filterTips('password',this)">Passwords</button>
+          <button class="filter-btn" onclick="filterTips('phishing',this)">Phishing</button>
+          <button class="filter-btn" onclick="filterTips('device',this)">Devices</button>
+          <button class="filter-btn" onclick="filterTips('network',this)">Networks</button>
         </div>
-        <div id="leaderboard-list"></div>
+        <div class="tips-grid" id="tips-grid"></div>
       </div>
     </div>
-  </div>
 
-
-  <!-- FORGOT PASSWORD MODAL -->
-  <div id="forgot-overlay" class="fp-overlay hidden" onclick="closeForgotOverlay(event)">
-    <div class="fp-card">
-      <div class="fp-step" id="fp-step-1">
-        <h3 data-i18n="fp_title">Reset Password</h3>
-        <p data-i18n="fp_sub">Enter your registered email address and we'll send you a reset link.</p>
-        <div class="form-group" style="margin-top:1rem;">
-          <label data-i18n="fp_email_label">Email Address</label>
-          <input type="email" id="fp-email" placeholder="you@company.com" />
-        </div>
-        <div id="fp-error" style="color:var(--red);font-size:.82rem;display:none;margin-bottom:.75rem;">Email not found in our system.</div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="doForgotStep1()" data-i18n="fp_send_btn">Send Reset Link →</button>
-        <button class="btn-link" style="margin-top:.75rem;display:block;text-align:center;" onclick="closeForgotPassword()" data-i18n="fp_back">← Back to Sign In</button>
-      </div>
-      <div class="fp-step hidden" id="fp-step-2">
-        <div class="fp-success-icon">📧</div>
-        <h3 data-i18n="fp_sent_title">Check Your Email</h3>
-        <p data-i18n="fp_sent_sub">A password reset link has been sent to <strong id="fp-sent-email"></strong>. Check your inbox and follow the instructions.</p>
-        <div class="fp-code-box">
-          <div style="font-size:.75rem;color:var(--text-2);margin-bottom:.4rem;" data-i18n="fp_demo_note">Demo Reset Code:</div>
-          <div class="fp-code" id="fp-code">CS-RESET-2024</div>
-        </div>
-        <div class="form-group" style="margin-top:1rem;">
-          <label data-i18n="fp_code_label">Enter Reset Code</label>
-          <input type="text" id="fp-code-input" placeholder="CS-RESET-XXXX" />
-        </div>
-        <div id="fp-code-error" style="color:var(--red);font-size:.82rem;display:none;margin-bottom:.75rem;">Invalid code. Please try again.</div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="doForgotStep2()" data-i18n="fp_verify_btn">Verify Code →</button>
-      </div>
-      <div class="fp-step hidden" id="fp-step-3">
-        <div class="fp-success-icon">🔐</div>
-        <h3 data-i18n="fp_new_pass_title">Set New Password</h3>
-        <p data-i18n="fp_new_pass_sub">Choose a strong new password for your account.</p>
-        <div class="form-group" style="margin-top:1rem;">
-          <label data-i18n="fp_new_pass_label">New Password</label>
-          <input type="password" id="fp-newpass" placeholder="••••••••" />
-        </div>
-        <div class="form-group">
-          <label data-i18n="fp_confirm_label">Confirm Password</label>
-          <input type="password" id="fp-confirmpass" placeholder="••••••••" />
-        </div>
-        <div class="pass-strength-bar"><div id="pass-strength-fill" class="pass-strength-fill"></div></div>
-        <div id="pass-strength-label" class="pass-strength-label"></div>
-        <div id="fp-pass-error" style="color:var(--red);font-size:.82rem;display:none;margin-bottom:.75rem;"></div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.75rem;" onclick="doForgotStep3()" data-i18n="fp_reset_btn">Reset Password →</button>
-      </div>
-      <div class="fp-step hidden" id="fp-step-4">
-        <div class="fp-success-icon">✅</div>
-        <h3 data-i18n="fp_done_title">Password Reset!</h3>
-        <p data-i18n="fp_done_sub">Your password has been updated. You can now sign in with your new password.</p>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:1rem;" onclick="closeForgotPassword()" data-i18n="fp_signin_btn">← Back to Sign In</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- TERMS & PRIVACY PAGE -->
-  <div id="page-terms" class="page hidden">
-    <div class="container fade-in">
-      <div class="dash-header">
-        <div><h2 data-i18n="terms_title">📄 Terms &amp; Privacy Policy</h2><p data-i18n="terms_sub">Last updated: March 2025</p></div>
-        <button class="btn btn-outline btn-sm" onclick="goBackFromTerms()">← Back</button>
-      </div>
-      <div style="display:grid;grid-template-columns:220px 1fr;gap:1.5rem;align-items:start;">
-        <div class="card" style="padding:1.25rem;position:sticky;top:80px;">
-          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:.75rem;">Contents</div>
-          <a class="terms-nav-item" onclick="scrollToSection('terms-s1')">1. Introduction</a>
-          <a class="terms-nav-item" onclick="scrollToSection('terms-s2')">2. Data We Collect</a>
-          <a class="terms-nav-item" onclick="scrollToSection('terms-s3')">3. How We Use Data</a>
-          <a class="terms-nav-item" onclick="scrollToSection('terms-s4')">4. Data Storage</a>
-          <a class="terms-nav-item" onclick="scrollToSection('terms-s5')">5. Your Rights</a>
-          <a class="terms-nav-item" onclick="scrollToSection('terms-s6')">6. Contact Us</a>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:1.25rem;">
-          <div class="card terms-section" id="terms-s1" style="padding:1.75rem;">
-            <h3 class="terms-heading">1. Introduction</h3>
-            <p class="terms-body">CyberShield Vendor Hygiene Assessment Platform ("the Platform") is designed to help organizations evaluate their cybersecurity awareness and practices. By using this Platform, you agree to these Terms of Service and our Privacy Policy.</p>
-            <p class="terms-body" style="margin-top:.75rem;">This Platform is operated for demonstration and assessment purposes. All assessment data is stored locally in your browser and is not transmitted to any external server.</p>
+    <!-- TERMS & PRIVACY -->
+    <div id="page-terms" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header"><div><h2 class="page-title" data-i18n="terms_title">Terms &amp; Privacy</h2><p class="page-subtitle" data-i18n="terms_sub">Last updated: March 2025</p></div></div>
+        <div class="terms-layout">
+          <div class="card terms-toc">
+            <div class="terms-toc-title">Contents</div>
+            <a class="terms-nav-item" onclick="scrollToSection('terms-s1')">1. Introduction</a>
+            <a class="terms-nav-item" onclick="scrollToSection('terms-s2')">2. Data We Collect</a>
+            <a class="terms-nav-item" onclick="scrollToSection('terms-s3')">3. How We Use Data</a>
+            <a class="terms-nav-item" onclick="scrollToSection('terms-s4')">4. Data Storage</a>
+            <a class="terms-nav-item" onclick="scrollToSection('terms-s5')">5. Your Rights</a>
+            <a class="terms-nav-item" onclick="scrollToSection('terms-s6')">6. Contact Us</a>
           </div>
-          <div class="card terms-section" id="terms-s2" style="padding:1.75rem;">
-            <h3 class="terms-heading">2. Data We Collect</h3>
-            <p class="terms-body">The Platform collects and stores the following data <strong>locally in your browser</strong> only:</p>
-            <ul class="terms-list">
-              <li>Display name and email address (as entered by you)</li>
-              <li>Assessment responses and scores</li>
-              <li>Assessment history and timestamps</li>
-              <li>Earned badges and preferences</li>
-            </ul>
-            <div class="terms-highlight">⚠ No data is ever sent to any external server. All data lives in your browser's localStorage and can be deleted at any time.</div>
-          </div>
-          <div class="card terms-section" id="terms-s3" style="padding:1.75rem;">
-            <h3 class="terms-heading">3. How We Use Data</h3>
-            <p class="terms-body">Data collected is used solely to:</p>
-            <ul class="terms-list">
-              <li>Display your assessment scores and risk rankings</li>
-              <li>Track your progress over time</li>
-              <li>Generate personalized recommendations</li>
-              <li>Award badges and maintain leaderboard standings</li>
-            </ul>
-          </div>
-          <div class="card terms-section" id="terms-s4" style="padding:1.75rem;">
-            <h3 class="terms-heading">4. Data Storage &amp; Security</h3>
-            <p class="terms-body">All data is stored exclusively in your browser's <code style="font-family:'DM Mono',monospace;background:var(--navy-3);padding:.1rem .4rem;border-radius:4px;font-size:.85em;">localStorage</code>. This means:</p>
-            <ul class="terms-list">
-              <li>Data is device-specific and browser-specific</li>
-              <li>Clearing browser data will remove all stored assessment records</li>
-              <li>No cookies are used for tracking</li>
-              <li>No third-party analytics or advertising services are employed</li>
-            </ul>
-          </div>
-          <div class="card terms-section" id="terms-s5" style="padding:1.75rem;">
-            <h3 class="terms-heading">5. Your Rights</h3>
-            <p class="terms-body">You have the right to:</p>
-            <ul class="terms-list">
-              <li>Access all data stored by opening your browser's Developer Tools → Application → localStorage</li>
-              <li>Delete all stored data at any time by clearing browser storage or using the Reset button in your Profile settings</li>
-              <li>Export your data at any time using the CSV export feature</li>
-            </ul>
-            <button class="btn btn-secondary btn-sm" onclick="clearAllData()" style="margin-top:1rem;">🗑 Clear All My Data</button>
-          </div>
-          <div class="card terms-section" id="terms-s6" style="padding:1.75rem;">
-            <h3 class="terms-heading">6. Contact Us</h3>
-            <p class="terms-body">For questions regarding these terms or your data, contact the CyberShield platform administrator at <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="751411181c1b35160c171007061d1c1019115b161a18">[email&#160;protected]</a></strong>.</p>
-            <p class="terms-body" style="margin-top:.75rem;">By continuing to use this Platform, you acknowledge that you have read and understood these Terms and Privacy Policy.</p>
+          <div class="terms-content">
+            <div class="card terms-section" id="terms-s1"><h3 class="terms-heading">1. Introduction</h3><p class="terms-body">CyberShield Vendor Hygiene Assessment Platform ("the Platform") is designed to help organizations evaluate their cybersecurity awareness and practices. By using this Platform, you agree to these Terms of Service and our Privacy Policy.</p><p class="terms-body" style="margin-top:.75rem;">This Platform is operated for demonstration and assessment purposes. All assessment data is stored locally in your browser and is not transmitted to any external server.</p></div>
+            <div class="card terms-section" id="terms-s2"><h3 class="terms-heading">2. Data We Collect</h3><p class="terms-body">The Platform collects and stores the following data <strong>locally in your browser</strong> only:</p><ul class="terms-list"><li>Display name and email address (as entered by you)</li><li>Assessment responses and scores</li><li>Assessment history and timestamps</li><li>Earned badges and preferences</li></ul><div class="terms-highlight">No data is ever sent to any external server. All data lives in your browser's localStorage and can be deleted at any time.</div></div>
+            <div class="card terms-section" id="terms-s3"><h3 class="terms-heading">3. How We Use Data</h3><p class="terms-body">Data collected is used solely to:</p><ul class="terms-list"><li>Display your assessment scores and risk rankings</li><li>Track your progress over time</li><li>Generate personalized recommendations</li><li>Award badges and maintain leaderboard standings</li></ul></div>
+            <div class="card terms-section" id="terms-s4"><h3 class="terms-heading">4. Data Storage &amp; Security</h3><p class="terms-body">All data is stored exclusively in your browser's <code class="inline-code">localStorage</code>.</p><ul class="terms-list"><li>Data is device-specific and browser-specific</li><li>Clearing browser data will remove all stored assessment records</li><li>No cookies are used for tracking</li><li>No third-party analytics or advertising services are employed</li></ul></div>
+            <div class="card terms-section" id="terms-s5"><h3 class="terms-heading">5. Your Rights</h3><p class="terms-body">You have the right to access, export, or delete all your data at any time.</p><button class="btn btn-outline btn-sm" onclick="clearAllData()" style="margin-top:1rem;">Delete All My Data</button></div>
+            <div class="card terms-section" id="terms-s6"><h3 class="terms-heading">6. Contact Us</h3><p class="terms-body">For questions regarding these terms or your data, contact the CyberShield platform administrator at <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="34474144445b464074574d565146475c5d5158501a575b59">[email&#160;protected]</a></strong>.</p></div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- SELLER STORE -->
+    <div id="page-seller-store" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">My Store</h2>
+            <p class="page-subtitle">Manage your product listings, inventory, and postings</p>
+          </div>
+          <button class="btn btn-primary" onclick="openProductModal()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Product
+          </button>
+        </div>
+
+        <!-- Store Stats -->
+        <div class="stats-grid" id="seller-stats-grid">
+          <div class="card stat-card">
+            <div class="stat-label">Total Products</div>
+            <div class="stat-val mono" id="s-stat-total">0</div>
+            <div class="stat-sub">Listed items</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Active Listings</div>
+            <div class="stat-val mono" id="s-stat-active" style="color:var(--green)">0</div>
+            <div class="stat-sub">Visible to buyers</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Out of Stock</div>
+            <div class="stat-val mono" id="s-stat-oos" style="color:var(--red)">0</div>
+            <div class="stat-sub">Needs restocking</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Total Value</div>
+            <div class="stat-val mono" id="s-stat-value" style="font-size:1.5rem">₱0</div>
+            <div class="stat-sub">Inventory worth</div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="card" style="padding:1rem 1.5rem;margin-bottom:1.25rem;">
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div class="topbar-search" style="flex:1;min-width:180px;">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <input type="text" id="product-search" placeholder="Search products…" oninput="renderProductGrid()" autocomplete="off"/>
+            </div>
+            <div class="filter-group" style="margin:0;">
+              <button class="filter-btn active" onclick="filterProducts('all',this)">All</button>
+              <button class="filter-btn" onclick="filterProducts('active',this)">Active</button>
+              <button class="filter-btn" onclick="filterProducts('inactive',this)">Inactive</button>
+              <button class="filter-btn" onclick="filterProducts('out_of_stock',this)">Out of Stock</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Product Grid -->
+        <div id="product-grid" class="product-grid"></div>
+        <div id="product-empty" class="card" style="padding:3rem;text-align:center;display:none;">
+          <div style="font-size:2.5rem;margin-bottom:1rem;">📦</div>
+          <h3 style="margin-bottom:.5rem;font-family:var(--display);letter-spacing:1px;">No products yet</h3>
+          <p style="color:var(--text2);font-size:.85rem;margin-bottom:1.5rem;">Start building your store by adding your first product listing.</p>
+          <button class="btn btn-primary" onclick="openProductModal()">Add Your First Product</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SELLER ANALYTICS -->
+    <div id="page-seller-analytics" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Analytics Dashboard</h2>
+            <p class="page-subtitle">Performance insights and data-driven metrics for your store</p>
+          </div>
+          <div class="filter-group" style="margin:0;">
+            <button class="filter-btn active" onclick="setAnalyticsPeriod(7,this)">7D</button>
+            <button class="filter-btn" onclick="setAnalyticsPeriod(30,this)">30D</button>
+            <button class="filter-btn" onclick="setAnalyticsPeriod(90,this)">90D</button>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="stats-grid">
+          <div class="card stat-card kpi-card">
+            <div class="kpi-icon" style="background:rgba(59,139,255,.12);color:var(--blue)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-val mono" id="kpi-revenue" style="font-size:1.6rem">₱0</div>
+            <div class="stat-sub kpi-trend" id="kpi-revenue-trend">—</div>
+          </div>
+          <div class="card stat-card kpi-card">
+            <div class="kpi-icon" style="background:rgba(0,232,130,.12);color:var(--green)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+            </div>
+            <div class="stat-label">Orders Placed</div>
+            <div class="stat-val mono" id="kpi-orders">0</div>
+            <div class="stat-sub kpi-trend" id="kpi-orders-trend">—</div>
+          </div>
+          <div class="card stat-card kpi-card">
+            <div class="kpi-icon" style="background:rgba(176,97,255,.12);color:var(--purple)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <div class="stat-label">Product Views</div>
+            <div class="stat-val mono" id="kpi-views">0</div>
+            <div class="stat-sub kpi-trend" id="kpi-views-trend">—</div>
+          </div>
+          <div class="card stat-card kpi-card">
+            <div class="kpi-icon" style="background:rgba(255,140,66,.12);color:var(--orange)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+            </div>
+            <div class="stat-label">Engagement Rate</div>
+            <div class="stat-val mono" id="kpi-engage">0%</div>
+            <div class="stat-sub kpi-trend" id="kpi-engage-trend">—</div>
+          </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.25rem;margin-bottom:1.25rem;" class="analytics-grid-2">
+          <div class="card chart-card">
+            <div class="chart-card-header">Revenue Over Time</div>
+            <div class="chart-wrap" style="height:240px;"><canvas id="analytics-revenue-chart"></canvas></div>
+          </div>
+          <div class="card chart-card">
+            <div class="chart-card-header">Sales by Category</div>
+            <div class="chart-wrap" style="height:240px;"><canvas id="analytics-category-chart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Charts Row 2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;" class="analytics-grid-2">
+          <div class="card chart-card">
+            <div class="chart-card-header">Views vs Orders</div>
+            <div class="chart-wrap" style="height:220px;"><canvas id="analytics-views-chart"></canvas></div>
+          </div>
+          <div class="card chart-card">
+            <div class="chart-card-header">Customer Engagement Score</div>
+            <div class="chart-wrap" style="height:220px;"><canvas id="analytics-engagement-chart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Top Products Table -->
+        <div class="card" style="padding:1.75rem;margin-bottom:2rem;">
+          <div class="section-title" style="margin-bottom:1.25rem;">Top Performing Products</div>
+          <div id="analytics-top-products"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end main-content -->
+</div><!-- end app -->
+
+<!-- PRODUCT MODAL -->
+<div id="product-modal" class="fp-overlay hidden" onclick="closeProductModal(event)">
+  <div class="fp-card product-modal-card" style="max-width:560px;">
+    <button class="fp-close-btn" onclick="closeProductModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3 id="product-modal-title" style="font-family:var(--display);font-size:1.55rem;letter-spacing:1px;margin-bottom:1.5rem;">Add New Product</h3>
+    <input type="hidden" id="product-edit-id"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div class="form-group" style="grid-column:1/-1"><label>Product Name *</label><input type="text" id="p-name" placeholder="e.g. Wireless Headphones"/></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="p-desc" rows="3" placeholder="Describe your product…" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;resize:vertical;"></textarea></div>
+      <div class="form-group"><label>Price (₱) *</label><input type="number" id="p-price" placeholder="0.00" min="0" step="0.01"/></div>
+      <div class="form-group"><label>Stock Quantity *</label><input type="number" id="p-stock" placeholder="0" min="0"/></div>
+      <div class="form-group"><label>Category</label>
+        <select id="p-category" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;">
+          <option value="Electronics">Electronics</option>
+          <option value="Clothing">Clothing</option>
+          <option value="Home & Garden">Home &amp; Garden</option>
+          <option value="Sports">Sports</option>
+          <option value="Books">Books</option>
+          <option value="Food & Beverage">Food &amp; Beverage</option>
+          <option value="Health & Beauty">Health &amp; Beauty</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="p-status" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1"><label>Product Image URL</label><input type="text" id="p-image" placeholder="https://… (leave blank for default)"/></div>
+    </div>
+    <div id="product-modal-error" class="form-error" style="display:none;margin-bottom:.75rem;"></div>
+    <div style="display:flex;gap:.75rem;margin-top:.5rem;">
+      <button class="btn btn-primary" style="flex:1" onclick="saveProduct()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Product
+      </button>
+      <button class="btn btn-outline" onclick="closeProductModal()">Cancel</button>
+    </div>
   </div>
+</div>
 
-</div><!-- end #app -->
+<!-- FORGOT PASSWORD OVERLAY -->
+<div id="forgot-overlay" class="fp-overlay hidden" onclick="closeForgotOverlay(event)">
+  <div class="fp-card">
+    <button class="fp-close-btn" onclick="closeForgotPassword()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="fp-step" id="fp-step-1">
+      <div class="fp-step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3 data-i18n="fp_title">Reset Password</h3>
+      <p data-i18n="fp_sub">Enter your registered email address to receive a reset code.</p>
+      <div class="form-group" style="margin-top:1rem;"><label data-i18n="fp_email_label">Email Address</label><input type="email" id="fp-email" placeholder="demo@company.com"/></div>
+      <div id="fp-error" class="form-error" style="display:none;">Email not found. Try <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="9ffbfaf2f0dffcf0f2effef1e6b1fcf0f2">[email&#160;protected]</a></div>
+      <button class="btn btn-primary btn-full" onclick="doForgotStep1()" data-i18n="fp_send_btn">Send Reset Code</button>
+    </div>
+    <div class="fp-step hidden" id="fp-step-2">
+      <div class="fp-step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+      <h3 data-i18n="fp_code_title">Enter Reset Code</h3>
+      <p>We sent a code to <strong id="fp-sent-email"></strong></p>
+      <div class="fp-code-box"><span class="fp-code" id="fp-code"></span></div>
+      <div class="form-group" style="margin-top:.75rem;"><label>Reset Code</label><input type="text" id="fp-code-input" placeholder="CS-RESET-XXXX"/></div>
+      <div id="fp-code-error" class="form-error" style="display:none;">Invalid code. Please try again.</div>
+      <button class="btn btn-primary btn-full" onclick="doForgotStep2()" data-i18n="fp_verify_btn">Verify Code</button>
+    </div>
+    <div class="fp-step hidden" id="fp-step-3">
+      <div class="fp-step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <h3 data-i18n="fp_new_pass_title">Set New Password</h3>
+      <p data-i18n="fp_new_pass_sub">Choose a strong password for your account.</p>
+      <div class="form-group" style="margin-top:1rem;"><label data-i18n="fp_new_pass_label">New Password</label><input type="password" id="fp-newpass" placeholder="••••••••"/></div>
+      <div class="form-group"><label data-i18n="fp_confirm_label">Confirm Password</label><input type="password" id="fp-confirmpass" placeholder="••••••••"/></div>
+      <div class="pass-strength-bar"><div id="pass-strength-fill" class="pass-strength-fill"></div></div>
+      <div id="pass-strength-label" class="pass-strength-label"></div>
+      <div id="fp-pass-error" class="form-error" style="display:none;"></div>
+      <button class="btn btn-primary btn-full" style="margin-top:.75rem;" onclick="doForgotStep3()" data-i18n="fp_reset_btn">Reset Password</button>
+    </div>
+    <div class="fp-step hidden" id="fp-step-4">
+      <div class="fp-step-icon success"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <h3 data-i18n="fp_done_title">Password Reset!</h3>
+      <p data-i18n="fp_done_sub">Your password has been updated. You can now sign in.</p>
+      <button class="btn btn-primary btn-full" style="margin-top:1rem;" onclick="closeForgotPassword()" data-i18n="fp_signin_btn">Back to Sign In</button>
+    </div>
+  </div>
+</div>
 
-<footer id="main-footer" class="hidden">
-  🛡️ CyberShield Assessment Platform &nbsp;—&nbsp; All data stored locally &nbsp;—&nbsp; <span id="footer-year"></span> &nbsp;|&nbsp; <a href="#" onclick="showPage('terms');return false;" style="color:var(--text-3);text-decoration:none;" data-i18n="footer_terms">Terms & Privacy</a>
-</footer>
+<!-- SEARCH OVERLAY -->
+<div id="search-overlay" class="search-overlay hidden" onclick="closeSearchOverlay(event)">
+  <div class="search-results-panel">
+    <div class="search-results-header"><span>Search Results</span><button onclick="closeSearchOverlay()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div id="search-results-list"></div>
+  </div>
+</div>
 
 <div id="print-area" class="hidden"></div>
 
 <script src="script.js"></script>
-<script>
-// Check if user is already logged in
-if (checkSession()) {
-  bootApp();
-}
-</script>
+<script src="sidebar.js"></script>
+<script>if (checkSession()) { bootApp(); }</script>
 </body>
 </html>

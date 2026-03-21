@@ -1,482 +1,405 @@
 <?php
-session_start();
 require_once '../config.php';
+session_start();
 
+// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
+    header('Location: ../index.html');
     exit();
 }
-
-$database = new Database();
-$db = $database->getConnection();
-
-$user_query = "SELECT * FROM users WHERE id = :user_id";
-$stmt = $db->prepare($user_query);
-$stmt->bindParam(':user_id', $_SESSION['user_id']);
-$stmt->execute();
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// Get all vendors with their assessment history
-$vendors_query = "SELECT v.id, v.name, 
-    (SELECT score FROM vendor_assessments WHERE vendor_id = v.id ORDER BY created_at DESC LIMIT 1) as current_score,
-    (SELECT rank FROM vendor_assessments WHERE vendor_id = v.id ORDER BY created_at DESC LIMIT 1) as current_rank,
-    (SELECT created_at FROM vendor_assessments WHERE vendor_id = v.id ORDER BY created_at DESC LIMIT 1) as last_assessment
-    FROM vendors v
-    ORDER BY v.name";
-$stmt = $db->prepare($vendors_query);
-$stmt->execute();
-$vendors = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Get historical data for forecasting
-$history_query = "SELECT v.id as vendor_id, v.name, va.score, va.created_at
-    FROM vendor_assessments va
-    JOIN vendors v ON va.vendor_id = v.id
-    ORDER BY v.id, va.created_at";
-$stmt = $db->prepare($history_query);
-$stmt->execute();
-$history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Risk Forecast - CyberShield</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="dashboard.css">
-    <style>
-        .forecast-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-        .forecast-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 1.25rem;
-            border: 1px solid var(--border-2);
-            transition: transform 0.2s;
-        }
-        .forecast-card:hover {
-            transform: translateY(-2px);
-        }
-        .forecast-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        .vendor-name {
-            font-weight: 700;
-            font-size: 1.1rem;
-            font-family: var(--font);
-        }
-        .trend-indicator {
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            font-family: var(--mono);
-            letter-spacing: 0.5px;
-        }
-        .trend-up {
-            background: #10b981;
-            color: white;
-        }
-        .trend-down {
-            background: #ef4444;
-            color: white;
-        }
-        .trend-stable {
-            background: #6b7280;
-            color: white;
-        }
-        .forecast-score {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--primary);
-            margin: 1rem 0;
-            font-family: var(--display);
-        }
-        .confidence-bar {
-            background: var(--navy-3);
-            border-radius: 10px;
-            height: 8px;
-            overflow: hidden;
-            margin: 0.5rem 0;
-        }
-        .confidence-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), #3b82f6);
-            border-radius: 10px;
-            transition: width 0.3s ease;
-        }
-        .risk-level {
-            margin-top: 1rem;
-            padding: 0.5rem;
-            border-radius: 8px;
-            text-align: center;
-            font-family: var(--font);
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        .risk-critical {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
-        }
-        .risk-high {
-            background: rgba(245, 158, 11, 0.2);
-            color: #f59e0b;
-        }
-        .risk-moderate {
-            background: rgba(59, 130, 246, 0.2);
-            color: #3b82f6;
-        }
-        .risk-low {
-            background: rgba(16, 185, 129, 0.2);
-            color: #10b981;
-        }
-        .recommendation {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            background: var(--navy-3);
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-family: var(--font);
-            line-height: 1.5;
-        }
-        .recommendation strong {
-            font-family: var(--font);
-        }
-        .filter-bar {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 1.5rem;
-        }
-        .filter-btn {
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            background: var(--navy-3);
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: var(--font);
-            font-size: 0.85rem;
-        }
-        .filter-btn.active {
-            background: var(--primary);
-            color: white;
-        }
-        .card h3 {
-            font-family: var(--display);
-            font-size: 1.1rem;
-            letter-spacing: 1px;
-        }
-        div[style*="font-size: 0.85rem"] {
-            font-family: var(--font);
-            line-height: 1.5;
-        }
-        div[style*="text-align: center"] {
-            font-family: var(--font);
-        }
-        div[style*="display: flex"] strong {
-            font-family: var(--font);
-        }
-        div[style*="font-size: 0.75rem"] {
-            font-family: var(--font);
-        }
-        div[style*="font-size: 0.7rem"] {
-            font-family: var(--font);
-        }
-    </style>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Forecast — CyberShield</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+:root{--font:'Inter',sans-serif;--display:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;--blue:#3B8BFF;--purple:#7B72F0;--teal:#00D4AA;--green:#10D982;--yellow:#F5B731;--orange:#FF8C42;--red:#FF3B5C;--t:.18s ease}
+[data-theme=dark]{--bg:#030508;--bg2:#080d16;--bg3:#0d1421;--border:rgba(59,139,255,.08);--border2:rgba(255,255,255,.07);--text:#dde4f0;--muted:#4a6080;--muted2:#8898b4;--card-bg:#0a1020;--shadow:0 4px 24px rgba(0,0,0,.5)}
+[data-theme=light]{--bg:#f0f4f8;--bg2:#e8eef5;--bg3:#fff;--border:rgba(59,139,255,.12);--border2:rgba(0,0,0,.1);--text:#0f172a;--muted:#94a3b8;--muted2:#475569;--card-bg:#fff;--shadow:0 4px 24px rgba(0,0,0,.1)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);transition:background .18s,color .18s}
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(59,139,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(59,139,255,.025) 1px,transparent 1px);background-size:40px 40px}
+#app{display:flex;height:100vh;position:relative;z-index:1}
+#sidebar{width:228px;min-width:228px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .18s,min-width .18s;overflow:hidden;z-index:10;flex-shrink:0}
+#sidebar.collapsed{width:58px;min-width:58px}
+.sb-brand{display:flex;align-items:center;gap:.75rem;padding:1rem .9rem .9rem;border-bottom:1px solid var(--border);flex-shrink:0}
+.shield{width:34px;height:34px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:9px;display:grid;place-items:center;flex-shrink:0;box-shadow:0 0 16px rgba(59,139,255,.3)}
+.sb-brand-text{flex:1;overflow:hidden;white-space:nowrap}
+.sb-brand-text h2{font-family:var(--display);font-size:.95rem;font-weight:700;letter-spacing:1px}
+.sb-brand-text .badge{font-family:var(--mono);font-size:.55rem;letter-spacing:1.5px;text-transform:uppercase;background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.2);border-radius:4px;padding:.08rem .38rem;display:inline-block;margin-top:.1rem}
+.sb-toggle{width:22px;height:22px;background:none;border:1px solid var(--border2);border-radius:5px;cursor:pointer;color:var(--muted2);display:grid;place-items:center;flex-shrink:0;transition:var(--t)}
+.sb-toggle:hover{border-color:var(--blue);color:var(--text)}
+#sidebar.collapsed .sb-toggle svg{transform:rotate(180deg)}
+.sb-section{flex:1;overflow-y:auto;overflow-x:hidden;padding:.65rem 0}
+.sb-section::-webkit-scrollbar{width:3px}.sb-section::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sb-label{font-family:var(--mono);font-size:.55rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:.5rem .9rem .25rem;white-space:nowrap;overflow:hidden}
+#sidebar.collapsed .sb-label{opacity:0}
+.sb-divider{height:1px;background:var(--border);margin:.5rem .9rem}
+.sb-item{display:flex;align-items:center;gap:.65rem;padding:.52rem .9rem;cursor:pointer;color:var(--muted2);font-size:.82rem;font-weight:500;text-decoration:none;transition:var(--t);white-space:nowrap;overflow:hidden;position:relative}
+.sb-item:hover{background:rgba(59,139,255,.07);color:var(--text)}
+.sb-item.active{background:rgba(59,139,255,.1);color:var(--blue)}
+.sb-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;background:var(--blue);border-radius:0 3px 3px 0}
+.sb-icon{display:flex;align-items:center;justify-content:center;width:18px;flex-shrink:0}
+.sb-text{overflow:hidden}
+#sidebar.collapsed .sb-text{display:none}
+.sb-footer{border-top:1px solid var(--border);padding:.75rem .9rem;flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:.65rem;overflow:hidden}
+.sb-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;display:grid;place-items:center;font-size:.75rem;font-weight:700;flex-shrink:0;font-family:var(--display)}
+.sb-user-info{overflow:hidden;white-space:nowrap}
+.sb-user-info p{font-size:.82rem;font-weight:600}
+.sb-user-info span{font-size:.68rem;color:var(--muted2)}
+#sidebar.collapsed .sb-user-info{display:none}
+.btn-sb-logout{display:flex;align-items:center;gap:.35rem;margin-top:.65rem;width:100%;background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.18);color:var(--red);font-family:var(--font);font-size:.75rem;font-weight:600;border-radius:7px;padding:.42rem .8rem;cursor:pointer;transition:var(--t)}
+.btn-sb-logout:hover{background:rgba(255,59,92,.15)}
+#sidebar.collapsed .btn-sb-logout span{display:none}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:54px;min-height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;background:var(--bg2);border-bottom:1px solid var(--border);gap:1rem;flex-shrink:0}
+.tb-bc{display:flex;align-items:center;gap:.4rem}
+.tb-app{font-family:var(--mono);font-size:.68rem;color:var(--muted);letter-spacing:.5px}
+.tb-title{font-family:var(--display);font-size:1.05rem;letter-spacing:1px}
+.tb-sub{font-family:var(--mono);font-size:.63rem;letter-spacing:.5px;color:var(--muted);margin-top:1px}
+.tb-right{display:flex;align-items:center;gap:.55rem}
+.tb-search-wrap{position:relative}
+.tb-search-icon{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted2);pointer-events:none}
+.tb-search{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:8px;padding:.38rem .8rem .38rem 2rem;font-family:var(--font);font-size:.78rem;color:var(--text);outline:none;width:200px;transition:var(--t)}
+.tb-search:focus{border-color:rgba(59,139,255,.4)}
+.tb-search::placeholder{color:var(--muted)}
+.tb-date{font-family:var(--mono);font-size:.65rem;color:var(--muted2);white-space:nowrap}
+.tb-divider{width:1px;height:20px;background:var(--border2);margin:0 .2rem}
+.tb-icon-btn{width:32px;height:32px;border-radius:7px;border:1px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;display:grid;place-items:center;color:var(--muted2);transition:var(--t);flex-shrink:0}
+.tb-icon-btn:hover{border-color:var(--blue);color:var(--text)}
+.tb-admin{display:flex;align-items:center;gap:.55rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:9px;padding:.28rem .65rem .28rem .28rem;cursor:pointer;transition:var(--t)}
+.tb-admin:hover{border-color:rgba(255,59,92,.28);background:rgba(255,59,92,.06)}
+.tb-admin-av{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;display:grid;place-items:center;font-size:.7rem;font-weight:700;flex-shrink:0;font-family:var(--display)}
+.tb-admin-info{display:flex;flex-direction:column}
+.tb-admin-name{font-size:.78rem;font-weight:600;line-height:1.2}
+.tb-admin-role{font-size:.6rem;color:var(--red);letter-spacing:.5px;font-family:var(--mono)}
+.notif-wrap{position:relative}
+.notif-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg2)}
+.np{position:absolute;right:0;top:calc(100% + 8px);width:280px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;box-shadow:var(--shadow);z-index:100}
+.np.hidden{display:none}
+.np-hdr{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid var(--border);font-size:.82rem;font-weight:600}
+.np-hdr button{font-size:.72rem;color:var(--muted2);background:none;border:none;cursor:pointer}
+.np-empty{font-size:.8rem;color:var(--muted2);padding:1rem;text-align:center}
+.np-item{display:flex;gap:.6rem;padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem}
+.np-item:last-child{border-bottom:none}
+.np-dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;margin-top:4px}
+.content{flex:1;overflow-y:auto;padding:1.5rem}
+.content::-webkit-scrollbar{width:4px}.content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sec-hdr{margin-bottom:1.25rem}
+.sec-hdr h2{font-family:var(--display);font-size:1.25rem;font-weight:700;letter-spacing:.5px}
+.sec-hdr p{font-size:.82rem;color:var(--muted2);margin-top:.2rem}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);transition:border-color .18s}
+.card:hover{border-color:var(--border2)}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.9rem;margin-bottom:1.25rem}
+.stat-card{padding:1.15rem 1.25rem;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent,var(--blue));opacity:.7}
+.si{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;margin-bottom:.65rem}
+.slabel{font-family:var(--mono);font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:.3rem}
+.sval{font-family:var(--display);font-size:1.9rem;font-weight:700;line-height:1}
+.ssub{font-size:.7rem;color:var(--muted);margin-top:.3rem}
+.charts-grid{display:grid;gap:.9rem;margin-bottom:1.25rem}
+.chart-card{padding:1.15rem 1.25rem}
+.chart-card h3{font-family:var(--mono);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem}
+.chart-card h3::before{content:'';width:10px;height:3px;background:var(--blue);border-radius:2px;flex-shrink:0}
+.cw{width:100%}.cw.sm{height:160px}.cw.md{height:190px}.cw.lg{height:240px}
+.tbl-card{padding:1.25rem 1.5rem}
+.tbl-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.65rem;margin-bottom:1rem}
+.tbl-bar h3{font-family:var(--display);font-size:1rem;font-weight:700}
+.frow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.fsel{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:7px;padding:.38rem .75rem;font-family:var(--font);font-size:.78rem;color:var(--text);cursor:pointer;outline:none;transition:var(--t)}
+.fsel:focus{border-color:var(--blue)}
+[data-theme=light] .fsel{background:#fff}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:.55rem .75rem;font-family:var(--mono);font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .18s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(59,139,255,.04)}
+tbody td{padding:.65rem .75rem;font-size:.82rem}
+.rank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-family:var(--mono);font-size:.7rem;font-weight:700}
+.rA{background:rgba(16,217,130,.15);color:var(--green)}.rB{background:rgba(245,183,49,.15);color:var(--yellow)}
+.rC{background:rgba(255,140,66,.15);color:var(--orange)}.rD{background:rgba(255,59,92,.15);color:var(--red)}
+.sbw{display:flex;align-items:center;gap:.6rem}
+.sbb{flex:1;height:4px;background:var(--border2);border-radius:2px}
+.sbf{height:100%;border-radius:2px}
+.sbn{font-family:var(--mono);font-size:.72rem;color:var(--muted2);min-width:32px;text-align:right}
+.pgn{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;margin-top:1rem}
+.pb{min-width:30px;height:30px;border-radius:6px;border:1px solid var(--border2);background:none;font-family:var(--mono);font-size:.72rem;color:var(--muted2);cursor:pointer;display:grid;place-items:center;transition:var(--t)}
+.pb:hover,.pb.active{border-color:var(--blue);color:var(--blue);background:rgba(59,139,255,.07)}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .9rem;border-radius:8px;font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer;transition:var(--t);border:none;text-decoration:none}
+.btn-p{background:var(--blue);color:#fff}.btn-p:hover{background:#2e7ae8}
+.btn-s{background:rgba(255,255,255,.05);color:var(--muted2);border:1px solid var(--border2)}.btn-s:hover{border-color:var(--blue);color:var(--text)}
+.btn-d{background:rgba(255,59,92,.1);color:var(--red);border:1px solid rgba(255,59,92,.2)}.btn-d:hover{background:rgba(255,59,92,.2)}
+.btn-sm{font-size:.72rem;padding:.32rem .7rem}
+.sdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.sdot-g{background:var(--green);box-shadow:0 0 6px rgba(16,217,130,.5)}.sdot-y{background:var(--yellow)}.sdot-r{background:var(--red);box-shadow:0 0 6px rgba(255,59,92,.5)}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:200;backdrop-filter:blur(4px)}
+.mo.hidden{display:none}
+.modal{background:var(--bg3);border:1px solid var(--border2);border-radius:14px;width:min(90vw,560px);box-shadow:0 20px 60px rgba(0,0,0,.6);animation:su .2s ease}
+@keyframes su{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.mhdr h3{font-family:var(--display);font-size:1rem;font-weight:700}
+.mcl{width:28px;height:28px;border-radius:7px;border:1px solid var(--border2);background:none;color:var(--muted2);cursor:pointer;display:grid;place-items:center;transition:var(--t)}
+.mcl:hover{border-color:var(--red);color:var(--red)}
+.mbdy{padding:1.25rem}
+.ts{position:relative;display:inline-block;width:38px;height:21px;flex-shrink:0}
+.ts input{opacity:0;width:0;height:0}
+.tsl{position:absolute;inset:0;cursor:pointer;background:rgba(255,255,255,.1);border-radius:21px;transition:var(--t)}
+.tsl::before{content:'';position:absolute;height:15px;width:15px;left:3px;bottom:3px;background:var(--muted2);border-radius:50%;transition:var(--t)}
+.ts input:checked+.tsl{background:var(--blue)}
+.ts input:checked+.tsl::before{transform:translateX(17px);background:#fff}
+#toast-c{position:fixed;bottom:1.25rem;right:1.25rem;display:flex;flex-direction:column;gap:.5rem;z-index:300}
+.toast{background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:.75rem 1rem;font-size:.82rem;box-shadow:var(--shadow);display:flex;align-items:center;gap:.6rem;animation:sl .2s ease;min-width:240px}
+@keyframes sl{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.ti{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fi{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:8px;padding:.5rem .85rem;font-family:var(--font);font-size:.82rem;color:var(--text);outline:none;transition:var(--t);width:100%}
+.fi:focus{border-color:var(--blue)}.fi[readonly],.fi:disabled{opacity:.6;cursor:not-allowed}
+textarea.fi{resize:vertical}
+[data-theme=light] .fi{background:#f8fafc}
+.fl{font-family:var(--mono);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.4rem}
+.fg{margin-bottom:.85rem}
+.pref-r{display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border)}
+.pref-r:last-child{border-bottom:none}
+.fc-f.active{background:rgba(59,139,255,.1)!important;color:var(--blue)!important;border-color:rgba(59,139,255,.25)!important}</style>
 </head>
 <body>
-    <div class="bg-grid"></div>
-    <div id="app">
-        <div id="sidebar">
-            <div class="sb-brand">
-                <div class="shield">🛡️</div>
-                <div class="sb-brand-text"><h2>CyberShield</h2><span>Risk Forecast</span></div>
-            </div>
-            <div class="sb-section">
-                <div class="sb-label">Navigation</div>
-                <a class="sb-item" href="dashboard.php"><span class="sb-icon">📊</span><span class="sb-text">Dashboard</span></a>
-                <a class="sb-item" href="reports.php"><span class="sb-icon">📈</span><span class="sb-text">Reports</span></a>
-                <a class="sb-item" href="users.php"><span class="sb-icon">👥</span><span class="sb-text">Users</span></a>
-                <a class="sb-item" href="heatmap.php"><span class="sb-icon">🔥</span><span class="sb-text">Risk Heatmap</span></a>
-                <a class="sb-item" href="activity.php"><span class="sb-icon">📋</span><span class="sb-text">Activity Log</span></a>
-                <a class="sb-item" href="settings.php"><span class="sb-icon">⚙️</span><span class="sb-text">Settings</span></a>
-                <a class="sb-item" href="compare.php"><span class="sb-icon">⚖️</span><span class="sb-text">Compare</span></a>
-                <a class="sb-item active" href="forecast.php"><span class="sb-icon">🔮</span><span class="sb-text">Forecast</span></a>
-                <a class="sb-item" href="compliance.php"><span class="sb-icon">✅</span><span class="sb-text">Compliance</span></a>
-                <a class="sb-item" href="email.php"><span class="sb-icon">📧</span><span class="sb-text">Email Report</span></a>
-                      <div class="sb-divider"></div>
+<div class="bg-grid"></div>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="sb-brand">
+      <div class="shield"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="sb-brand-text"><h2>CyberShield</h2><span class="badge">Admin Panel</span></div>
+      <button class="sb-toggle" onclick="toggleSidebar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Navigation</div>
+      <a class="sb-item" href="dashboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span><span class="sb-text">Dashboard</span></a>
+<a class="sb-item" href="reports.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-text">Reports</span></a>
+<a class="sb-item" href="users.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="sb-text">Users</span></a>
+<a class="sb-item" href="heatmap.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span><span class="sb-text">Risk Heatmap</span></a>
+<a class="sb-item" href="activity.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="sb-text">Activity Log</span></a>
+<a class="sb-item" href="settings.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span><span class="sb-text">Settings</span></a>
+      <div class="sb-divider"></div>
       <div class="sb-label">Tools</div>
-      <a class="sb-item" onclick="exportCSV()"><span class="sb-icon">⬇</span><span class="sb-text">Export CSV</span></a>
-      <a class="sb-item" onclick="exportPDF()"><span class="sb-icon">📄</span><span class="sb-text">Export PDF</span></a>
-      <a class="sb-item" onclick="refreshData()"><span class="sb-icon">↻</span><span class="sb-text">Refresh Data</span></a>
+      <a class="sb-item" href="compare.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="8" x2="6" y2="8"/><line x1="21" y1="16" x2="3" y2="16"/></svg></span><span class="sb-text">Compare</span></a>
+<a class="sb-item active" href="forecast.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span><span class="sb-text">Forecast</span></a>
+<a class="sb-item" href="compliance.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-text">Compliance</span></a>
+<a class="sb-item" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span class="sb-text">Email Report</span></a>
+      <div class="sb-divider"></div>
+      <div class="sb-label">Quick Actions</div>
+      <a class="sb-item" onclick="showToast('CSV exported','green')"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="sb-text">Export CSV</span></a>
+      <a class="sb-item" onclick="showToast('PDF exported','green')"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="sb-text">Export PDF</span></a>
+      <a class="sb-item" onclick="showToast('Data refreshed','blue')"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span><span class="sb-text">Refresh Data</span></a>
     </div>
-            <div class="sb-footer">
-                <div class="sb-user">
-                    <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-                    <div class="sb-user-info">
-                        <p><?php echo htmlspecialchars($user['full_name']); ?></p>
-                        <span><?php echo htmlspecialchars($user['email']); ?></span>
-                    </div>
-                </div>
-                <button class="btn-sb-logout" onclick="doSignOut()">Sign Out</button>
-            </div>
-        </div>
-        
-        <div id="main">
-            <div class="topbar">
-                <div class="topbar-left">
-                    <h2>Risk Score Forecast</h2>
-                    <p>AI-powered predictions for vendor security scores</p>
-                </div>
-                <div class="topbar-right">
-                    <div class="topbar-search-wrap">
-                        <span class="topbar-search-icon">🔍</span>
-                        <input type="text" class="topbar-search" id="global-search" placeholder="Search vendors, scores…" oninput="onGlobalSearch(this.value)" />
-                        <div class="search-results-panel hidden" id="search-results"></div>
-                    </div>
-                    <span class="topbar-date" id="topbar-date"><?php echo date('D, M d, Y'); ?></span>
-                    <div class="notif-wrap">
-                        <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()">🔔<span class="notif-dot hidden" id="notif-dot"></span></button>
-                        <div class="notif-panel hidden" id="notif-panel">
-                            <div class="notif-header"><span>Alerts</span><button onclick="clearNotifs()">Clear all</button></div>
-                            <div id="notif-list"><p class="notif-empty">No alerts</p></div>
-                        </div>
-                    </div>
-                    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
-                    <button class="btn btn-secondary btn-sm" onclick="refreshData()">↻ Refresh</button>
-                </div>
-            </div>
-            
-            <div class="content">
-                <div class="card">
-                    <div class="filter-bar" id="filter-bar">
-                        <span class="filter-btn active" data-filter="all" onclick="filterForecasts('all')">All Vendors</span>
-                        <span class="filter-btn" data-filter="improving" onclick="filterForecasts('improving')">📈 Improving</span>
-                        <span class="filter-btn" data-filter="declining" onclick="filterForecasts('declining')">📉 Declining</span>
-                        <span class="filter-btn" data-filter="stable" onclick="filterForecasts('stable')">➡️ Stable</span>
-                        <span class="filter-btn" data-filter="at-risk" onclick="filterForecasts('at-risk')">⚠️ At Risk</span>
-                    </div>
-                    <p style="font-size: 0.85rem; color: var(--text-3);">Forecasts based on historical trends and machine learning models. Confidence levels indicate prediction reliability.</p>
-                </div>
-                
-                <div id="forecast-grid" class="forecast-grid"></div>
-            </div>
-        </div>
+    <div class="sb-footer">
+      <div class="sb-user">
+        <div class="sb-avatar">A</div>
+        <div class="sb-user-info"><p>Admin User</p><span>admin@cybershield.io</span></div>
+      </div>
+      <button class="btn-sb-logout" onclick="showToast('Signed out','red')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Sign Out</span>
+      </button>
     </div>
-    
-    <script>
-        const vendors = <?php echo json_encode($vendors); ?>;
-        const historyData = <?php echo json_encode($history); ?>;
-        let currentFilter = 'all';
-        
-        // Calculate forecast for a vendor
-        function calculateForecast(vendorId, historicalScores) {
-            if (historicalScores.length < 2) {
-                return {
-                    forecastScore: historicalScores[0]?.score || 50,
-                    trend: 'stable',
-                    confidence: 30,
-                    recommendation: 'Insufficient data for accurate forecast. Schedule another assessment.'
-                };
-            }
-            
-            // Simple linear regression for trend
-            const scores = historicalScores.map(h => h.score);
-            const indices = scores.map((_, i) => i);
-            const n = scores.length;
-            
-            const sumX = indices.reduce((a, b) => a + b, 0);
-            const sumY = scores.reduce((a, b) => a + b, 0);
-            const sumXY = indices.reduce((a, b, i) => a + b * scores[i], 0);
-            const sumX2 = indices.reduce((a, b) => a + b * b, 0);
-            
-            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-            const intercept = (sumY - slope * sumX) / n;
-            
-            // Predict next score (index = n)
-            const forecast = Math.min(100, Math.max(0, intercept + slope * n));
-            
-            // Determine trend
-            let trend = 'stable';
-            if (slope > 2) trend = 'improving';
-            else if (slope < -2) trend = 'declining';
-            
-            // Calculate confidence based on data points and consistency
-            const variance = scores.reduce((sum, score, i) => {
-                const predicted = intercept + slope * i;
-                return sum + Math.pow(score - predicted, 2);
-            }, 0) / n;
-            const confidence = Math.min(95, Math.max(20, 100 - (variance / 10) * (10 / n)));
-            
-            // Generate recommendation
-            let recommendation = '';
-            if (forecast < 40) {
-                recommendation = '⚠️ URGENT: Immediate security intervention required. Schedule comprehensive security audit.';
-            } else if (forecast < 60) {
-                recommendation = '⚠️ HIGH RISK: Implement security improvements within next quarter. Focus on weak areas.';
-            } else if (forecast < 80) {
-                recommendation = 'ℹ️ MODERATE: Maintain current security posture and schedule regular reviews.';
-            } else {
-                recommendation = '✅ GOOD: Security posture is strong. Continue monitoring and regular assessments.';
-            }
-            
-            return {
-                forecastScore: Math.round(forecast),
-                trend: trend,
-                confidence: Math.round(confidence),
-                recommendation: recommendation,
-                slope: slope
-            };
-        }
-        
-        function getHistoricalScores(vendorId) {
-            return historyData
-                .filter(h => h.vendor_id == vendorId)
-                .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        }
-        
-        function getRiskClass(score) {
-            if (score < 40) return 'risk-critical';
-            if (score < 60) return 'risk-high';
-            if (score < 80) return 'risk-moderate';
-            return 'risk-low';
-        }
-        
-        function getRiskText(score) {
-            if (score < 40) return 'Critical Risk';
-            if (score < 60) return 'High Risk';
-            if (score < 80) return 'Moderate Risk';
-            return 'Low Risk';
-        }
-        
-        function renderForecasts() {
-            let filteredVendors = [...vendors];
-            
-            if (currentFilter === 'improving') {
-                filteredVendors = filteredVendors.filter(v => {
-                    const history = getHistoricalScores(v.id);
-                    const forecast = calculateForecast(v.id, history);
-                    return forecast.trend === 'improving';
-                });
-            } else if (currentFilter === 'declining') {
-                filteredVendors = filteredVendors.filter(v => {
-                    const history = getHistoricalScores(v.id);
-                    const forecast = calculateForecast(v.id, history);
-                    return forecast.trend === 'declining';
-                });
-            } else if (currentFilter === 'stable') {
-                filteredVendors = filteredVendors.filter(v => {
-                    const history = getHistoricalScores(v.id);
-                    const forecast = calculateForecast(v.id, history);
-                    return forecast.trend === 'stable';
-                });
-            } else if (currentFilter === 'at-risk') {
-                filteredVendors = filteredVendors.filter(v => {
-                    const forecast = calculateForecast(v.id, getHistoricalScores(v.id));
-                    return forecast.forecastScore < 60;
-                });
-            }
-            
-            if (filteredVendors.length === 0) {
-                document.getElementById('forecast-grid').innerHTML = '<div class="card" style="text-align: center; padding: 3rem;">No vendors match the selected filter.</div>';
-                return;
-            }
-            
-            let html = '';
-            filteredVendors.forEach(vendor => {
-                const history = getHistoricalScores(vendor.id);
-                const forecast = calculateForecast(vendor.id, history);
-                const currentScore = vendor.current_score || 'N/A';
-                const riskClass = getRiskClass(forecast.forecastScore);
-                const riskText = getRiskText(forecast.forecastScore);
-                const trendClass = forecast.trend === 'improving' ? 'trend-up' : (forecast.trend === 'declining' ? 'trend-down' : 'trend-stable');
-                const trendIcon = forecast.trend === 'improving' ? '📈' : (forecast.trend === 'declining' ? '📉' : '➡️');
-                
-                html += `
-                    <div class="forecast-card">
-                        <div class="forecast-header">
-                            <span class="vendor-name">${escapeHtml(vendor.name)}</span>
-                            <span class="trend-indicator ${trendClass}">${trendIcon} ${forecast.trend.toUpperCase()}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                            <span>Current Score: <strong>${currentScore}%</strong></span>
-                            <span>Forecast: <strong>${forecast.forecastScore}%</strong></span>
-                        </div>
-                        <div class="forecast-score">${forecast.forecastScore}%</div>
-                        <div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem;">
-                                <span>Confidence Level</span>
-                                <span>${forecast.confidence}%</span>
-                            </div>
-                            <div class="confidence-bar">
-                                <div class="confidence-fill" style="width: ${forecast.confidence}%"></div>
-                            </div>
-                        </div>
-                        <div class="risk-level ${riskClass}">
-                            ${riskText} - ${forecast.forecastScore}%
-                        </div>
-                        <div class="recommendation">
-                            <strong>💡 Recommendation:</strong><br>
-                            ${forecast.recommendation}
-                        </div>
-                        ${forecast.slope ? `<div style="margin-top: 0.75rem; font-size: 0.7rem; color: var(--text-3);">
-                            Trend: ${forecast.slope > 0 ? '+' : ''}${forecast.slope.toFixed(1)}% per assessment
-                        </div>` : ''}
-                    </div>
-                `;
-            });
-            
-            document.getElementById('forecast-grid').innerHTML = html;
-        }
-        
-        function filterForecasts(filter) {
-            currentFilter = filter;
-            
-            // Update active filter button
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.dataset.filter === filter) {
-                    btn.classList.add('active');
-                }
-            });
-            
-            renderForecasts();
-        }
-        
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-        
-        function toggleTheme() {
-            const html = document.documentElement;
-            const current = html.getAttribute('data-theme');
-            html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
-        }
-        
-        function doSignOut(){
-            if(confirm('Are you sure you want to sign out?')){
-                window.location.href = '/security/landingpage.php';
-            }
-        }
-        
-        // Initialize on load
-        document.addEventListener('DOMContentLoaded', () => {
-            renderForecasts();
-        });
-    </script>
-    <script src="dashboard.js?v=<?php echo time(); ?>"></script>
+  </aside>
+  <div id="main">
+
+    <div class="topbar">
+      <div>
+        <div class="tb-bc">
+          <span class="tb-app">CyberShield</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+          <span class="tb-title">Risk Forecast</span>
+        </div>
+        <p class="tb-sub">Predicted trends per vendor</p>
+      </div>
+      <div class="tb-right">
+        <div class="tb-search-wrap">
+          <span class="tb-search-icon"><svg width="12" height="12" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <input type="text" class="tb-search" placeholder="Search vendors, scores…" autocomplete="off"/>
+        </div>
+        <span class="tb-date" id="tb-date"></span>
+        <div class="tb-divider"></div>
+        <button class="tb-icon-btn" onclick="toggleTheme()" title="Toggle theme">
+          <svg id="tmoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="tsun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+        </button>
+        <div class="notif-wrap">
+          <button class="tb-icon-btn" onclick="toggleNotif()" title="Alerts" style="position:relative">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notif-dot" id="notif-dot"></span>
+          </button>
+          <div class="np hidden" id="np">
+            <div class="np-hdr"><span>Alerts</span><button onclick="clearNotifs()">Clear all</button></div>
+            <div id="np-list">
+              <div class="np-item"><span class="np-dot"></span><span>Apex Corp dropped to rank D</span></div>
+              <div class="np-item"><span class="np-dot"></span><span>3 vendors need compliance review</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="tb-divider"></div>
+        <a class="tb-admin" href="settings.php">
+          <div class="tb-admin-av">A</div>
+          <div class="tb-admin-info"><span class="tb-admin-name">Admin</span><span class="tb-admin-role">Admin</span></div>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--muted);margin-left:.2rem"><path d="M4 6l4 4 4-4"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="content">
+
+<div class="sec-hdr"><h2>Risk Score Forecast</h2><p>Predicted next scores based on each vendor's historical trend.</p></div>
+<div class="card" style="padding:1.5rem;margin-bottom:1.25rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.25rem">
+    <h3 style="font-family:var(--mono);font-size:.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2)">Trend-Based Forecast</h3>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+      <button class="btn btn-s btn-sm fc-f active" onclick="filterFc('all',this)">All</button>
+      <button class="btn btn-s btn-sm fc-f" onclick="filterFc('up',this)">↑ Improving</button>
+      <button class="btn btn-s btn-sm fc-f" onclick="filterFc('down',this)">↓ Declining</button>
+      <button class="btn btn-s btn-sm fc-f" onclick="filterFc('risk',this)">⚠ At Risk</button>
+    </div>
+  </div>
+  <div id="fc-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.9rem"></div>
+</div>
+
+    </div>
+  </div>
+</div>
+
+<div id="modal-overlay" class="mo hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="mhdr"><h3 id="modal-title">Detail</h3><button class="mcl" onclick="closeModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="mbdy" id="modal-body"></div>
+  </div>
+</div>
+<div id="toast-c"></div>
+<script>
+const MOCK = {
+  vendors:[
+    {id:1,name:'TechNova Solutions'},{id:2,name:'CloudSafe Inc'},
+    {id:3,name:'Apex Corp'},{id:4,name:'DataGuard LLC'},
+    {id:5,name:'NetShield Pro'},{id:6,name:'Vertex Systems'},
+    {id:7,name:'IronCore Security'},{id:8,name:'BlueSky Tech'},
+    {id:9,name:'CipherNet'},{id:10,name:'Quantum Sec'},
+    {id:11,name:'SafeNet LLC'},{id:12,name:'TrustArc Inc'}
+  ],
+  cats:['Access Control','Network Security','Data Encryption','Compliance','Incident Response','Physical Security']
+};
+MOCK.assessments = Array.from({length:60},(_,i)=>{
+  const s=Math.round(Math.random()*78+20);
+  const r=s>=80?'A':s>=60?'B':s>=40?'C':'D';
+  const v=MOCK.vendors[i%MOCK.vendors.length];
+  const d=new Date(2024,Math.floor(Math.random()*14),Math.floor(Math.random()*28)+1);
+  return{id:i+1,vid:v.id,vname:v.name,score:s,rank:r,cat:MOCK.cats[i%6],date:d.toISOString().split('T')[0]};
+});
+MOCK.activity=[
+  {type:'export',msg:'Admin exported CSV report',time:'2 min ago'},
+  {type:'alert',msg:'Apex Corp dropped to Rank D',time:'15 min ago'},
+  {type:'refresh',msg:'Data refreshed manually',time:'32 min ago'},
+  {type:'flag',msg:'NetShield Pro flagged for review',time:'1 hr ago'},
+  {type:'profile',msg:'Admin profile updated',time:'3 hrs ago'},
+  {type:'export',msg:'PDF report downloaded',time:'5 hrs ago'},
+  {type:'alert',msg:'Quantum Sec score dropped 12%',time:'8 hrs ago'},
+];
+
+function sc(s){return s>=80?'var(--green)':s>=60?'var(--yellow)':s>=40?'var(--orange)':'var(--red)'}
+function isDark(){return document.documentElement.getAttribute('data-theme')==='dark'}
+function ax(){return isDark()?{tick:'#8898b4',grid:'rgba(59,139,255,.04)',tt:'#0d1421',ttB:'rgba(255,255,255,.1)',tc:'#dde4f0',bc:'#8898b4'}:{tick:'#64748b',grid:'rgba(0,0,0,.06)',tt:'#fff',ttB:'rgba(0,0,0,.1)',tc:'#0f172a',bc:'#475569'}}
+const CC={A:{s:'#10D982',b:'rgba(16,217,130,.55)'},B:{s:'#F5B731',b:'rgba(245,183,49,.55)'},C:{s:'#FF7A45',b:'rgba(255,122,69,.55)'},D:{s:'#FF4D6A',b:'rgba(255,77,106,.55)'}};
+function riskCounts(){
+  const lat={};
+  MOCK.assessments.forEach(a=>{if(!lat[a.vid]||a.date>lat[a.vid].date)lat[a.vid]=a;});
+  const c={A:0,B:0,C:0,D:0};
+  Object.values(lat).forEach(a=>c[a.rank]++);
+  return c;
+}
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  localStorage.setItem('cs_sb',document.getElementById('sidebar').classList.contains('collapsed')?'1':'0');
+}
+function toggleTheme(){
+  const d=!isDark();
+  document.documentElement.setAttribute('data-theme',d?'dark':'light');
+  localStorage.setItem('cs_th',d?'dark':'light');
+  const m=document.getElementById('tmoon'),s=document.getElementById('tsun');
+  if(m)m.style.display=d?'':'none';
+  if(s)s.style.display=d?'none':'';
+  if(typeof onThemeChange==='function')onThemeChange();
+}
+function toggleNotif(){
+  const p=document.getElementById('np');
+  if(p)p.classList.toggle('hidden');
+}
+function clearNotifs(){
+  const l=document.getElementById('np-list');
+  if(l)l.innerHTML='<p class="np-empty">No alerts</p>';
+  const d=document.getElementById('notif-dot');
+  if(d)d.style.display='none';
+  const p=document.getElementById('np');
+  if(p)p.classList.add('hidden');
+}
+function showToast(msg,color='blue'){
+  const cols={blue:'var(--blue)',green:'var(--green)',red:'var(--red)',yellow:'var(--yellow)'};
+  const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<span class="ti" style="background:${cols[color]||cols.blue}"></span><span>${msg}</span>`;
+  document.getElementById('toast-c').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2500);
+}
+function closeModal(){document.getElementById('modal-overlay').classList.add('hidden')}
+document.addEventListener('DOMContentLoaded',()=>{
+  const th=localStorage.getItem('cs_th')||'dark';
+  document.documentElement.setAttribute('data-theme',th);
+  const m=document.getElementById('tmoon'),s=document.getElementById('tsun');
+  if(m)m.style.display=th==='dark'?'':'none';
+  if(s)s.style.display=th==='dark'?'none':'';
+  const sb=localStorage.getItem('cs_sb');
+  if(sb==='1')document.getElementById('sidebar').classList.add('collapsed');
+  const d=document.getElementById('tb-date');
+  if(d)d.textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  if(typeof pageInit==='function')pageInit();
+});
+
+let fcData=[];
+function pageInit(){
+  fcData=MOCK.vendors.map(v=>{
+    const his=MOCK.assessments.filter(a=>a.vid===v.id).sort((a,b)=>a.date.localeCompare(b.date));
+    const cur=his.length?his[his.length-1].score:50;
+    const prev=his.length>1?his[his.length-2].score:cur;
+    const pred=Math.max(0,Math.min(100,Math.round(cur+(cur-prev)*0.6)));
+    const trend=pred>cur?'up':pred<cur?'down':'flat';
+    const rank=pred>=80?'A':pred>=60?'B':pred>=40?'C':'D';
+    return{...v,cur,prev,pred,trend,rank};
+  });
+  renderFc('all');
+}
+function filterFc(f,btn){
+  document.querySelectorAll('.fc-f').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFc(f);
+}
+function renderFc(f){
+  let d=fcData;
+  if(f==='up')d=d.filter(v=>v.trend==='up');
+  else if(f==='down')d=d.filter(v=>v.trend==='down');
+  else if(f==='risk')d=d.filter(v=>v.rank==='C'||v.rank==='D');
+  const tCol=v=>v.trend==='up'?'var(--green)':v.trend==='down'?'var(--red)':'var(--muted2)';
+  const tIcon=v=>v.trend==='up'?'↑':v.trend==='down'?'↓':'→';
+  document.getElementById('fc-grid').innerHTML=d.map(v=>`
+    <div class="card" style="padding:1rem">
+      <div style="font-size:.82rem;font-weight:600;margin-bottom:.35rem">${v.name}</div>
+      <div style="font-family:var(--mono);font-size:.65rem;color:var(--muted2);margin-bottom:.6rem">Current: ${v.cur}% → Forecast: <b style="color:${sc(v.pred)}">~${v.pred}%</b></div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <span class="rank r${v.rank}">${v.rank}</span>
+        <span style="font-size:.78rem;color:${tCol(v)}">${tIcon(v)} ${v.trend==='up'?'Improving':v.trend==='down'?'Declining':'Stable'}</span>
+      </div>
+      <div style="margin-top:.65rem;height:4px;background:var(--border2);border-radius:2px"><div style="height:100%;border-radius:2px;background:${sc(v.pred)};width:${v.pred}%"></div></div>
+    </div>`).join('');
+}
+</script>
 </body>
 </html>

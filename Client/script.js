@@ -154,8 +154,12 @@ function clearNotifs() {
 // ═══════════════════════════════════════════════════════════════
 function applyTheme(dark) {
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-  const btn = document.getElementById('theme-toggle');
-  if (btn) btn.textContent = dark ? '🌙' : '☀️';
+  const moonIcon = document.getElementById('theme-icon-moon');
+  const sunIcon  = document.getElementById('theme-icon-sun');
+  if (moonIcon) moonIcon.style.display = dark ? '' : 'none';
+  if (sunIcon)  sunIcon.style.display  = dark ? 'none' : '';
+  const themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) themeToggle.classList.toggle('active', !dark);
   const pref = document.getElementById('pref-dark');
   if (pref) pref.checked = dark;
   localStorage.setItem('cs_theme', dark ? 'dark' : 'light');
@@ -306,19 +310,25 @@ function checkSession() {
 // ═══════════════════════════════════════════════════════════════
 function bootApp() {
   if (!checkSession()) {
-    // Redirect to landing page if no session
     window.location.href = '../Landingpage/landingpage.html';
     return;
   }
 
-  document.getElementById('app').classList.remove('hidden');
-  document.getElementById('main-footer').classList.remove('hidden');
-  document.getElementById('footer-year').textContent = new Date().getFullYear();
-  document.getElementById('nav-avatar').textContent = session.name.charAt(0).toUpperCase();
-  document.getElementById('nav-name').textContent = session.name;
+  var appEl = document.getElementById('app');
+  if (appEl) appEl.classList.remove('hidden');
 
-  // Apply saved theme
-  const savedTheme = localStorage.getItem('cs_theme') || 'dark';
+  // Footer is optional in new layout
+  var footerEl = document.getElementById('main-footer');
+  if (footerEl) footerEl.classList.remove('hidden');
+  var footerYearEl = document.getElementById('footer-year');
+  if (footerYearEl) footerYearEl.textContent = new Date().getFullYear();
+
+  var navAvatar = document.getElementById('nav-avatar');
+  if (navAvatar) navAvatar.textContent = session.name.charAt(0).toUpperCase();
+  var navName = document.getElementById('nav-name');
+  if (navName) navName.textContent = session.name;
+
+  var savedTheme = localStorage.getItem('cs_theme') || 'dark';
   applyTheme(savedTheme === 'dark');
 
   renderNotifBadge();
@@ -329,10 +339,12 @@ function bootApp() {
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════════════
 function showPage(name) {
-  ['dashboard','assessment','results','profile','leaderboard'].forEach(function(p){
-    document.getElementById('page-' + p).classList.add('hidden');
+  ['dashboard','assessment','results','profile','leaderboard','tips','terms'].forEach(function(p){
+    var pageEl = document.getElementById('page-' + p);
+    if (pageEl) pageEl.classList.add('hidden');
   });
-  const el = document.getElementById('page-' + name);
+  var el = document.getElementById('page-' + name);
+  if (!el) return; // guard against unknown page names
   el.classList.remove('hidden');
   el.classList.remove('fade-in');
   void el.offsetWidth;
@@ -700,8 +712,8 @@ function renderLeaderboard(filter) {
 }
 
 function filterLeaderboard(filter, btn) {
-  document.querySelectorAll('.lb-filter').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
+  document.querySelectorAll('.lb-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
   renderLeaderboard(filter);
 }
 
@@ -1105,12 +1117,10 @@ function setLanguage(lang) {
   currentLang = lang;
   localStorage.setItem('cs_lang', lang);
   applyTranslations();
-  // Sync select
   const sel = document.getElementById('pref-lang-select');
   if (sel) sel.value = lang;
-  // Update lang button
-  const btn = document.getElementById('lang-btn');
-  if (btn) btn.textContent = lang === 'en' ? '🌐 EN' : '🌐 FIL';
+  const langLabel = document.getElementById('lang-label');
+  if (langLabel) langLabel.textContent = lang === 'en' ? 'EN' : 'FIL';
 }
 
 function cycleLang() {
@@ -1235,19 +1245,15 @@ function doForgotStep3() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TERMS NAVIGATION
+//  TERMS / SECTION NAVIGATION
+// (showPage override handled in sidebar.js)
 // ═══════════════════════════════════════════════════════════════
-var _termsReturnPage = 'dashboard';
-
-// Override showPage to handle terms return
-var _origShowPage = showPage;
-showPage = function(name) {
-  if (name !== 'terms') _termsReturnPage = name;
-  _origShowPage(name);
-};
-
 function goBackFromTerms() {
-  showPage(_termsReturnPage || 'dashboard');
+  if (typeof _termsReturnPage !== 'undefined') {
+    showPage(_termsReturnPage || 'dashboard');
+  } else {
+    showPage('dashboard');
+  }
 }
 
 function scrollToSection(id) {
@@ -1263,16 +1269,414 @@ function clearAllData() {
   setTimeout(function(){ location.reload(); }, 1500);
 }
 
+// Boot extension handled by sidebar.js
 // ═══════════════════════════════════════════════════════════════
-//  BOOT EXTENSION (language + a11y init)
+//  SELLER MODULE — Products & Analytics
 // ═══════════════════════════════════════════════════════════════
-var _origBootApp = bootApp;
-bootApp = function() {
-  _origBootApp();
-  // Init language
-  var savedLang = localStorage.getItem('cs_lang') || 'en';
-  setLanguage(savedLang);
-  // Init accessibility
-  var savedA11y = localStorage.getItem('cs_a11y') === '1';
-  if (savedA11y) setAccessibility(true);
-};
+
+// ── Storage helpers ──────────────────────────────────────────
+function getProducts() { return JSON.parse(localStorage.getItem('cs_products') || '[]'); }
+function saveProducts(p) { localStorage.setItem('cs_products', JSON.stringify(p)); }
+function getAnalyticsData() {
+  var d = localStorage.getItem('cs_analytics');
+  if (d) return JSON.parse(d);
+  // Seed realistic demo data
+  var data = generateAnalyticsSeed();
+  localStorage.setItem('cs_analytics', JSON.stringify(data));
+  return data;
+}
+
+function generateAnalyticsSeed() {
+  var now = Date.now();
+  var DAY = 86400000;
+  var days = [];
+  for (var i = 89; i >= 0; i--) {
+    var base = 3000 + Math.random() * 4000;
+    var views = Math.floor(40 + Math.random() * 120);
+    var orders = Math.floor(views * (0.04 + Math.random() * 0.08));
+    days.push({
+      ts: now - i * DAY,
+      revenue: parseFloat(base.toFixed(2)),
+      views: views,
+      orders: orders,
+      engagement: parseFloat((orders / views * 100).toFixed(1))
+    });
+  }
+  return days;
+}
+
+// ── Product Filter State ──────────────────────────────────────
+var _productFilter = 'all';
+
+function filterProducts(f, btn) {
+  _productFilter = f;
+  document.querySelectorAll('#page-seller-store .filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  renderProductGrid();
+}
+
+// ── Render Product Grid ───────────────────────────────────────
+function renderProductGrid() {
+  var products = getProducts();
+  var search = (document.getElementById('product-search') || {}).value || '';
+  var q = search.toLowerCase();
+
+  var filtered = products.filter(function(p) {
+    var matchFilter = _productFilter === 'all' ||
+      (_productFilter === 'active' && p.status === 'active' && p.stock > 0) ||
+      (_productFilter === 'inactive' && p.status === 'inactive') ||
+      (_productFilter === 'out_of_stock' && p.stock <= 0);
+    var matchSearch = !q || p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q);
+    return matchFilter && matchSearch;
+  });
+
+  var grid = document.getElementById('product-grid');
+  var empty = document.getElementById('product-empty');
+  if (!grid) return;
+
+  // Update stats
+  updateSellerStats(products);
+
+  if (!filtered.length) {
+    grid.innerHTML = '';
+    grid.style.display = 'none';
+    if (products.length === 0) { empty.style.display = 'block'; }
+    else { empty.style.display = 'none'; }
+    return;
+  }
+  grid.style.display = 'grid';
+  empty.style.display = 'none';
+
+  var ICONS = { Electronics:'💻', Clothing:'👕', 'Home & Garden':'🏡', Sports:'⚽', Books:'📚', 'Food & Beverage':'🍔', 'Health & Beauty':'💄', Other:'📦' };
+
+  grid.innerHTML = filtered.map(function(p) {
+    var statusLabel = p.stock <= 0 ? 'out_of_stock' : p.status;
+    var statusText  = p.stock <= 0 ? 'Out of Stock' : (p.status === 'active' ? 'Active' : 'Inactive');
+    var stockClass  = p.stock <= 0 ? 'out' : (p.stock < 5 ? 'low' : '');
+    var stockText   = p.stock <= 0 ? 'Out of stock' : (p.stock < 5 ? 'Low: ' + p.stock + ' left' : p.stock + ' in stock');
+    var imgHtml = p.image
+      ? '<img src="' + p.image + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"/><div class="product-img-placeholder" style="display:none">' + (ICONS[p.category]||'📦') + '</div>'
+      : '<div class="product-img-placeholder">' + (ICONS[p.category]||'📦') + '</div>';
+
+    return '<div class="product-card">' +
+      '<div class="product-img-wrap">' + imgHtml +
+      '<span class="product-status-badge ' + statusLabel + '">' + statusText + '</span></div>' +
+      '<div class="product-body">' +
+        '<div class="product-category">' + (p.category || 'Other') + '</div>' +
+        '<div class="product-name">' + escHtml(p.name) + '</div>' +
+        '<div class="product-desc">' + escHtml(p.description || 'No description provided.') + '</div>' +
+        '<div class="product-meta">' +
+          '<div class="product-price">₱' + parseFloat(p.price).toLocaleString('en-PH', {minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' +
+          '<div class="product-stock ' + stockClass + '">' + stockText + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="product-actions">' +
+        '<button class="product-action-btn edit" onclick="openProductModal(\'' + p.id + '\')">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit' +
+        '</button>' +
+        '<button class="product-action-btn" onclick="toggleProductStatus(\'' + p.id + '\')">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/>' + (p.status==='active'?'<line x1="8" y1="12" x2="16" y2="12"/>':'<polyline points="9 12 11 14 15 10"/>') + '</svg>' + (p.status==='active'?'Pause':'Activate') +
+        '</button>' +
+        '<button class="product-action-btn delete" onclick="deleteProduct(\'' + p.id + '\')">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>Delete' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function updateSellerStats(products) {
+  var total  = products.length;
+  var active = products.filter(function(p){ return p.status==='active' && p.stock > 0; }).length;
+  var oos    = products.filter(function(p){ return p.stock <= 0; }).length;
+  var value  = products.reduce(function(s,p){ return s + parseFloat(p.price||0)*parseInt(p.stock||0); }, 0);
+  setText('s-stat-total',  total);
+  setText('s-stat-active', active);
+  setText('s-stat-oos',    oos);
+  setText('s-stat-value',  '₱' + value.toLocaleString('en-PH',{minimumFractionDigits:0,maximumFractionDigits:0}));
+}
+
+// ── Product Modal ─────────────────────────────────────────────
+function openProductModal(id) {
+  var modal = document.getElementById('product-modal');
+  if (!modal) return;
+  document.getElementById('product-modal-error').style.display = 'none';
+
+  if (id) {
+    var p = getProducts().find(function(x){ return x.id === id; });
+    if (!p) return;
+    document.getElementById('product-modal-title').textContent = 'Edit Product';
+    document.getElementById('product-edit-id').value = id;
+    document.getElementById('p-name').value      = p.name || '';
+    document.getElementById('p-desc').value      = p.description || '';
+    document.getElementById('p-price').value     = p.price || '';
+    document.getElementById('p-stock').value     = p.stock || '';
+    document.getElementById('p-category').value  = p.category || 'Other';
+    document.getElementById('p-status').value    = p.status || 'active';
+    document.getElementById('p-image').value     = p.image || '';
+  } else {
+    document.getElementById('product-modal-title').textContent = 'Add New Product';
+    document.getElementById('product-edit-id').value = '';
+    ['p-name','p-desc','p-price','p-stock','p-image'].forEach(function(id){ document.getElementById(id).value = ''; });
+    document.getElementById('p-category').value = 'Electronics';
+    document.getElementById('p-status').value   = 'active';
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeProductModal(e) {
+  if (e && e.target && e.target.id !== 'product-modal') return;
+  document.getElementById('product-modal').classList.add('hidden');
+}
+
+function saveProduct() {
+  var name  = (document.getElementById('p-name').value || '').trim();
+  var price = parseFloat(document.getElementById('p-price').value);
+  var stock = parseInt(document.getElementById('p-stock').value);
+  var errEl = document.getElementById('product-modal-error');
+
+  if (!name) { errEl.textContent = 'Product name is required.'; errEl.style.display = 'block'; return; }
+  if (isNaN(price) || price < 0) { errEl.textContent = 'Enter a valid price.'; errEl.style.display = 'block'; return; }
+  if (isNaN(stock) || stock < 0) { errEl.textContent = 'Enter a valid stock quantity.'; errEl.style.display = 'block'; return; }
+
+  var products = getProducts();
+  var editId = document.getElementById('product-edit-id').value;
+
+  var product = {
+    id: editId || 'p_' + Date.now(),
+    name: name,
+    description: document.getElementById('p-desc').value.trim(),
+    price: price,
+    stock: stock,
+    category: document.getElementById('p-category').value,
+    status: document.getElementById('p-status').value,
+    image: document.getElementById('p-image').value.trim(),
+    createdAt: editId ? (products.find(function(x){return x.id===editId;})||{}).createdAt || Date.now() : Date.now(),
+    updatedAt: Date.now()
+  };
+
+  if (editId) {
+    products = products.map(function(p){ return p.id === editId ? product : p; });
+    toast('✅ Product updated successfully');
+  } else {
+    products.push(product);
+    toast('✅ Product added to your store');
+  }
+
+  saveProducts(products);
+  closeProductModal();
+  renderProductGrid();
+}
+
+function deleteProduct(id) {
+  if (!confirm('Delete this product? This cannot be undone.')) return;
+  var products = getProducts().filter(function(p){ return p.id !== id; });
+  saveProducts(products);
+  renderProductGrid();
+  toast('🗑 Product removed');
+}
+
+function toggleProductStatus(id) {
+  var products = getProducts().map(function(p) {
+    if (p.id === id) p.status = p.status === 'active' ? 'inactive' : 'active';
+    return p;
+  });
+  saveProducts(products);
+  renderProductGrid();
+}
+
+// ── Analytics Dashboard ───────────────────────────────────────
+var _analyticsPeriod = 7;
+var _analyticsCharts = {};
+
+function setAnalyticsPeriod(days, btn) {
+  _analyticsPeriod = days;
+  document.querySelectorAll('#page-seller-analytics .filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  renderAnalyticsDashboard();
+}
+
+function renderAnalyticsDashboard() {
+  var allData = getAnalyticsData();
+  var now = Date.now();
+  var DAY = 86400000;
+  var slice = allData.filter(function(d){ return d.ts >= now - _analyticsPeriod * DAY; });
+  var prev  = allData.filter(function(d){ return d.ts >= now - _analyticsPeriod*2*DAY && d.ts < now-_analyticsPeriod*DAY; });
+
+  var sum = function(arr, key) { return arr.reduce(function(s,d){ return s+(d[key]||0); }, 0); };
+
+  var revenue  = sum(slice, 'revenue');
+  var orders   = sum(slice, 'orders');
+  var views    = sum(slice, 'views');
+  var engage   = views > 0 ? (orders/views*100).toFixed(1) : 0;
+
+  var pRevenue = sum(prev, 'revenue');
+  var pOrders  = sum(prev, 'orders');
+  var pViews   = sum(prev, 'views');
+  var pEngage  = pViews > 0 ? (sum(prev,'orders')/pViews*100).toFixed(1) : 0;
+
+  function trendText(cur, prev, isCur) {
+    if (!prev) return '—';
+    var diff = ((cur - prev) / prev * 100).toFixed(1);
+    return (diff >= 0 ? '▲ +' : '▼ ') + diff + '% vs prior period';
+  }
+  function trendClass(cur, prev) {
+    if (!prev) return '';
+    return cur >= prev ? 'up' : 'down';
+  }
+
+  setText('kpi-revenue', '₱' + revenue.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}));
+  setText('kpi-orders',  orders);
+  setText('kpi-views',   views.toLocaleString());
+  setText('kpi-engage',  engage + '%');
+
+  setTrend('kpi-revenue-trend', trendText(revenue, pRevenue), trendClass(revenue, pRevenue));
+  setTrend('kpi-orders-trend',  trendText(orders,  pOrders),  trendClass(orders,  pOrders));
+  setTrend('kpi-views-trend',   trendText(views,   pViews),   trendClass(views,   pViews));
+  setTrend('kpi-engage-trend',  trendText(parseFloat(engage), parseFloat(pEngage)), trendClass(parseFloat(engage), parseFloat(pEngage)));
+
+  renderAnalyticsCharts(slice);
+  renderTopProducts();
+}
+
+function setTrend(id, text, cls) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'stat-sub kpi-trend ' + cls;
+}
+
+function destroyChart(key) {
+  if (_analyticsCharts[key]) { try { _analyticsCharts[key].destroy(); } catch(e){} delete _analyticsCharts[key]; }
+}
+
+function renderAnalyticsCharts(slice) {
+  var labels = slice.map(function(d){ var dt=new Date(d.ts); return (dt.getMonth()+1)+'/'+(dt.getDate()); });
+
+  var CHART_DEFAULTS = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#8898b4', font: { family: "'JetBrains Mono'" }, boxWidth: 12 } } },
+    scales: {
+      x: { ticks: { color: '#4d5d7a', font: { family: "'JetBrains Mono'", size: 9 } }, grid: { color: 'rgba(255,255,255,.035)' } },
+      y: { ticks: { color: '#4d5d7a', font: { family: "'JetBrains Mono'", size: 9 } }, grid: { color: 'rgba(255,255,255,.035)' } }
+    }
+  };
+
+  // Revenue Line Chart
+  destroyChart('revenue');
+  var rc = document.getElementById('analytics-revenue-chart');
+  if (rc) {
+    _analyticsCharts['revenue'] = new Chart(rc, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Revenue (₱)',
+          data: slice.map(function(d){ return d.revenue; }),
+          borderColor: '#3b8bff', backgroundColor: 'rgba(59,139,255,.08)',
+          tension: 0.4, fill: true, pointRadius: slice.length > 30 ? 0 : 3,
+          pointBackgroundColor: '#3b8bff'
+        }]
+      },
+      options: JSON.parse(JSON.stringify(CHART_DEFAULTS))
+    });
+  }
+
+  // Category Doughnut
+  destroyChart('category');
+  var cats = ['Electronics','Clothing','Home & Garden','Sports','Books','Food & Beverage','Health & Beauty','Other'];
+  var catColors = ['#3b8bff','#00e882','#b061ff','#ff8c42','#ffd60a','#00d4aa','#ff3b5c','#5fa3ff'];
+  var catData = cats.map(function(c, i){ return Math.floor(5 + Math.random()*40); });
+  var cc = document.getElementById('analytics-category-chart');
+  if (cc) {
+    destroyChart('category');
+    _analyticsCharts['category'] = new Chart(cc, {
+      type: 'doughnut',
+      data: { labels: cats, datasets: [{ data: catData, backgroundColor: catColors.map(function(c){ return c+'cc'; }), borderColor: catColors, borderWidth: 1.5 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color:'#8898b4', font:{family:"'JetBrains Mono'", size:9}, boxWidth:10, padding:8 } } } }
+    });
+  }
+
+  // Views vs Orders Bar
+  destroyChart('views');
+  var vc = document.getElementById('analytics-views-chart');
+  if (vc) {
+    _analyticsCharts['views'] = new Chart(vc, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Views', data: slice.map(function(d){ return d.views; }), backgroundColor: 'rgba(176,97,255,.5)', borderColor: '#b061ff', borderWidth: 1, borderRadius: 3 },
+          { label: 'Orders', data: slice.map(function(d){ return d.orders; }), backgroundColor: 'rgba(0,232,130,.5)', borderColor: '#00e882', borderWidth: 1, borderRadius: 3 }
+        ]
+      },
+      options: JSON.parse(JSON.stringify(CHART_DEFAULTS))
+    });
+  }
+
+  // Engagement Line
+  destroyChart('engagement');
+  var ec = document.getElementById('analytics-engagement-chart');
+  if (ec) {
+    _analyticsCharts['engagement'] = new Chart(ec, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Engagement %',
+          data: slice.map(function(d){ return d.engagement; }),
+          borderColor: '#ff8c42', backgroundColor: 'rgba(255,140,66,.08)',
+          tension: 0.4, fill: true, pointRadius: slice.length > 30 ? 0 : 3,
+          pointBackgroundColor: '#ff8c42'
+        }]
+      },
+      options: JSON.parse(JSON.stringify(CHART_DEFAULTS))
+    });
+  }
+}
+
+function renderTopProducts() {
+  var products = getProducts();
+  var el = document.getElementById('analytics-top-products');
+  if (!el) return;
+
+  if (!products.length) {
+    el.innerHTML = '<p class="empty-state">No products listed yet. Add products to see performance data.</p>';
+    return;
+  }
+
+  // Assign mock analytics per product
+  var enriched = products.map(function(p) {
+    return {
+      name: p.name,
+      category: p.category || 'Other',
+      price: p.price,
+      views: Math.floor(50 + Math.random() * 500),
+      revenue: parseFloat((Math.random() * 5000 + 100).toFixed(2)),
+      orders: Math.floor(2 + Math.random() * 40)
+    };
+  }).sort(function(a,b){ return b.revenue - a.revenue; });
+
+  var maxRev = enriched[0].revenue;
+
+  el.innerHTML = '<table class="top-products-table">' +
+    '<thead><tr><th>#</th><th>Product</th><th>Category</th><th>Orders</th><th>Views</th><th>Revenue</th></tr></thead>' +
+    '<tbody>' +
+    enriched.slice(0,8).map(function(p,i) {
+      var pct = Math.round(p.revenue / maxRev * 100);
+      return '<tr>' +
+        '<td class="tp-rank">' + (i+1) + '</td>' +
+        '<td><div style="font-weight:600;">' + escHtml(p.name) + '</div>' +
+          '<div class="tp-bar-wrap"><div class="tp-bar-fill" style="width:' + pct + '%"></div></div></td>' +
+        '<td><span style="font-family:var(--mono);font-size:.68rem;color:var(--blue)">' + escHtml(p.category) + '</span></td>' +
+        '<td style="font-family:var(--mono)">' + p.orders + '</td>' +
+        '<td style="font-family:var(--mono)">' + p.views.toLocaleString() + '</td>' +
+        '<td style="font-family:var(--mono);font-weight:700">₱' + p.revenue.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table>';
+}
+
+// ── Utility ───────────────────────────────────────────────────
+function setText(id, val) { var el=document.getElementById(id); if(el) el.textContent=val; }
+function escHtml(s) { var d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
