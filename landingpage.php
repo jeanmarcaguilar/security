@@ -71,7 +71,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $_SESSION['full_name'] = $user['full_name'];
                 $_SESSION['logged_in'] = true;
                 
-                echo json_encode(['success' => true, 'message' => 'OTP verified successfully']);
+                // Determine redirect URL based on role
+                $redirect_url = $user['role'] === 'Admin' ? 
+                    'http://localhost/security/Admin/dashboard.php' : 
+                    'http://localhost/security/Client/index.php?role=' . strtolower($user['role']) . '&user=' . $user['username'];
+                
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'OTP verified successfully',
+                    'redirect_url' => $redirect_url
+                ]);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Invalid user data']);
             }
@@ -144,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $_SESSION['full_name'] = $fullname;
             $_SESSION['logged_in'] = true;
             
-            $redirect_url = 'http://localhost/security/Client/index.html?role=seller&user=' . $username;
+            $redirect_url = 'http://localhost/security/Client/index.php?role=seller&user=' . $username;
             echo json_encode(['success' => true, 'message' => 'Account created successfully', 'redirect_url' => $redirect_url]);
             
         } catch(PDOException $e) {
@@ -1271,10 +1280,12 @@ function verifyOTP() {
     // Show success and redirect
     showAlert('success', 'OTP verified successfully! Redirecting...');
     
-    // Determine redirect URL based on user role
-    let redirect_url = currentUserRole === 'Admin' ? 
-      'http://localhost/security/Admin/dashboard.php' : 
-      'http://localhost/security/Client/index.html?role=' + currentUserRole.toLowerCase() + '&user=' + currentUsername;
+    // Use redirect URL from server response or fallback to client-side logic
+    let redirect_url = result.redirect_url || (
+      currentUserRole === 'Admin' ? 
+        'http://localhost/security/Admin/dashboard.php' : 
+        'http://localhost/security/Client/index.html?role=' + currentUserRole.toLowerCase() + '&user=' + currentUsername
+    );
     
     setTimeout(() => {
       window.location.href = redirect_url;
