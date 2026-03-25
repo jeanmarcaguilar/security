@@ -29,7 +29,7 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Store - CyberShield</title>
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="style.css">
     <style>
         .product-grid {
             display: grid;
@@ -226,60 +226,47 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
     
-    <div id="product-modal" class="modal-overlay hidden" onclick="closeProductModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3 id="modal-title">Add Product</h3>
-                <button class="modal-close" onclick="closeProductModal()">✕</button>
-            </div>
-            <div id="modal-body">
-                <form id="product-form" onsubmit="saveProduct(event)">
-                    <input type="hidden" id="product-id" value="">
-                    <div class="form-group">
-                        <label>Product Name *</label>
-                        <input type="text" id="product-name" required class="filter-select" style="width:100%">
-                    </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea id="product-desc" rows="3" class="filter-select" style="width:100%"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Price (₱) *</label>
-                        <input type="number" id="product-price" step="0.01" required class="filter-select" style="width:100%">
-                    </div>
-                    <div class="form-group">
-                        <label>Stock Quantity *</label>
-                        <input type="number" id="product-stock" required class="filter-select" style="width:100%">
-                    </div>
-                    <div class="form-group">
-                        <label>Category</label>
-                        <select id="product-category" class="filter-select" style="width:100%">
-                            <option value="Electronics">Electronics</option>
-                            <option value="Clothing">Clothing</option>
-                            <option value="Home">Home & Garden</option>
-                            <option value="Books">Books</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="product-status" class="filter-select" style="width:100%">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Image URL</label>
-                        <input type="text" id="product-image" class="filter-select" style="width:100%" placeholder="https://...">
-                    </div>
-                    <div class="form-group">
-                        <button type="submit" class="btn btn-primary">Save Product</button>
-                        <button type="button" class="btn btn-secondary" onclick="closeProductModal()">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+    <!-- PRODUCT MODAL -->
+<div id="product-modal" class="fp-overlay hidden" onclick="closeProductModal(event)">
+  <div class="fp-card product-modal-card" style="max-width:560px;">
+    <button class="fp-close-btn" onclick="closeProductModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3 id="product-modal-title" style="font-family:var(--display);font-size:1.55rem;letter-spacing:1px;margin-bottom:1.5rem;">Add New Product</h3>
+    <input type="hidden" id="product-edit-id"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div class="form-group" style="grid-column:1/-1"><label>Product Name *</label><input type="text" id="p-name" placeholder="e.g. Wireless Headphones"/></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="p-desc" rows="3" placeholder="Describe your product…" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;resize:vertical;"></textarea></div>
+      <div class="form-group"><label>Price (₱) *</label><input type="number" id="p-price" placeholder="0.00" min="0" step="0.01"/></div>
+      <div class="form-group"><label>Stock Quantity *</label><input type="number" id="p-stock" placeholder="0" min="0"/></div>
+      <div class="form-group"><label>Category</label>
+        <select id="p-category" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;">
+          <option value="Electronics">Electronics</option>
+          <option value="Clothing">Clothing</option>
+          <option value="Home &amp; Garden">Home &amp; Garden</option>
+          <option value="Sports">Sports</option>
+          <option value="Books">Books</option>
+          <option value="Food &amp; Beverage">Food &amp; Beverage</option>
+          <option value="Health &amp; Beauty">Health &amp; Beauty</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="p-status" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1"><label>Product Image URL</label><input type="text" id="p-image" placeholder="https://… (leave blank for default)"/></div>
     </div>
+    <div id="product-modal-error" class="form-error" style="display:none;margin-bottom:.75rem;"></div>
+    <div style="display:flex;gap:.75rem;margin-top:.5rem;">
+      <button class="btn btn-primary" style="flex:1" onclick="saveProduct()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Product
+      </button>
+      <button class="btn btn-outline" onclick="closeProductModal()">Cancel</button>
+    </div>
+  </div>
+</div>
     
     <script>
         let currentProducts = <?php echo json_encode($products); ?>;
@@ -288,20 +275,26 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if (productId) {
                 const product = currentProducts.find(p => p.id == productId);
                 if (product) {
-                    document.getElementById('modal-title').textContent = 'Edit Product';
-                    document.getElementById('product-id').value = product.id;
-                    document.getElementById('product-name').value = product.name;
-                    document.getElementById('product-desc').value = product.description || '';
-                    document.getElementById('product-price').value = product.price;
-                    document.getElementById('product-stock').value = product.stock;
-                    document.getElementById('product-category').value = product.category || 'Other';
-                    document.getElementById('product-status').value = product.status;
-                    document.getElementById('product-image').value = product.image_url || '';
+                    document.getElementById('product-modal-title').textContent = 'Edit Product';
+                    document.getElementById('product-edit-id').value = product.id;
+                    document.getElementById('p-name').value = product.name;
+                    document.getElementById('p-desc').value = product.description || '';
+                    document.getElementById('p-price').value = product.price;
+                    document.getElementById('p-stock').value = product.stock;
+                    document.getElementById('p-category').value = product.category || 'Other';
+                    document.getElementById('p-status').value = product.status;
+                    document.getElementById('p-image').value = product.image_url || '';
                 }
             } else {
-                document.getElementById('modal-title').textContent = 'Add Product';
-                document.getElementById('product-form').reset();
-                document.getElementById('product-id').value = '';
+                document.getElementById('product-modal-title').textContent = 'Add New Product';
+                document.getElementById('product-edit-id').value = '';
+                document.getElementById('p-name').value = '';
+                document.getElementById('p-desc').value = '';
+                document.getElementById('p-price').value = '';
+                document.getElementById('p-stock').value = '';
+                document.getElementById('p-category').value = 'Other';
+                document.getElementById('p-status').value = 'active';
+                document.getElementById('p-image').value = '';
             }
             document.getElementById('product-modal').classList.remove('hidden');
         }
@@ -311,21 +304,21 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
             document.getElementById('product-modal').classList.add('hidden');
         }
         
-        function saveProduct(event) {
-            event.preventDefault();
-            
+        function saveProduct() {
+            const productId = document.getElementById('product-edit-id').value;
             const productData = {
-                id: document.getElementById('product-id').value || null,
-                name: document.getElementById('product-name').value,
-                description: document.getElementById('product-desc').value,
-                price: parseFloat(document.getElementById('product-price').value),
-                stock: parseInt(document.getElementById('product-stock').value),
-                category: document.getElementById('product-category').value,
-                status: document.getElementById('product-status').value,
-                image_url: document.getElementById('product-image').value
+                id: productId || null,
+                name: document.getElementById('p-name').value,
+                description: document.getElementById('p-desc').value,
+                price: parseFloat(document.getElementById('p-price').value),
+                stock: parseInt(document.getElementById('p-stock').value),
+                category: document.getElementById('p-category').value,
+                status: document.getElementById('p-status').value,
+                image_url: document.getElementById('p-image').value
             };
             
-            fetch('api/save_product.php', {
+            // Call the API from index.php
+            fetch('../index.php?action=save_product', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(productData)
@@ -335,12 +328,14 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 if (data.success) {
                     location.reload();
                 } else {
-                    alert('Error: ' + data.message);
+                    document.getElementById('product-modal-error').textContent = data.error || 'Error saving product';
+                    document.getElementById('product-modal-error').style.display = 'block';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error saving product');
+                document.getElementById('product-modal-error').textContent = 'Connection error';
+                document.getElementById('product-modal-error').style.display = 'block';
             });
         }
         
@@ -350,7 +345,7 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         function deleteProduct(id) {
             if (confirm('Are you sure you want to delete this product?')) {
-                fetch('api/delete_product.php', {
+                fetch('../index.php?action=delete_product', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
@@ -360,7 +355,7 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     if (data.success) {
                         location.reload();
                     } else {
-                        alert('Error: ' + data.message);
+                        alert('Error: ' + data.error);
                     }
                 });
             }
