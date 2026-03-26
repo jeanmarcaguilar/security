@@ -4,10 +4,10 @@
 var _sidebarCollapsed = false;
 
 function toggleSidebar() {
-  var sidebar    = document.getElementById('sidebar');
-  var main       = document.getElementById('main-content');
-  var icon       = document.getElementById('sidebar-toggle-icon');
-  var toggleBtn  = document.getElementById('sidebar-toggle');
+  var sidebar = document.getElementById('sidebar');
+  var main = document.getElementById('main-content');
+  var icon = document.getElementById('sidebar-toggle-icon');
+  var toggleBtn = document.getElementById('sidebar-toggle');
   _sidebarCollapsed = !_sidebarCollapsed;
   sidebar.classList.toggle('collapsed', _sidebarCollapsed);
   main.classList.toggle('sidebar-collapsed', _sidebarCollapsed);
@@ -32,13 +32,13 @@ function toggleMobileSidebar() {
 // Restore collapsed state on load
 (function () {
   if (localStorage.getItem('cs_sidebar_collapsed') === '1') {
-    var sidebar   = document.getElementById('sidebar');
-    var main      = document.getElementById('main-content');
-    var icon      = document.getElementById('sidebar-toggle-icon');
+    var sidebar = document.getElementById('sidebar');
+    var main = document.getElementById('main-content');
+    var icon = document.getElementById('sidebar-toggle-icon');
     var toggleBtn = document.getElementById('sidebar-toggle');
-    if (sidebar)   sidebar.classList.add('collapsed');
-    if (main)      main.classList.add('sidebar-collapsed');
-    if (icon)      icon.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+    if (sidebar) sidebar.classList.add('collapsed');
+    if (main) main.classList.add('sidebar-collapsed');
+    if (icon) icon.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
     if (toggleBtn) toggleBtn.style.left = 'var(--sidebar-collapsed-w)';
     _sidebarCollapsed = true;
   }
@@ -46,12 +46,12 @@ function toggleMobileSidebar() {
 
 // Close mobile sidebar on outside click
 document.addEventListener('click', function (e) {
-  var sidebar   = document.getElementById('sidebar');
+  var sidebar = document.getElementById('sidebar');
   var mobileBtn = document.getElementById('mobile-menu-btn');
   if (sidebar && sidebar.classList.contains('mobile-open')
-      && !sidebar.contains(e.target)
-      && e.target !== mobileBtn
-      && !mobileBtn.contains(e.target)) {
+    && !sidebar.contains(e.target)
+    && e.target !== mobileBtn
+    && !mobileBtn.contains(e.target)) {
     sidebar.classList.remove('mobile-open');
   }
 });
@@ -60,15 +60,15 @@ document.addEventListener('click', function (e) {
 //  ACTIVE NAV & PAGE TITLE
 // ═══════════════════════════════════════════════════════════════
 var PAGE_META = {
-  dashboard:        { nav: 'nav-dashboard',        title: 'Dashboard' },
-  assessment:       { nav: 'nav-assessment',       title: 'Take Assessment' },
-  results:          { nav: 'nav-results',          title: 'My Results' },
-  leaderboard:      { nav: 'nav-leaderboard',      title: 'Leaderboard' },
-  profile:          { nav: 'nav-profile',          title: 'My Profile' },
-  tips:             { nav: 'nav-tips',             title: 'Security Tips' },
-  terms:            { nav: 'nav-terms',            title: 'Terms & Privacy' },
-  'seller-store':   { nav: 'nav-seller-store',     title: 'My Store' },
-  'seller-analytics':{ nav: 'nav-seller-analytics', title: 'Analytics Dashboard' },
+  dashboard: { nav: 'nav-dashboard', title: 'Dashboard' },
+  assessment: { nav: 'nav-assessment', title: 'Take Assessment' },
+  results: { nav: 'nav-results', title: 'My Results' },
+  leaderboard: { nav: 'nav-leaderboard', title: 'Leaderboard' },
+  profile: { nav: 'nav-profile', title: 'My Profile' },
+  tips: { nav: 'nav-tips', title: 'Security Tips' },
+  terms: { nav: 'nav-terms', title: 'Terms & Privacy' },
+  'seller-store': { nav: 'nav-seller-store', title: 'My Store' },
+  'seller-analytics': { nav: 'nav-seller-analytics', title: 'Analytics Dashboard' },
 };
 
 function setActiveNav(page) {
@@ -102,7 +102,7 @@ showPage = function (name) {
 
   // Tips page: handled here since original showPage doesn't know about it
   if (name === 'tips') {
-    ['dashboard','assessment','results','profile','leaderboard','tips','terms','seller-store','seller-analytics'].forEach(function (p) {
+    ['dashboard', 'assessment', 'results', 'profile', 'leaderboard', 'tips', 'terms', 'seller-store', 'seller-analytics'].forEach(function (p) {
       var el = document.getElementById('page-' + p);
       if (el) el.classList.add('hidden');
     });
@@ -119,7 +119,7 @@ showPage = function (name) {
 
   // Seller Store
   if (name === 'seller-store') {
-    ['dashboard','assessment','results','profile','leaderboard','tips','terms','seller-store','seller-analytics'].forEach(function (p) {
+    ['dashboard', 'assessment', 'results', 'profile', 'leaderboard', 'tips', 'terms', 'seller-store', 'seller-analytics'].forEach(function (p) {
       var el = document.getElementById('page-' + p);
       if (el) el.classList.add('hidden');
     });
@@ -131,13 +131,13 @@ showPage = function (name) {
 
   // Seller Analytics
   if (name === 'seller-analytics') {
-    ['dashboard','assessment','results','profile','leaderboard','tips','terms','seller-store','seller-analytics'].forEach(function (p) {
+    ['dashboard', 'assessment', 'results', 'profile', 'leaderboard', 'tips', 'terms', 'seller-store', 'seller-analytics'].forEach(function (p) {
       var el = document.getElementById('page-' + p);
       if (el) el.classList.add('hidden');
     });
     var pg2 = document.getElementById('page-seller-analytics');
     if (pg2) { pg2.classList.remove('hidden'); pg2.classList.remove('fade-in'); void pg2.offsetWidth; pg2.classList.add('fade-in'); }
-    setTimeout(function() { if (typeof renderAnalyticsDashboard === 'function') renderAnalyticsDashboard(); }, 50);
+    setTimeout(function () { if (typeof renderAnalyticsDashboard === 'function') renderAnalyticsDashboard(); }, 50);
     return;
   }
 
@@ -154,10 +154,10 @@ function scrollToSection(id) {
 
 function clearAllData() {
   if (!confirm('Are you sure you want to delete all your assessment data? This cannot be undone.')) return;
-  ['cs_history','cs_badges','cs_notifs','cs_profile','cs_session','cs_prefs',
-   'cs_leaderboard','cs_history_seeded','cs_lang','cs_theme','cs_a11y'].forEach(function (k) {
-    localStorage.removeItem(k);
-  });
+  ['cs_history', 'cs_badges', 'cs_notifs', 'cs_profile', 'cs_session', 'cs_prefs',
+    'cs_leaderboard', 'cs_history_seeded', 'cs_lang', 'cs_theme', 'cs_a11y'].forEach(function (k) {
+      localStorage.removeItem(k);
+    });
   toast('All data cleared. Refreshing…');
   setTimeout(function () { location.reload(); }, 1500);
 }
@@ -221,27 +221,27 @@ function refreshTip() {
 //  SECURITY TIPS PAGE
 // ═══════════════════════════════════════════════════════════════
 var ALL_TIPS = [
-  { cat:'password', title:'Use a Password Manager',       body:'A password manager creates and remembers strong, unique passwords for every website so you never have to. Recommended: Bitwarden (free) or 1Password.',                                                       difficulty:'Easy'   },
-  { cat:'password', title:'Enable Two-Factor Authentication', body:'Even if your password is stolen, attackers still cannot log in without a second verification step. Enable this on email, banking, and work accounts first.',                                         difficulty:'Easy'   },
-  { cat:'password', title:'Create Long, Unique Passwords', body:'Use at least 12 characters and combine random words. For example, "PurpleElephant$42Rain" is far stronger than "P@ssword1" and easier to remember.',                                                  difficulty:'Easy'   },
-  { cat:'password', title:'Change Passwords After Breaches', body:'If a service you use reports a data breach, change your password immediately. Visit haveibeenpwned.com to check whether your email has appeared in known breaches.',                                 difficulty:'Medium' },
-  { cat:'phishing', title:'Verify Links Before Clicking',  body:'Hover over any link in an email to preview the real web address before clicking. If the domain looks unfamiliar or misspelled, do not proceed.',                                                       difficulty:'Easy'   },
-  { cat:'phishing', title:'Call to Confirm Suspicious Requests', body:'If you receive an urgent email requesting passwords or payments, call the sender directly using a phone number you already know — never use a number provided in the suspicious email.',      difficulty:'Easy'   },
-  { cat:'phishing', title:'Recognise Phishing Warning Signs', body:'Be cautious of emails with urgent language, spelling mistakes, mismatched sender addresses, unexpected attachments, or requests for sensitive personal information.',                              difficulty:'Easy'   },
-  { cat:'phishing', title:'Report Suspicious Emails',      body:'Do not simply delete phishing emails — report them to your IT or security team. This helps protect your entire organization from similar attacks.',                                                  difficulty:'Easy'   },
-  { cat:'device',   title:'Set Auto-Lock on Your Screen',  body:'Configure your computer to lock automatically after 2–5 minutes of inactivity. On Windows go to Settings → Personalization → Lock Screen; on Mac, System Preferences → Security.',                 difficulty:'Easy'   },
-  { cat:'device',   title:'Enable Full-Disk Encryption',   body:'Encryption protects all data on your device if it is ever lost or stolen. Use BitLocker on Windows or FileVault on Mac — both are built-in and free to activate.',                                   difficulty:'Medium' },
-  { cat:'device',   title:'Install Security Updates Promptly', body:'Apply operating system and application updates as soon as they are available. Most attacks target known vulnerabilities that updates have already fixed.',                                      difficulty:'Easy'   },
-  { cat:'device',   title:'Never Use Unknown USB Devices', body:'A USB drive found in a public place could be a deliberate trap. Inserting it can install malware automatically, even before you open any files.',                                                    difficulty:'Easy'   },
-  { cat:'network',  title:'Use a VPN on Public Wi-Fi',     body:'Public Wi-Fi at cafes, airports, and hotels is not secure. A VPN encrypts your connection so others on the same network cannot intercept your data.',                                               difficulty:'Medium' },
-  { cat:'network',  title:'Look for HTTPS on Websites',    body:'Before entering passwords or payment details, verify the address begins with "https://" and shows a padlock icon. This confirms that your data is encrypted in transit.',                          difficulty:'Easy'   },
-  { cat:'network',  title:'Disable Auto-Connect to Wi-Fi', body:'Turn off automatic Wi-Fi connections on your devices. Attackers can create fake hotspots with names like "Airport Free WiFi" to intercept your traffic.',                                          difficulty:'Easy'   },
-  { cat:'network',  title:'Secure Your Home Router',       body:'Change your router\'s default admin password, use WPA3 or WPA2 encryption, and keep the firmware updated to prevent unauthorised access to your network.',                                         difficulty:'Medium' },
+  { cat: 'password', title: 'Use a Password Manager', body: 'A password manager creates and remembers strong, unique passwords for every website so you never have to. Recommended: Bitwarden (free) or 1Password.', difficulty: 'Easy' },
+  { cat: 'password', title: 'Enable Two-Factor Authentication', body: 'Even if your password is stolen, attackers still cannot log in without a second verification step. Enable this on email, banking, and work accounts first.', difficulty: 'Easy' },
+  { cat: 'password', title: 'Create Long, Unique Passwords', body: 'Use at least 12 characters and combine random words. For example, "PurpleElephant$42Rain" is far stronger than "P@ssword1" and easier to remember.', difficulty: 'Easy' },
+  { cat: 'password', title: 'Change Passwords After Breaches', body: 'If a service you use reports a data breach, change your password immediately. Visit haveibeenpwned.com to check whether your email has appeared in known breaches.', difficulty: 'Medium' },
+  { cat: 'phishing', title: 'Verify Links Before Clicking', body: 'Hover over any link in an email to preview the real web address before clicking. If the domain looks unfamiliar or misspelled, do not proceed.', difficulty: 'Easy' },
+  { cat: 'phishing', title: 'Call to Confirm Suspicious Requests', body: 'If you receive an urgent email requesting passwords or payments, call the sender directly using a phone number you already know — never use a number provided in the suspicious email.', difficulty: 'Easy' },
+  { cat: 'phishing', title: 'Recognise Phishing Warning Signs', body: 'Be cautious of emails with urgent language, spelling mistakes, mismatched sender addresses, unexpected attachments, or requests for sensitive personal information.', difficulty: 'Easy' },
+  { cat: 'phishing', title: 'Report Suspicious Emails', body: 'Do not simply delete phishing emails — report them to your IT or security team. This helps protect your entire organization from similar attacks.', difficulty: 'Easy' },
+  { cat: 'device', title: 'Set Auto-Lock on Your Screen', body: 'Configure your computer to lock automatically after 2–5 minutes of inactivity. On Windows go to Settings → Personalization → Lock Screen; on Mac, System Preferences → Security.', difficulty: 'Easy' },
+  { cat: 'device', title: 'Enable Full-Disk Encryption', body: 'Encryption protects all data on your device if it is ever lost or stolen. Use BitLocker on Windows or FileVault on Mac — both are built-in and free to activate.', difficulty: 'Medium' },
+  { cat: 'device', title: 'Install Security Updates Promptly', body: 'Apply operating system and application updates as soon as they are available. Most attacks target known vulnerabilities that updates have already fixed.', difficulty: 'Easy' },
+  { cat: 'device', title: 'Never Use Unknown USB Devices', body: 'A USB drive found in a public place could be a deliberate trap. Inserting it can install malware automatically, even before you open any files.', difficulty: 'Easy' },
+  { cat: 'network', title: 'Use a VPN on Public Wi-Fi', body: 'Public Wi-Fi at cafes, airports, and hotels is not secure. A VPN encrypts your connection so others on the same network cannot intercept your data.', difficulty: 'Medium' },
+  { cat: 'network', title: 'Look for HTTPS on Websites', body: 'Before entering passwords or payment details, verify the address begins with "https://" and shows a padlock icon. This confirms that your data is encrypted in transit.', difficulty: 'Easy' },
+  { cat: 'network', title: 'Disable Auto-Connect to Wi-Fi', body: 'Turn off automatic Wi-Fi connections on your devices. Attackers can create fake hotspots with names like "Airport Free WiFi" to intercept your traffic.', difficulty: 'Easy' },
+  { cat: 'network', title: 'Secure Your Home Router', body: 'Change your router\'s default admin password, use WPA3 or WPA2 encryption, and keep the firmware updated to prevent unauthorised access to your network.', difficulty: 'Medium' },
 ];
 
 var _currentTipFilter = 'all';
-var _catLabels = { password:'Passwords', phishing:'Phishing', device:'Devices', network:'Networks' };
-var _difficultyLabel = { Easy:'Easy', Medium:'Intermediate', Hard:'Advanced' };
+var _catLabels = { password: 'Passwords', phishing: 'Phishing', device: 'Devices', network: 'Networks' };
+var _difficultyLabel = { Easy: 'Easy', Medium: 'Intermediate', Hard: 'Advanced' };
 
 function filterTips(cat, btn) {
   _currentTipFilter = cat;
@@ -297,7 +297,7 @@ function _runSearch(query) {
   });
 
   var overlay = document.getElementById('search-overlay');
-  var list    = document.getElementById('search-results-list');
+  var list = document.getElementById('search-results-list');
   if (!overlay || !list) return;
   overlay.classList.remove('hidden');
 
@@ -321,7 +321,7 @@ function _runSearch(query) {
 }
 
 function _pageIcon(page) {
-  var icons = { dashboard:'◈', assessment:'✓', results:'▤', leaderboard:'▲', profile:'○', tips:'●', terms:'▥' };
+  var icons = { dashboard: '◈', assessment: '✓', results: '▤', leaderboard: '▲', profile: '○', tips: '●', terms: '▥' };
   return icons[page] || '●';
 }
 
@@ -344,7 +344,7 @@ document.addEventListener('keydown', function (e) {
 //  WELCOME BANNER
 // ═══════════════════════════════════════════════════════════════
 function checkWelcomeBanner() {
-  var banner  = document.getElementById('welcome-banner');
+  var banner = document.getElementById('welcome-banner');
   if (!banner) return;
   var history = getHistory();
   banner.classList.toggle('hidden', history.length > 0);
@@ -355,10 +355,10 @@ function checkWelcomeBanner() {
 // ═══════════════════════════════════════════════════════════════
 function updateSidebarUser() {
   var sAvatar = document.getElementById('sidebar-avatar');
-  var sName   = document.getElementById('sidebar-name');
+  var sName = document.getElementById('sidebar-name');
   if (window.session) {
     if (sAvatar) sAvatar.textContent = (session.name || 'U').charAt(0).toUpperCase();
-    if (sName)   sName.textContent   = session.name || 'User';
+    if (sName) sName.textContent = session.name || 'User';
   }
 }
 
@@ -400,7 +400,7 @@ saveProfile = function () {
 // Keyboard shortcuts: Alt+D/A/R/L/P/T
 document.addEventListener('keydown', function (e) {
   if (!e.altKey) return;
-  var map = { d:'dashboard', r:'results', l:'leaderboard', p:'profile', t:'tips' };
+  var map = { d: 'dashboard', r: 'results', l: 'leaderboard', p: 'profile', t: 'tips' };
   if (map[e.key.toLowerCase()]) {
     e.preventDefault();
     showPage(map[e.key.toLowerCase()]);

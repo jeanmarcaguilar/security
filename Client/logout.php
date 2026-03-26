@@ -8,7 +8,7 @@ if (isset($_SESSION['user_id'])) {
         $database = new Database();
         $conn = $database->getConnection();
         
-        $stmt = $conn->prepare("INSERT INTO activity_log (user_id, action_type, action_description, ip_address, user_agent) VALUES (?, 'logout', 'Admin logged out', ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO activity_log (user_id, action_type, action_description, ip_address, user_agent) VALUES (?, 'logout', 'Client logged out', ?, ?)");
         $stmt->execute([
             $_SESSION['user_id'],
             $_SERVER['REMOTE_ADDR'],

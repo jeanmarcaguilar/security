@@ -1,1266 +1,653 @@
+
 <?php
-// ============================================================
-//  CyberShield — index.php
-//  PHP + MySQL backend integration
-// ============================================================
+require_once '../config.php';
 session_start();
 
-// ── Database configuration ────────────────────────────────
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');          // ← change to your MySQL username
-define('DB_PASS', '');              // ← change to your MySQL password
-define('DB_NAME', 'cybershield');
-
-function getDB(): PDO {
-    static $pdo = null;
-    if ($pdo === null) {
-        try {
-            $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4';
-            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES   => false,
-            ]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            die(json_encode(['success' => false, 'error' => 'Database connection failed: ' . $e->getMessage()]));
-        }
-    }
-    return $pdo;
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../login.php');
+    exit();
 }
 
-// ── Helper: JSON response ─────────────────────────────────
-function jsonOut(array $data): void {
-    header('Content-Type: application/json');
-    echo json_encode($data);
-    exit;
-}
+$database = new Database();
+$db = $database->getConnection();
 
-// ── Log activity ──────────────────────────────────────────
-function logActivity(int $userId, string $type, string $desc): void {
-    try {
-        $db  = getDB();
-        $ip  = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        $ua  = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        $sql = 'INSERT INTO activity_log (user_id, action_type, action_description, ip_address, user_agent)
-                VALUES (:uid, :type, :desc, :ip, :ua)';
-        $db->prepare($sql)->execute([':uid'=>$userId,':type'=>$type,':desc'=>$desc,':ip'=>$ip,':ua'=>$ua]);
-    } catch (Exception $e) { /* silent */ }
-}
+// Get user data
+$user_query = "SELECT * FROM users WHERE id = :user_id";
+$stmt = $db->prepare($user_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// ══════════════════════════════════════════════════════════
-//  AJAX / API ROUTING  (?action=…)
-// ══════════════════════════════════════════════════════════
-$action = $_GET['action'] ?? $_POST['action'] ?? '';
+// Get current page from URL parameter
+$page = $_GET['page'] ?? 'dashboard';
 
-if ($action) {
-    header('Content-Type: application/json');
+// Assessment questions database
+$questions = [
+    ['id' => 1, 'category' => 'password', 'text' => 'Do you use a password manager to store and generate strong passwords?', 'options' => ['Yes, always' => 100, 'Sometimes' => 50, 'No, I remember them' => 25, 'I use the same password everywhere' => 0]],
+    ['id' => 2, 'category' => 'password', 'text' => 'How often do you change your passwords?', 'options' => ['Every 30 days' => 100, 'Every 90 days' => 75, 'Every 6 months' => 50, 'Only when forced' => 25, 'Never' => 0]],
+    ['id' => 3, 'category' => 'password', 'text' => 'Do you use multi-factor authentication (MFA) on your important accounts?', 'options' => ['Yes, on all accounts' => 100, 'On most accounts' => 75, 'On a few accounts' => 50, 'No' => 0]],
+    ['id' => 4, 'category' => 'phishing', 'text' => 'How do you verify suspicious emails asking for credentials?', 'options' => ['Contact sender through known channel' => 100, 'Check email headers' => 75, 'Look for spelling errors' => 50, 'Click links to verify' => 25, 'I always trust emails' => 0]],
+    ['id' => 5, 'category' => 'phishing', 'text' => 'Have you completed security awareness training in the past year?', 'options' => ['Yes, with certification' => 100, 'Yes, online course' => 75, 'Only watched videos' => 50, 'No training' => 0]],
+    ['id' => 6, 'category' => 'phishing', 'text' => 'What do you do when you receive an unexpected attachment?', 'options' => ['Verify with sender before opening' => 100, 'Scan with antivirus' => 75, 'Open if it looks legitimate' => 25, 'Always open' => 0]],
+    ['id' => 7, 'category' => 'device', 'text' => 'Is your device protected with antivirus/anti-malware software?', 'options' => ['Yes, always updated' => 100, 'Yes, but not always updated' => 50, 'No antivirus' => 0]],
+    ['id' => 8, 'category' => 'device', 'text' => 'Do you lock your device when away from it?', 'options' => ['Always immediately' => 100, 'Sometimes' => 50, 'Never' => 0]],
+    ['id' => 9, 'category' => 'device', 'text' => 'How often do you update your operating system and applications?', 'options' => ['Automatically updated' => 100, 'Weekly manual checks' => 75, 'Monthly' => 50, 'When reminded' => 25, 'Never' => 0]],
+    ['id' => 10, 'category' => 'network', 'text' => 'Do you use a VPN when connecting to public Wi-Fi?', 'options' => ['Always' => 100, 'Sometimes' => 50, 'Never' => 0]],
+    ['id' => 11, 'category' => 'network', 'text' => 'Is your home Wi-Fi secured with WPA2/WPA3 encryption?', 'options' => ['Yes, with strong password' => 100, 'Yes, default password' => 50, 'No encryption' => 0, 'Not sure' => 25]],
+    ['id' => 12, 'category' => 'network', 'text' => 'Do you have a firewall enabled on your network/devices?', 'options' => ['Yes, hardware and software' => 100, 'Software only' => 75, 'Hardware only' => 50, 'No firewall' => 0]]
+];
 
-    // ── LOGIN ─────────────────────────────────────────────
-    if ($action === 'login') {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
+// Security tips data
+$tips = [
+    ['id' => 1, 'category' => 'password', 'title' => 'Use Strong, Unique Passwords', 'content' => 'Create passwords that are at least 12 characters long, combining uppercase, lowercase, numbers, and symbols. Never reuse passwords across different accounts.', 'icon' => '🔐'],
+    ['id' => 2, 'category' => 'password', 'title' => 'Enable Multi-Factor Authentication', 'content' => 'MFA adds an extra layer of security. Even if your password is compromised, attackers cannot access your account without second factor.', 'icon' => '📱'],
+    ['id' => 3, 'category' => 'password', 'title' => 'Use a Password Manager', 'content' => 'Password managers generate and store strong, unique passwords for all your accounts. You only need to remember one master password.', 'icon' => '🔑'],
+    ['id' => 4, 'category' => 'phishing', 'title' => 'Verify Email Senders', 'content' => 'Always check sender\'s email address carefully. Phishing emails often use addresses that look legitimate but have slight misspellings.', 'icon' => '✉️'],
+    ['id' => 5, 'category' => 'phishing', 'title' => 'Hover Before Clicking', 'content' => 'Hover over links to see the actual URL before clicking. If it looks suspicious, don\'t click.', 'icon' => '🖱️'],
+    ['id' => 6, 'category' => 'phishing', 'title' => 'Watch for Urgent Language', 'content' => 'Phishing emails often create a sense of urgency to make you act without thinking. Be skeptical of threats or immediate action requests.', 'icon' => '⚠️'],
+    ['id' => 7, 'category' => 'device', 'title' => 'Keep Software Updated', 'content' => 'Regularly update your operating system, browsers, and applications. Updates often include critical security patches.', 'icon' => '🔄'],
+    ['id' => 8, 'category' => 'device', 'title' => 'Install Antivirus Software', 'content' => 'Use reputable antivirus software and keep it updated. Run regular scans to detect and remove malware.', 'icon' => '🛡️'],
+    ['id' => 9, 'category' => 'device', 'title' => 'Lock Your Devices', 'content' => 'Always lock your computer and mobile devices when stepping away. Use strong PINs or biometric authentication.', 'icon' => '🔒'],
+    ['id' => 10, 'category' => 'network', 'title' => 'Use VPN on Public Wi-Fi', 'content' => 'Public Wi-Fi networks are often unsecured. A VPN encrypts your internet traffic, protecting your data from eavesdroppers.', 'icon' => '🌐'],
+    ['id' => 11, 'category' => 'network', 'title' => 'Secure Your Home Wi-Fi', 'content' => 'Use WPA3 encryption, change default router password, and disable WPS. Create a separate guest network for visitors.', 'icon' => '🏠'],
+    ['id' => 12, 'category' => 'network', 'title' => 'Enable Firewall', 'content' => 'Firewalls monitor incoming and outgoing network traffic. Keep your firewall enabled on all devices and networks.', 'icon' => '🔥'],
+];
 
-        if (!$username || !$password) {
-            jsonOut(['success'=>false,'error'=>'Username and password are required.']);
-        }
+// Get user's assessment statistics
+$stats_query = "SELECT 
+    COUNT(*) as total_assessments,
+    AVG(score) as avg_score,
+    MAX(score) as best_score,
+    MIN(score) as worst_score,
+    (SELECT score FROM vendor_assessments WHERE assessed_by = :user_id ORDER BY created_at DESC LIMIT 1) as latest_score,
+    (SELECT rank FROM vendor_assessments WHERE assessed_by = :user_id ORDER BY created_at DESC LIMIT 1) as latest_rank
+    FROM vendor_assessments 
+    WHERE assessed_by = :user_id";
+$stmt = $db->prepare($stats_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $db   = getDB();
-        $stmt = $db->prepare('SELECT * FROM users WHERE username = :u AND is_active = 1 LIMIT 1');
-        $stmt->execute([':u' => $username]);
-        $user = $stmt->fetch();
+// Get latest assessment for this user's vendor
+$assessment_query = "SELECT va.*, v.name as vendor_name 
+    FROM vendor_assessments va 
+    JOIN vendors v ON va.vendor_id = v.id 
+    WHERE v.email = :email 
+    ORDER BY va.created_at DESC LIMIT 1";
+$stmt = $db->prepare($assessment_query);
+$stmt->bindParam(':email', $user['email']);
+$stmt->execute();
+$latest_assessment = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$user || !password_verify($password, $user['password_hash'])) {
-            jsonOut(['success'=>false,'error'=>'Invalid username or password.']);
-        }
+// Get all assessments for history
+$history_query = "SELECT va.*, v.name as vendor_name 
+    FROM vendor_assessments va 
+    JOIN vendors v ON va.vendor_id = v.id 
+    WHERE v.email = :email 
+    ORDER BY va.created_at DESC";
+$stmt = $db->prepare($history_query);
+$stmt->bindParam(':email', $user['email']);
+$stmt->execute();
+$history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Start session
-        session_regenerate_id(true);
-        $_SESSION['user_id']    = $user['id'];
-        $_SESSION['username']   = $user['username'];
-        $_SESSION['full_name']  = $user['full_name'];
-        $_SESSION['email']      = $user['email'];
-        $_SESSION['store_name'] = $user['store_name'];
-        $_SESSION['role']       = $user['role'];
+// Get products for this seller
+$products_query = "SELECT * FROM products WHERE user_id = :user_id ORDER BY created_at DESC";
+$stmt = $db->prepare($products_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        logActivity($user['id'], 'login', $user['full_name'] . ' logged in.');
+// Get badge achievements based on scores
+$badges = [];
+if ($stats['best_score'] >= 90) $badges[] = ['name' => 'Security Elite', 'icon' => '🏆', 'color' => '#f5c518'];
+if ($stats['best_score'] >= 80) $badges[] = ['name' => 'Security Champion', 'icon' => '🛡️', 'color' => '#00d97e'];
+if ($stats['total_assessments'] >= 5) $badges[] = ['name' => 'Consistent Learner', 'icon' => '📚', 'color' => '#4090ff'];
+if ($stats['latest_rank'] === 'A') $badges[] = ['name' => 'Low Risk Hero', 'icon' => '✅', 'color' => '#00d97e'];
+if ($stats['latest_rank'] === 'B') $badges[] = ['name' => 'On The Right Track', 'icon' => '📈', 'color' => '#4090ff'];
+if ($stats['total_assessments'] >= 10) $badges[] = ['name' => 'Dedicated Defender', 'icon' => '🔒', 'color' => '#a855f7'];
 
-        jsonOut([
-            'success'    => true,
-            'user' => [
-                'id'         => $user['id'],
-                'username'   => $user['username'],
-                'full_name'  => $user['full_name'],
-                'email'      => $user['email'],
-                'store_name' => $user['store_name'],
-                'role'       => $user['role'],
-            ]
-        ]);
-    }
+// Get leaderboard data
+$leaderboard_query = "SELECT v.name as vendor_name, v.store_name, 
+    va.score, va.rank, va.password_score, va.phishing_score, 
+    va.device_score, va.network_score, va.created_at
+    FROM vendor_assessments va
+    JOIN vendors v ON va.vendor_id = v.id
+    WHERE va.id IN (SELECT MAX(id) FROM vendor_assessments GROUP BY vendor_id)
+    ORDER BY va.score DESC";
+$stmt = $db->prepare($leaderboard_query);
+$stmt->execute();
+$leaderboard = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // ── LOGOUT ────────────────────────────────────────────
-    if ($action === 'logout') {
-        if (isset($_SESSION['user_id'])) {
-            logActivity($_SESSION['user_id'], 'logout', ($_SESSION['full_name'] ?? 'User') . ' logged out.');
-        }
-        session_destroy();
-        jsonOut(['success' => true]);
-    }
+// Get all assessments history for results page
+$history_query2 = "SELECT va.*, v.name as vendor_name 
+    FROM vendor_assessments va 
+    JOIN vendors v ON va.vendor_id = v.id 
+    WHERE v.email = :email 
+    ORDER BY va.created_at DESC";
+$stmt = $db->prepare($history_query2);
+$stmt->bindParam(':email', $user['email']);
+$stmt->execute();
+$history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // ── CHECK SESSION ─────────────────────────────────────
-    if ($action === 'check_session') {
-        if (!isset($_SESSION['user_id'])) {
-            jsonOut(['loggedIn' => false]);
-        }
-        jsonOut([
-            'loggedIn' => true,
-            'user' => [
-                'id'         => $_SESSION['user_id'],
-                'username'   => $_SESSION['username'],
-                'full_name'  => $_SESSION['full_name'],
-                'email'      => $_SESSION['email'],
-                'store_name' => $_SESSION['store_name'],
-                'role'       => $_SESSION['role'],
-            ]
-        ]);
-    }
+// Store/analytics stats
+$totalProducts = count($products);
+$activeProducts = count(array_filter($products, fn($p) => $p['status'] === 'active'));
+$outOfStock = count(array_filter($products, fn($p) => ($p['stock'] ?? 0) == 0));
+$totalValue = array_sum(array_column($products, 'price'));
 
-    // ── Require auth for everything below ─────────────────
-    if (!isset($_SESSION['user_id'])) {
-        jsonOut(['success'=>false,'error'=>'Not authenticated.']);
-    }
-    $uid = (int)$_SESSION['user_id'];
-
-    // ── GET VENDORS ───────────────────────────────────────
-    if ($action === 'get_vendors') {
-        $db   = getDB();
-        $rows = $db->query('SELECT * FROM vendor_latest_assessments ORDER BY score DESC')->fetchAll();
-        jsonOut(['success'=>true,'vendors'=>$rows]);
-    }
-
-    // ── GET ASSESSMENTS for current user's vendor ─────────
-    if ($action === 'get_my_assessments') {
-        $db   = getDB();
-        // find vendor linked to this user (by email match or first vendor for demo)
-        $stmt = $db->prepare('
-            SELECT va.*, v.name as vendor_name
-            FROM vendor_assessments va
-            JOIN vendors v ON v.id = va.vendor_id
-            WHERE va.assessed_by = :uid
-            ORDER BY va.created_at DESC');
-        $stmt->execute([':uid'=>$uid]);
-        jsonOut(['success'=>true,'assessments'=>$stmt->fetchAll()]);
-    }
-
-    // ── SAVE ASSESSMENT ───────────────────────────────────
-    if ($action === 'save_assessment') {
-        $data = json_decode(file_get_contents('php://input'), true);
-        if (!$data) $data = $_POST;
-
-        $vendorId      = (int)($data['vendor_id'] ?? 0);
-        $score         = (float)($data['score'] ?? 0);
-        $rank          = $data['rank'] ?? 'D';
-        $passScore     = (float)($data['password_score'] ?? 0);
-        $phishScore    = (float)($data['phishing_score'] ?? 0);
-        $devScore      = (float)($data['device_score'] ?? 0);
-        $netScore      = (float)($data['network_score'] ?? 0);
-        $notes         = $data['assessment_notes'] ?? '';
-
-        if (!$vendorId) {
-            // Auto-link to a vendor via user's email / create a stub
-            $db   = getDB();
-            $stmt = $db->prepare('SELECT id FROM vendors WHERE email = :e LIMIT 1');
-            $stmt->execute([':e' => $_SESSION['email']]);
-            $v = $stmt->fetch();
-            if ($v) {
-                $vendorId = (int)$v['id'];
-            } else {
-                // Create vendor stub for this user
-                $ins = $db->prepare('INSERT INTO vendors (name, email, industry, contact_person) VALUES (:n,:e,:i,:c)');
-                $ins->execute([
-                    ':n' => $_SESSION['store_name'],
-                    ':e' => $_SESSION['email'],
-                    ':i' => 'General',
-                    ':c' => $_SESSION['full_name'],
-                ]);
-                $vendorId = (int)$db->lastInsertId();
-            }
-        } else {
-            $db = getDB();
-        }
-
-        $allowed = ['A','B','C','D'];
-        if (!in_array($rank, $allowed, true)) $rank = 'D';
-
-        $stmt = $db->prepare('
-            INSERT INTO vendor_assessments
-                (vendor_id, score, rank, password_score, phishing_score, device_score, network_score, assessment_notes, assessed_by)
-            VALUES
-                (:vid,:sc,:rk,:ps,:ph,:ds,:ns,:nt,:uid)');
-        $stmt->execute([
-            ':vid'=>$vendorId, ':sc'=>$score, ':rk'=>$rank,
-            ':ps'=>$passScore, ':ph'=>$phishScore,
-            ':ds'=>$devScore,  ':ns'=>$netScore,
-            ':nt'=>$notes,     ':uid'=>$uid,
-        ]);
-
-        logActivity($uid, 'assessment', "Completed assessment — Score: {$score}, Rank: {$rank}");
-        jsonOut(['success'=>true,'assessment_id'=>(int)$db->lastInsertId()]);
-    }
-
-    // ── GET LEADERBOARD ───────────────────────────────────
-    if ($action === 'get_leaderboard') {
-        $db = getDB();
-        $rows = $db->query('
-            SELECT v.name, v.store_name, va.score, va.rank,
-                   va.password_score, va.phishing_score, va.device_score, va.network_score,
-                   va.created_at
-            FROM vendors v
-            JOIN vendor_assessments va ON va.vendor_id = v.id
-            WHERE va.id = (
-                SELECT MAX(id) FROM vendor_assessments WHERE vendor_id = v.id
-            )
-            ORDER BY va.score DESC
-        ')->fetchAll();
-        jsonOut(['success'=>true,'leaderboard'=>$rows]);
-    }
-
-    // ── UPDATE PROFILE ────────────────────────────────────
-    if ($action === 'update_profile') {
-        $data      = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $fullName  = trim($data['full_name'] ?? '');
-        $storeName = trim($data['store_name'] ?? '');
-
-        if (!$fullName) jsonOut(['success'=>false,'error'=>'Full name is required.']);
-
-        $db   = getDB();
-        $stmt = $db->prepare('UPDATE users SET full_name=:fn, store_name=:sn WHERE id=:id');
-        $stmt->execute([':fn'=>$fullName,':sn'=>$storeName,':id'=>$uid]);
-
-        $_SESSION['full_name']  = $fullName;
-        $_SESSION['store_name'] = $storeName;
-
-        logActivity($uid, 'profile', 'Profile updated.');
-        jsonOut(['success'=>true]);
-    }
-
-    // ── CHANGE PASSWORD ───────────────────────────────────
-    if ($action === 'change_password') {
-        $data    = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $current = $data['current_password'] ?? '';
-        $newPass = $data['new_password'] ?? '';
-
-        $db   = getDB();
-        $stmt = $db->prepare('SELECT password_hash FROM users WHERE id=:id');
-        $stmt->execute([':id'=>$uid]);
-        $row  = $stmt->fetch();
-
-        if (!password_verify($current, $row['password_hash'])) {
-            jsonOut(['success'=>false,'error'=>'Current password is incorrect.']);
-        }
-        if (strlen($newPass) < 6) {
-            jsonOut(['success'=>false,'error'=>'New password must be at least 6 characters.']);
-        }
-
-        $hash = password_hash($newPass, PASSWORD_BCRYPT);
-        $db->prepare('UPDATE users SET password_hash=:h WHERE id=:id')
-           ->execute([':h'=>$hash,':id'=>$uid]);
-
-        logActivity($uid, 'profile', 'Password changed.');
-        jsonOut(['success'=>true]);
-    }
-
-    // ── FORGOT PASSWORD — check email ─────────────────────
-    if ($action === 'forgot_check_email') {
-        $email = trim($_POST['email'] ?? '');
-        $db    = getDB();
-        $stmt  = $db->prepare('SELECT id FROM users WHERE email=:e AND is_active=1 LIMIT 1');
-        $stmt->execute([':e'=>$email]);
-        if (!$stmt->fetch()) {
-            jsonOut(['success'=>false,'error'=>'Email not found.']);
-        }
-        // Generate a reset code and store in session
-        $code = 'CS-RESET-' . strtoupper(substr(md5(uniqid($email, true)), 0, 6));
-        $_SESSION['reset_email']  = $email;
-        $_SESSION['reset_code']   = $code;
-        $_SESSION['reset_expiry'] = time() + 600; // 10 min
-        jsonOut(['success'=>true,'code'=>$code]); // In production, email this instead
-    }
-
-    // ── FORGOT PASSWORD — verify code ─────────────────────
-    if ($action === 'forgot_verify_code') {
-        $code = trim($_POST['code'] ?? '');
-        if (
-            !isset($_SESSION['reset_code'], $_SESSION['reset_expiry']) ||
-            time() > $_SESSION['reset_expiry'] ||
-            strtoupper($code) !== strtoupper($_SESSION['reset_code'])
-        ) {
-            jsonOut(['success'=>false,'error'=>'Invalid or expired code.']);
-        }
-        $_SESSION['reset_verified'] = true;
-        jsonOut(['success'=>true]);
-    }
-
-    // ── FORGOT PASSWORD — set new password ────────────────
-    if ($action === 'forgot_reset_password') {
-        if (empty($_SESSION['reset_verified']) || empty($_SESSION['reset_email'])) {
-            jsonOut(['success'=>false,'error'=>'Reset session expired.']);
-        }
-        $newPass = $_POST['new_password'] ?? '';
-        if (strlen($newPass) < 6) {
-            jsonOut(['success'=>false,'error'=>'Password must be at least 6 characters.']);
-        }
-        $hash  = password_hash($newPass, PASSWORD_BCRYPT);
-        $db    = getDB();
-        $stmt  = $db->prepare('UPDATE users SET password_hash=:h WHERE email=:e');
-        $stmt->execute([':h'=>$hash,':e'=>$_SESSION['reset_email']]);
-
-        unset($_SESSION['reset_email'], $_SESSION['reset_code'],
-              $_SESSION['reset_expiry'], $_SESSION['reset_verified']);
-
-        jsonOut(['success'=>true]);
-    }
-
-    // ── SAVE PRODUCT ──────────────────────────────────────
-    if ($action === 'save_product') {
-        $data  = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $id    = (int)($data['id'] ?? 0);
-        $name  = trim($data['name'] ?? '');
-        $desc  = trim($data['description'] ?? '');
-        $price = (float)($data['price'] ?? 0);
-        $stock = (int)($data['stock'] ?? 0);
-        $cat   = $data['category'] ?? 'Other';
-        $stat  = in_array($data['status'] ?? '', ['active','inactive']) ? $data['status'] : 'active';
-        $img   = trim($data['image_url'] ?? '');
-
-        if (!$name || $price < 0 || $stock < 0) {
-            jsonOut(['success'=>false,'error'=>'Name, price, and stock are required.']);
-        }
-
-        $db = getDB();
-        if ($id) {
-            $stmt = $db->prepare('UPDATE products SET name=:n,description=:d,price=:p,stock=:s,category=:c,status=:st,image_url=:i WHERE id=:id AND user_id=:uid');
-            $stmt->execute([':n'=>$name,':d'=>$desc,':p'=>$price,':s'=>$stock,':c'=>$cat,':st'=>$stat,':i'=>$img,':id'=>$id,':uid'=>$uid]);
-        } else {
-            $stmt = $db->prepare('INSERT INTO products (user_id,name,description,price,stock,category,status,image_url) VALUES (:uid,:n,:d,:p,:s,:c,:st,:i)');
-            $stmt->execute([':uid'=>$uid,':n'=>$name,':d'=>$desc,':p'=>$price,':s'=>$stock,':c'=>$cat,':st'=>$stat,':i'=>$img]);
-            $id = (int)$db->lastInsertId();
-        }
-        jsonOut(['success'=>true,'id'=>$id]);
-    }
-
-    // ── GET PRODUCTS ──────────────────────────────────────
-    if ($action === 'get_products') {
-        $db   = getDB();
-        $stmt = $db->prepare('SELECT * FROM products WHERE user_id=:uid ORDER BY created_at DESC');
-        $stmt->execute([':uid'=>$uid]);
-        jsonOut(['success'=>true,'products'=>$stmt->fetchAll()]);
-    }
-
-    // ── DELETE PRODUCT ────────────────────────────────────
-    if ($action === 'delete_product') {
-        $data = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $id   = (int)($data['id'] ?? 0);
-        $db   = getDB();
-        $db->prepare('DELETE FROM products WHERE id=:id AND user_id=:uid')
-           ->execute([':id'=>$id,':uid'=>$uid]);
-        jsonOut(['success'=>true]);
-    }
-
-    // ── LOG ACTIVITY ──────────────────────────────────────
-    if ($action === 'log_activity') {
-        $data = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $type = $data['action_type'] ?? 'alert';
-        $desc = $data['action_description'] ?? '';
-        $allowed = ['login','logout','export','flag','refresh','alert','theme','profile','assessment','email'];
-        if (!in_array($type, $allowed, true)) $type = 'alert';
-        logActivity($uid, $type, $desc);
-        jsonOut(['success'=>true]);
-    }
-
-    // ── EXPORT CSV ────────────────────────────────────────
-    if ($action === 'export_csv') {
-        $db   = getDB();
-        $stmt = $db->prepare('
-            SELECT va.*, v.name as vendor_name, v.email as vendor_email
-            FROM vendor_assessments va
-            JOIN vendors v ON v.id = va.vendor_id
-            WHERE va.assessed_by = :uid
-            ORDER BY va.created_at DESC');
-        $stmt->execute([':uid'=>$uid]);
-        $rows = $stmt->fetchAll();
-
-        logActivity($uid, 'export', 'Exported assessment data to CSV.');
-
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="cybershield_assessments.csv"');
-        $out = fopen('php://output', 'w');
-        fputcsv($out, ['Vendor','Email','Score','Rank','Password','Phishing','Device','Network','Date','Notes']);
-        foreach ($rows as $r) {
-            fputcsv($out, [
-                $r['vendor_name'], $r['vendor_email'],
-                $r['score'], $r['rank'],
-                $r['password_score'], $r['phishing_score'],
-                $r['device_score'], $r['network_score'],
-                $r['created_at'], $r['assessment_notes'],
-            ]);
-        }
-        fclose($out);
-        exit;
-    }
-
-    // ── GET ACTIVITY LOG ──────────────────────────────────
-    if ($action === 'get_activity_log') {
-        $db   = getDB();
-        $stmt = $db->prepare('SELECT * FROM activity_log WHERE user_id=:uid ORDER BY created_at DESC LIMIT 50');
-        $stmt->execute([':uid'=>$uid]);
-        jsonOut(['success'=>true,'logs'=>$stmt->fetchAll()]);
-    }
-
-    // Unknown action
-    jsonOut(['success'=>false,'error'=>'Unknown action.']);
-}
-// ══════════════════════════════════════════════════════════
-//  NOT AN AJAX REQUEST — serve the HTML page
-// ══════════════════════════════════════════════════════════
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>CyberShield — Hygiene Assessment</title>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dashboard — CyberShield</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="style.css"/>
-
-<!-- ── PHP-Powered API Bridge ── -->
-<script>
-// All API calls now go through index.php?action=…
-const API = {
-    base: 'index.php',
-
-    async post(action, data = {}) {
-        const res = await fetch(`${API.base}?action=${action}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-            credentials: 'same-origin'
-        });
-        return res.json();
-    },
-
-    async get(action, params = {}) {
-        const qs = new URLSearchParams({ action, ...params });
-        const res = await fetch(`${API.base}?${qs}`, { credentials: 'same-origin' });
-        return res.json();
-    },
-
-    // ── Auth ─────────────────────────────────────────────
-    async login(username, password) {
-        const fd = new FormData();
-        fd.append('username', username);
-        fd.append('password', password);
-        const res = await fetch(`${API.base}?action=login`, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        return res.json();
-    },
-
-    async logout()         { return API.post('logout'); },
-    async checkSession()   { return API.get('check_session'); },
-
-    // ── Data ─────────────────────────────────────────────
-    async saveAssessment(data)  { return API.post('save_assessment', data); },
-    async getMyAssessments()    { return API.get('get_my_assessments'); },
-    async getVendors()          { return API.get('get_vendors'); },
-    async getLeaderboard()      { return API.get('get_leaderboard'); },
-    async updateProfile(data)   { return API.post('update_profile', data); },
-    async changePassword(data)  { return API.post('change_password', data); },
-    async saveProduct(data)     { return API.post('save_product', data); },
-    async getProducts()         { return API.get('get_products'); },
-    async deleteProduct(id)     { return API.post('delete_product', { id }); },
-    async logActivity(type, desc) {
-        return API.post('log_activity', { action_type: type, action_description: desc });
-    },
-    async forgotCheckEmail(email) {
-        const fd = new FormData(); fd.append('email', email);
-        const res = await fetch(`${API.base}?action=forgot_check_email`, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        return res.json();
-    },
-    async forgotVerifyCode(code) {
-        const fd = new FormData(); fd.append('code', code);
-        const res = await fetch(`${API.base}?action=forgot_verify_code`, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        return res.json();
-    },
-    async forgotResetPassword(newPassword) {
-        const fd = new FormData(); fd.append('new_password', newPassword);
-        const res = await fetch(`${API.base}?action=forgot_reset_password`, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        return res.json();
-    },
-
-    exportCSV() {
-        window.location.href = `${API.base}?action=export_csv`;
-    }
-};
-
-// ── Override the old localStorage-based auth functions ───
-async function checkSession() {
-    const r = await API.checkSession();
-    if (r.loggedIn) {
-        // Hydrate globals the existing script.js expects
-        window._phpUser = r.user;
-        return true;
-    }
-    showLoginScreen();
-    return false;
-}
-
-async function doLogin(username, password) {
-    const r = await API.login(username, password);
-    if (r.success) {
-        window._phpUser = r.user;
-        hideLoginScreen();
-        bootApp();
-    } else {
-        showLoginError(r.error || 'Login failed.');
-    }
-}
-
-async function doLogout() {
-    await API.logout();
-    window.location.reload();
-}
-
-// ── Bridge: persist assessments to DB on completion ──────
-// Call this from script.js after scoring:
-//   saveAssessmentToDB({ score, rank, password_score, phishing_score, device_score, network_score, assessment_notes })
-async function saveAssessmentToDB(payload) {
-    return API.saveAssessment(payload);
-}
-
-// ── Bridge: fetch leaderboard from DB ────────────────────
-async function fetchLeaderboardFromDB() {
-    const r = await API.getLeaderboard();
-    return r.success ? r.leaderboard : [];
-}
-
-// ── Bridge: fetch this user's assessments from DB ────────
-async function fetchMyAssessmentsFromDB() {
-    const r = await API.getMyAssessments();
-    return r.success ? r.assessments : [];
-}
-
-// ── Bridge: save/load products ────────────────────────────
-async function saveProductToDB(data)    { return API.saveProduct(data); }
-async function fetchProductsFromDB()    { return API.getProducts(); }
-async function deleteProductFromDB(id)  { return API.deleteProduct(id); }
-
-// ── Bridge: profile ────────────────────────────────────────
-async function saveProfileToDB(data)    { return API.updateProfile(data); }
-async function changePasswordInDB(cur, newP) {
-    return API.changePassword({ current_password: cur, new_password: newP });
-}
-
-// ── Bridge: export ─────────────────────────────────────────
-function exportCSVFromDB() { API.exportCSV(); }
-
-// ── Show / hide login screen helpers ──────────────────────
-function showLoginScreen() {
-    document.getElementById('app').classList.add('hidden');
-    document.getElementById('login-screen').classList.remove('hidden');
-}
-function hideLoginScreen() {
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-}
-function showLoginError(msg) {
-    const el = document.getElementById('login-error');
-    if (el) { el.textContent = msg; el.style.display = 'block'; }
-}
-</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+:root{--font:'Inter',sans-serif;--display:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;--blue:#3B8BFF;--purple:#7B72F0;--teal:#00D4AA;--green:#10D982;--yellow:#F5B731;--orange:#FF8C42;--red:#FF3B5C;--t:.18s ease}
+[data-theme=dark]{--bg:#030508;--bg2:#080d16;--bg3:#0d1421;--border:rgba(59,139,255,.08);--border2:rgba(255,255,255,.07);--text:#dde4f0;--muted:#4a6080;--muted2:#8898b4;--card-bg:#0a1020;--shadow:0 4px 24px rgba(0,0,0,.5)}
+[data-theme=light]{--bg:#f0f4f8;--bg2:#e8eef5;--bg3:#fff;--border:rgba(59,139,255,.12);--border2:rgba(0,0,0,.1);--text:#0f172a;--muted:#94a3b8;--muted2:#475569;--card-bg:#fff;--shadow:0 4px 24px rgba(0,0,0,.1)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);transition:background .18s,color .18s}
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(59,139,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(59,139,255,.025) 1px,transparent 1px);background-size:40px 40px}
+#app{display:flex;height:100vh;position:relative;z-index:1}
+#sidebar{width:228px;min-width:228px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .18s,min-width .18s;overflow:hidden;z-index:10;flex-shrink:0}
+#sidebar.collapsed{width:58px;min-width:58px}
+.sb-brand{display:flex;align-items:center;gap:.75rem;padding:1rem .9rem .9rem;border-bottom:1px solid var(--border);flex-shrink:0}
+.shield{width:34px;height:34px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:9px;display:grid;place-items:center;flex-shrink:0;box-shadow:0 0 16px rgba(59,139,255,.3)}
+.sb-brand-text{flex:1;overflow:hidden;white-space:nowrap}
+.sb-brand-text h2{font-family:var(--display);font-size:.95rem;font-weight:700;letter-spacing:1px}
+.sb-brand-text .badge{font-family:var(--mono);font-size:.55rem;letter-spacing:1.5px;text-transform:uppercase;background:rgba(16,217,130,.12);color:var(--green);border:1px solid rgba(16,217,130,.2);border-radius:4px;padding:.08rem .38rem;display:inline-block;margin-top:.1rem}
+.sb-toggle{width:22px;height:22px;background:none;border:1px solid var(--border2);border-radius:5px;cursor:pointer;color:var(--muted2);display:grid;place-items:center;flex-shrink:0;transition:var(--t)}
+.sb-toggle:hover{border-color:var(--blue);color:var(--text)}
+#sidebar.collapsed .sb-toggle svg{transform:rotate(180deg)}
+.sb-section{flex:1;overflow-y:auto;overflow-x:hidden;padding:.65rem 0}
+.sb-section::-webkit-scrollbar{width:3px}.sb-section::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sb-label{font-family:var(--mono);font-size:.55rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:.5rem .9rem .25rem;white-space:nowrap;overflow:hidden}
+#sidebar.collapsed .sb-label{opacity:0}
+.sb-divider{height:1px;background:var(--border);margin:.5rem .9rem}
+.sb-item{display:flex;align-items:center;gap:.65rem;padding:.52rem .9rem;cursor:pointer;color:var(--muted2);font-size:.82rem;font-weight:500;text-decoration:none;transition:var(--t);white-space:nowrap;overflow:hidden;position:relative}
+.sb-item:hover{background:rgba(59,139,255,.07);color:var(--text)}
+.sb-item.active{background:rgba(59,139,255,.1);color:var(--blue)}
+.sb-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;background:var(--blue);border-radius:0 3px 3px 0}
+.sb-icon{display:flex;align-items:center;justify-content:center;width:18px;flex-shrink:0}
+.sb-text{overflow:hidden}
+#sidebar.collapsed .sb-text{display:none}
+.sb-footer{border-top:1px solid var(--border);padding:.75rem .9rem;flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:.65rem;overflow:hidden}
+.sb-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:grid;place-items:center;font-size:.75rem;font-weight:700;flex-shrink:0;font-family:var(--display)}
+.sb-user-info{overflow:hidden;white-space:nowrap}
+.sb-user-info p{font-size:.82rem;font-weight:600}
+.sb-user-info span{font-size:.68rem;color:var(--muted2)}
+#sidebar.collapsed .sb-user-info{display:none}
+.btn-sb-logout{display:flex;align-items:center;gap:.35rem;margin-top:.65rem;width:100%;background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.18);color:var(--red);font-family:var(--font);font-size:.75rem;font-weight:600;border-radius:7px;padding:.42rem .8rem;cursor:pointer;transition:var(--t)}
+.btn-sb-logout:hover{background:rgba(255,59,92,.15)}
+#sidebar.collapsed .btn-sb-logout span{display:none}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:54px;min-height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;background:var(--bg2);border-bottom:1px solid var(--border);gap:1rem;flex-shrink:0}
+.tb-bc{display:flex;align-items:center;gap:.4rem}
+.tb-app{font-family:var(--mono);font-size:.68rem;color:var(--muted);letter-spacing:.5px}
+.tb-title{font-family:var(--display);font-size:1.05rem;letter-spacing:1px}
+.tb-sub{font-family:var(--mono);font-size:.63rem;letter-spacing:.5px;color:var(--muted);margin-top:1px}
+.tb-right{display:flex;align-items:center;gap:.55rem}
+.tb-search-wrap{position:relative}
+.tb-search-icon{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted2);pointer-events:none}
+.tb-search{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:8px;padding:.38rem .8rem .38rem 2rem;font-family:var(--font);font-size:.78rem;color:var(--text);outline:none;width:200px;transition:var(--t)}
+.tb-search:focus{border-color:rgba(59,139,255,.4)}
+.tb-search::placeholder{color:var(--muted)}
+.tb-date{font-family:var(--mono);font-size:.65rem;color:var(--muted2);white-space:nowrap}
+.tb-divider{width:1px;height:20px;background:var(--border2);margin:0 .2rem}
+.tb-icon-btn{width:32px;height:32px;border-radius:7px;border:1px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;display:grid;place-items:center;color:var(--muted2);transition:var(--t);flex-shrink:0}
+.tb-icon-btn:hover{border-color:var(--blue);color:var(--text)}
+.tb-admin{display:flex;align-items:center;gap:.55rem;background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:9px;padding:.28rem .65rem .28rem .28rem;cursor:pointer;transition:var(--t)}
+.tb-admin:hover{border-color:rgba(59,139,255,.28);background:rgba(59,139,255,.06)}
+.tb-admin-av{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:grid;place-items:center;font-size:.7rem;font-weight:700;flex-shrink:0;font-family:var(--display)}
+.tb-admin-info{display:flex;flex-direction:column}
+.tb-admin-name{font-size:.78rem;font-weight:600;line-height:1.2}
+.tb-admin-role{font-size:.6rem;color:var(--blue);letter-spacing:.5px;font-family:var(--mono)}
+.notif-wrap{position:relative}
+.notif-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg2)}
+.np{position:absolute;right:0;top:calc(100% + 8px);width:280px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;box-shadow:var(--shadow);z-index:100}
+.np.hidden{display:none}
+.np-hdr{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid var(--border);font-size:.82rem;font-weight:600}
+.np-hdr button{font-size:.72rem;color:var(--muted2);background:none;border:none;cursor:pointer}
+.np-empty{font-size:.8rem;color:var(--muted2);padding:1rem;text-align:center}
+.np-item{display:flex;gap:.6rem;padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem}
+.np-item:last-child{border-bottom:none}
+.np-dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;margin-top:4px}
+.content{flex:1;overflow-y:auto;padding:1.5rem}
+.content::-webkit-scrollbar{width:4px}.content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sec-hdr{margin-bottom:1.25rem}
+.sec-hdr h2{font-family:var(--display);font-size:1.25rem;font-weight:700;letter-spacing:.5px}
+.sec-hdr p{font-size:.82rem;color:var(--muted2);margin-top:.2rem}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);transition:border-color .18s}
+.card:hover{border-color:var(--border2)}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.9rem;margin-bottom:1.25rem}
+.stat-card{padding:1.15rem 1.25rem;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent,var(--blue));opacity:.7}
+.si{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;margin-bottom:.65rem}
+.slabel{font-family:var(--mono);font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:.3rem}
+.sval{font-family:var(--display);font-size:1.9rem;font-weight:700;line-height:1}
+.ssub{font-size:.7rem;color:var(--muted);margin-top:.3rem}
+.charts-grid{display:grid;gap:.9rem;margin-bottom:1.25rem}
+.chart-card{padding:1.15rem 1.25rem}
+.chart-card h3{font-family:var(--mono);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem}
+.chart-card h3::before{content:'';width:10px;height:3px;background:var(--blue);border-radius:2px;flex-shrink:0}
+.cw{width:100%}.cw.sm{height:160px}.cw.md{height:190px}.cw.lg{height:240px}
+.tbl-card{padding:1.25rem 1.5rem}
+.tbl-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.65rem;margin-bottom:1rem}
+.tbl-bar h3{font-family:var(--display);font-size:1rem;font-weight:700}
+.frow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.fsel{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:7px;padding:.38rem .75rem;font-family:var(--font);font-size:.78rem;color:var(--text);cursor:pointer;outline:none;transition:var(--t)}
+.fsel:focus{border-color:var(--blue)}
+[data-theme=light] .fsel{background:#fff}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:.55rem .75rem;font-family:var(--mono);font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .18s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(59,139,255,.04)}
+tbody td{padding:.65rem .75rem;font-size:.82rem}
+.rank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-family:var(--mono);font-size:.7rem;font-weight:700}
+.rA{background:rgba(16,217,130,.15);color:var(--green)}.rB{background:rgba(245,183,49,.15);color:var(--yellow)}
+.rC{background:rgba(255,140,66,.15);color:var(--orange)}.rD{background:rgba(255,59,92,.15);color:var(--red)}
+.sbw{display:flex;align-items:center;gap:.6rem}
+.sbb{flex:1;height:4px;background:var(--border2);border-radius:2px}
+.sbf{height:100%;border-radius:2px}
+.sbn{font-family:var(--mono);font-size:.72rem;color:var(--muted2);min-width:32px;text-align:right}
+.pgn{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;margin-top:1rem}
+.pb{min-width:30px;height:30px;border-radius:6px;border:1px solid var(--border2);background:none;font-family:var(--mono);font-size:.72rem;color:var(--muted2);cursor:pointer;display:grid;place-items:center;transition:var(--t)}
+.pb:hover,.pb.active{border-color:var(--blue);color:var(--blue);background:rgba(59,139,255,.07)}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .9rem;border-radius:8px;font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer;transition:var(--t);border:none;text-decoration:none}
+.btn-p{background:var(--blue);color:#fff}.btn-p:hover{background:#2e7ae8}
+.btn-s{background:rgba(255,255,255,.05);color:var(--muted2);border:1px solid var(--border2)}.btn-s:hover{border-color:var(--blue);color:var(--text)}
+.btn-d{background:rgba(255,59,92,.1);color:var(--red);border:1px solid rgba(255,59,92,.2)}.btn-d:hover{background:rgba(255,59,92,.2)}
+.btn-sm{font-size:.72rem;padding:.32rem .7rem}
+.sdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.sdot-g{background:var(--green);box-shadow:0 0 6px rgba(16,217,130,.5)}.sdot-y{background:var(--yellow)}.sdot-r{background:var(--red);box-shadow:0 0 6px rgba(255,59,92,.5)}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:200;backdrop-filter:blur(4px)}
+.mo.hidden{display:none}
+.modal{background:var(--bg3);border:1px solid var(--border2);border-radius:14px;width:min(90vw,560px);box-shadow:0 20px 60px rgba(0,0,0,.6);animation:su .2s ease}
+@keyframes su{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.mhdr h3{font-family:var(--display);font-size:1rem;font-weight:700}
+.mcl{width:28px;height:28px;border-radius:7px;border:1px solid var(--border2);background:none;color:var(--muted2);cursor:pointer;display:grid;place-items:center;transition:var(--t)}
+.mcl:hover{border-color:var(--red);color:var(--red)}
+.mbdy{padding:1.25rem}
+.ts{position:relative;display:inline-block;width:38px;height:21px;flex-shrink:0}
+.ts input{opacity:0;width:0;height:0}
+.tsl{position:absolute;inset:0;cursor:pointer;background:rgba(255,255,255,.1);border-radius:21px;transition:var(--t)}
+.tsl::before{content:'';position:absolute;height:15px;width:15px;left:3px;bottom:3px;background:var(--muted2);border-radius:50%;transition:var(--t)}
+.ts input:checked+.tsl{background:var(--blue)}
+.ts input:checked+.tsl::before{transform:translateX(17px);background:#fff}
+#toast-c{position:fixed;bottom:1.25rem;right:1.25rem;display:flex;flex-direction:column;gap:.5rem;z-index:300}
+.toast{background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:.75rem 1rem;font-size:.82rem;box-shadow:var(--shadow);display:flex;align-items:center;gap:.6rem;animation:sl .2s ease;min-width:240px}
+@keyframes sl{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.ti{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fi{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:8px;padding:.5rem .85rem;font-family:var(--font);font-size:.82rem;color:var(--text);outline:none;transition:var(--t);width:100%}
+.fi:focus{border-color:var(--blue)}.fi[readonly],.fi:disabled{opacity:.6;cursor:not-allowed}
+textarea.fi{resize:vertical}
+[data-theme=light] .fi{background:#f8fafc}
+.fl{font-family:var(--mono);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.4rem}
+.fg{margin-bottom:.85rem}
+.pref-r{display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border)}
+.pref-r:last-child{border-bottom:none}
+</style>
 </head>
 <body>
 <div class="bg-grid"></div>
-<div id="app" class="hidden">
+<div id="app">
 
-  <!-- SIDEBAR -->
-  <aside id="sidebar" class="sidebar">
-    <div class="sidebar-logo">
-      <div class="shield-icon">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      </div>
-      <span class="sidebar-brand">CyberShield</span>
+  <aside id="sidebar">
+    <div class="sb-brand">
+      <div class="shield"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="sb-brand-text"><h2>CyberShield</h2><span class="badge">Client Portal</span></div>
+      <button class="sb-toggle" onclick="toggleSidebar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
     </div>
-
-    <nav class="sidebar-nav">
-      <p class="sidebar-section-label">Main Menu</p>
-      <a class="sidebar-item active" id="nav-dashboard" href="dashboard.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span>
-        <span class="sidebar-label">Dashboard</span>
-        <span class="sidebar-tooltip">Dashboard</span>
-      </a>
-      <a class="sidebar-item" id="nav-assessment" href="assessment.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        <span class="sidebar-label">Take Assessment</span>
-        <span class="sidebar-tooltip">Assessment</span>
-      </a>
-      <a class="sidebar-item" id="nav-results" href="result.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-        <span class="sidebar-label">My Results</span>
-        <span class="sidebar-tooltip">Results</span>
-      </a>
-      <a class="sidebar-item" id="nav-leaderboard" href="leaderboard.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span>
-        <span class="sidebar-label">Leaderboard</span>
-        <span class="sidebar-tooltip">Leaderboard</span>
-      </a>
-      <p class="sidebar-section-label" style="margin-top:1.25rem;">Seller Hub</p>
-      <a class="sidebar-item" id="nav-seller-store" href="seller-store.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></span>
-        <span class="sidebar-label">My Store</span>
-        <span class="sidebar-tooltip">My Store</span>
-      </a>
-      <a class="sidebar-item" id="nav-seller-analytics" href="seller-analytics.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="2 20 22 20"/></svg></span>
-        <span class="sidebar-label">Analytics</span>
-        <span class="sidebar-tooltip">Analytics</span>
-      </a>
-      <p class="sidebar-section-label" style="margin-top:1.25rem;">Account</p>
-      <a class="sidebar-item" id="nav-profile" href="profile.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-        <span class="sidebar-label">My Profile</span>
-        <span class="sidebar-tooltip">Profile</span>
-      </a>
-      <a class="sidebar-item" id="nav-tips" href="security-tips.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
-        <span class="sidebar-label">Security Tips</span>
-        <span class="sidebar-tooltip">Tips</span>
-      </a>
-      <a class="sidebar-item" id="nav-terms" href="terms.php">
-        <span class="sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
-        <span class="sidebar-label">Terms &amp; Privacy</span>
-        <span class="sidebar-tooltip">Terms</span>
-      </a>
-    </nav>
-
-    <div class="sidebar-bottom">
-      <div class="sidebar-user-card" onclick="showPage('profile')" title="View profile">
-        <div class="sidebar-avatar" id="sidebar-avatar">D</div>
-        <div class="sidebar-user-info">
-          <div class="sidebar-user-name" id="sidebar-name">Demo User</div>
-          <div class="sidebar-user-role">Vendor Account</div>
-        </div>
-        <svg class="sidebar-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="sb-section">
+      <div class="sb-label">Main Menu</div>
+      <a class="sb-item active" href="index.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span><span class="sb-text">Dashboard</span></a>
+      <a class="sb-item" href="assessment.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-text">Assessment</span></a>
+      <a class="sb-item" href="result.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-text">Results</span></a>
+      <a class="sb-item" href="leaderboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span><span class="sb-text">Leaderboard</span></a>
+      <div class="sb-divider"></div>
+      <div class="sb-label">Seller Hub</div>
+      <a class="sb-item" href="seller-store.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2 2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span><span class="sb-text">My Store</span></a>
+      <a class="sb-item" href="seller-analytics.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="2 20 22 20"/></svg></span><span class="sb-text">Analytics</span></a>
+      <div class="sb-divider"></div>
+      <div class="sb-label">Account</div>
+      <a class="sb-item" href="profile.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0 4-4H8a4 4 0 0 0 4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="sb-text">Profile</span></a>
+      <a class="sb-item" href="security-tips.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span><span class="sb-text">Security Tips</span></a>
+      <a class="sb-item" href="terms.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="sb-text">Terms & Privacy</span></a>
+    </div>
+    <div class="sb-footer">
+      <div class="sb-user">
+        <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+        <div class="sb-user-info"><p><?php echo htmlspecialchars($user['full_name']); ?></p><span>Vendor Account</span></div>
       </div>
-      <button class="sidebar-signout-btn" onclick="doLogout()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <button class="btn-sb-logout" onclick="doLogout()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span>Sign Out</span>
       </button>
     </div>
   </aside>
+  <div id="main">
 
-  <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-    <span id="sidebar-toggle-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
-  </button>
-
-  <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="toggleMobileSidebar()">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    Menu
-  </button>
-
-  <!-- MAIN CONTENT -->
-  <div id="main-content" class="main-content">
-
-    <!-- TOPBAR -->
-    <header id="topbar" class="topbar">
-      <div class="topbar-left">
-        <div class="topbar-breadcrumb">
-          <span class="topbar-app-name">CyberShield</span>
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="M6 4l4 4-4 4"/></svg>
-          <span id="topbar-page-title">Dashboard</span>
+    <div class="topbar">
+      <div>
+        <div class="tb-bc">
+          <span class="tb-app">CyberShield</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+          <span class="tb-title">Dashboard Overview</span>
         </div>
+        <p class="tb-sub">Your cybersecurity posture summary</p>
       </div>
-      <div class="topbar-right">
-        <div class="topbar-search">
-          <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          <input type="text" id="global-search" placeholder="Search…" oninput="handleGlobalSearch(this.value)" autocomplete="off"/>
+      <div class="tb-right">
+        <div class="tb-search-wrap">
+          <span class="tb-search-icon"><svg width="12" height="12" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <input type="text" class="tb-search" placeholder="Search assessments, tips…" autocomplete="off"/>
         </div>
-        <div class="topbar-divider"></div>
-        <button class="topbar-ctrl-btn" id="lang-btn" onclick="cycleLang()" title="Change language">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          <span id="lang-label">EN</span>
+        <span class="tb-date" id="tb-date"></span>
+        <div class="tb-divider"></div>
+        <button class="tb-icon-btn" onclick="toggleTheme()" title="Toggle theme">
+          <svg id="tmoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="tsun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
         </button>
-        <button class="topbar-ctrl-btn" id="a11y-btn" onclick="toggleAccessibility()" title="Toggle large text">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M9 11h6M12 11v9"/><path d="M7.5 16h2M14.5 16h2"/></svg>
-        </button>
-        <button class="topbar-ctrl-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-          <svg id="theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <svg id="theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
-        </button>
-        <div class="topbar-divider"></div>
         <div class="notif-wrap">
-          <button class="topbar-ctrl-btn notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+          <button class="tb-icon-btn" onclick="toggleNotif()" title="Notifications" style="position:relative">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span class="notif-dot hidden" id="notif-dot"></span>
+            <span class="notif-dot" id="notif-dot"></span>
           </button>
-          <div class="notif-panel hidden" id="notif-panel">
-            <div class="notif-header"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
-            <div id="notif-list"><p class="notif-empty">No notifications</p></div>
-          </div>
-        </div>
-        <div class="topbar-user" onclick="showPage('profile')" title="My Profile">
-          <div class="topbar-avatar" id="nav-avatar">D</div>
-          <div class="topbar-user-info">
-            <span class="topbar-user-name" id="nav-name">Demo User</span>
-            <span class="topbar-user-role">Vendor</span>
-          </div>
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
-        </div>
-      </div>
-    </header>
-
-    <!-- DASHBOARD -->
-    <div id="page-dashboard" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header">
-          <div>
-            <h2 class="page-title">Good day, <span id="dash-greeting">User</span></h2>
-            <p class="page-subtitle">Here's your cybersecurity hygiene overview for today.</p>
-          </div>
-          <button class="btn btn-primary" onclick="startAssessment()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Start Assessment
-          </button>
-        </div>
-        <div id="welcome-banner" class="welcome-banner hidden">
-          <div class="welcome-inner">
-            <div class="welcome-icon-wrap"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-            <h3>Welcome to CyberShield</h3>
-            <p>You haven't taken an assessment yet. Start your first quiz to discover your cybersecurity posture — it only takes a few minutes.</p>
-            <button class="btn btn-primary btn-lg" onclick="startAssessment()">Start My First Assessment</button>
-          </div>
-        </div>
-        <div class="stats-grid" id="stats-grid">
-          <div class="card stat-card"><div class="stat-label">Latest Score</div><div class="stat-val mono" id="stat-score">—</div><div class="stat-sub" id="stat-rank-text">No assessments yet</div></div>
-          <div class="card stat-card"><div class="stat-label">Risk Rank</div><div class="stat-val" id="stat-rank">—</div><div class="stat-sub" id="stat-rank-sub">—</div></div>
-          <div class="card stat-card"><div class="stat-label">Assessments Done</div><div class="stat-val mono" id="stat-count">0</div><div class="stat-sub">Total sessions</div></div>
-          <div class="card stat-card"><div class="stat-label">Trend</div><div class="stat-val" id="stat-trend">—</div><div class="stat-sub" id="stat-trend-sub">—</div></div>
-        </div>
-        <div class="card tip-card" id="tip-of-day">
-          <div class="tip-card-header">
-            <span class="tip-card-label">Tip of the Day</span>
-            <button class="btn-ghost-sm" onclick="refreshTip()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Refresh
-            </button>
-          </div>
-          <p class="tip-card-text" id="tip-text">Loading tip…</p>
-        </div>
-        <div class="card section-card">
-          <div class="section-title">Badges &amp; Achievements</div>
-          <div id="dash-badges" class="badges-row"></div>
-        </div>
-        <div class="quick-actions">
-          <div class="action-card" onclick="startAssessment()">
-            <div class="action-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-            <div class="action-text"><h4>New Assessment</h4><p>Take a fresh 12-question quiz</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="action-card" onclick="showPage('results')">
-            <div class="action-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-            <div class="action-text"><h4>View Results</h4><p>Charts &amp; recommendations</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="action-card" onclick="showPage('leaderboard')">
-            <div class="action-icon purple"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></div>
-            <div class="action-text"><h4>Leaderboard</h4><p>Compare with other vendors</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="action-card" onclick="showPage('tips')">
-            <div class="action-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
-            <div class="action-text"><h4>Security Tips</h4><p>Guides to improve your score</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-        </div>
-        <div class="card chart-card"><div class="chart-card-header">Risk Score Trend</div><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></div>
-        <div class="card section-card"><div class="section-title">Assessment History</div><div id="history-container"><p class="empty-state">No assessments taken yet. Start one now!</p></div></div>
-      </div>
-    </div>
-
-    <!-- ASSESSMENT -->
-    <div id="page-assessment" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="assess-header">
-          <div class="assess-topbar">
-            <h2 class="assess-title">Cyber Hygiene Assessment</h2>
-            <button class="btn btn-outline btn-sm" onclick="confirmQuitAssessment()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              Quit
-            </button>
-          </div>
-          <div class="progress-meta">
-            <span id="progress-label">Question 1 of 12</span>
-            <div class="progress-meta-right">
-              <div class="timer-wrap" id="timer-wrap">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span class="timer-val" id="timer-val">30</span>
-              </div>
-              <span class="progress-pct" id="progress-pct">0%</span>
-            </div>
-          </div>
-          <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
-          <div class="timer-bar-wrap"><div class="timer-bar-fill" id="timer-bar-fill"></div></div>
-        </div>
-        <div class="card q-card" id="q-card"></div>
-      </div>
-    </div>
-
-    <!-- RESULTS -->
-    <div id="page-results" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header">
-          <div><h2 class="page-title">My Results</h2><p class="page-subtitle">Latest assessment breakdown and recommendations</p></div>
-          <div class="btn-group">
-            <button class="btn btn-outline btn-sm" onclick="exportCSVFromDB()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button>
-            <button class="btn btn-outline btn-sm" onclick="exportPDF()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> PDF</button>
-            <button class="btn btn-outline btn-sm" onclick="printResult()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
-          </div>
-        </div>
-        <div class="result-hero" id="result-hero"><div class="spinner-wrap"><div class="spinner"></div></div></div>
-        <div class="card section-card" id="badges-card" style="display:none;"><div class="section-title">Badges Earned</div><div id="result-badges" class="badges-row"></div></div>
-        <div class="results-grid">
-          <div class="card" style="padding:1.75rem;"><div class="section-title" style="margin-bottom:1.25rem;">Category Breakdown</div><div style="position:relative;height:270px;"><canvas id="radar-chart"></canvas></div></div>
-          <div class="card reco-card" style="padding:1.75rem;"><div class="section-title" style="margin-bottom:1rem;">Recommendations</div><ul class="reco-list" id="reco-list"></ul></div>
-        </div>
-        <div class="card" style="padding:1.75rem;margin-bottom:1.5rem;">
-          <div class="card-row-header"><div class="section-title" style="margin:0;">Answer Review</div><button class="btn btn-outline btn-sm" id="review-toggle-btn" onclick="toggleReview()">Show Review</button></div>
-          <div id="review-container" class="hidden" style="margin-top:1.25rem;"></div>
-        </div>
-        <div class="card chart-card" style="margin-bottom:1.5rem;"><div class="chart-card-header">Progress Over Time</div><div class="chart-wrap"><canvas id="trend-chart-2"></canvas></div></div>
-        <div class="card section-card" style="margin-bottom:2rem;"><div class="section-title">Learning Resources</div><p class="section-sub">Targeted videos based on your weakest categories</p><div class="video-grid" id="video-grid"></div></div>
-      </div>
-    </div>
-
-    <!-- LEADERBOARD -->
-    <div id="page-leaderboard" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header"><div><h2 class="page-title">Leaderboard</h2><p class="page-subtitle">Vendor cybersecurity rankings across the platform</p></div></div>
-        <div class="card" style="padding:1.75rem;">
-          <div class="card-row-header">
-            <div class="section-title" style="margin:0;">Vendor Rankings</div>
-            <div class="filter-group">
-              <button class="filter-btn lb-filter-btn active" onclick="filterLeaderboard('all',this)">All</button>
-              <button class="filter-btn lb-filter-btn risk-a" onclick="filterLeaderboard('A',this)">Low Risk</button>
-              <button class="filter-btn lb-filter-btn risk-b" onclick="filterLeaderboard('B',this)">Moderate</button>
-              <button class="filter-btn lb-filter-btn risk-cd" onclick="filterLeaderboard('CD',this)">High Risk</button>
-            </div>
-          </div>
-          <div id="leaderboard-list" style="margin-top:1.25rem;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- PROFILE -->
-    <div id="page-profile" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header"><div><h2 class="page-title">My Profile</h2><p class="page-subtitle">Manage your account information and preferences</p></div></div>
-        <div class="profile-grid">
-          <div class="profile-col">
-            <div class="card" style="padding:1.75rem;">
-              <div class="profile-sec-title">Account Information</div>
-              <div class="profile-avatar-wrap">
-                <div class="profile-avatar" id="profile-avatar-big">D</div>
-                <div><div class="profile-display-name" id="profile-name-display">Demo User</div><div class="profile-display-email" id="profile-email-display">demo@company.com</div></div>
-              </div>
-              <div class="form-group"><label>Display Name</label><input type="text" id="profile-name" placeholder="Your full name"/></div>
-              <div class="form-group"><label>Email Address</label><input type="text" id="profile-email" readonly/></div>
-              <div class="form-group"><label>Store / Company Name</label><input type="text" id="profile-company" placeholder="Your store name"/></div>
-              <button class="btn btn-primary btn-full" onclick="saveProfile()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes</button>
-            </div>
-            <!-- Change Password Card -->
-            <div class="card" style="padding:1.75rem;margin-top:1.25rem;">
-              <div class="profile-sec-title">Change Password</div>
-              <div class="form-group"><label>Current Password</label><input type="password" id="pw-current" placeholder="••••••••"/></div>
-              <div class="form-group"><label>New Password</label><input type="password" id="pw-new" placeholder="••••••••"/></div>
-              <div class="form-group"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="••••••••"/></div>
-              <div id="pw-change-error" class="form-error" style="display:none;margin-bottom:.75rem;"></div>
-              <button class="btn btn-primary btn-full" onclick="submitPasswordChange()">Update Password</button>
-            </div>
-            <div class="card" style="padding:1.75rem;">
-              <div class="profile-sec-title">Preferences</div>
-              <div class="pref-row"><div class="pref-text"><div class="pref-label">Dark Mode</div><div class="pref-sub">Switch between dark and light theme</div></div><label class="toggle-switch"><input type="checkbox" id="pref-dark" onchange="applyTheme(this.checked)"/><span class="toggle-slider"></span></label></div>
-              <div class="pref-row"><div class="pref-text"><div class="pref-label">Question Timer</div><div class="pref-sub">30-second countdown per question</div></div><label class="toggle-switch"><input type="checkbox" id="pref-timer" checked/><span class="toggle-slider"></span></label></div>
-              <div class="pref-row"><div class="pref-text"><div class="pref-label">Notifications</div><div class="pref-sub">Alerts after each assessment</div></div><label class="toggle-switch"><input type="checkbox" id="pref-notif" checked/><span class="toggle-slider"></span></label></div>
-              <div class="pref-row"><div class="pref-text"><div class="pref-label">Large Text Mode</div><div class="pref-sub">Bigger text for easier reading</div></div><label class="toggle-switch"><input type="checkbox" id="pref-a11y" onchange="toggleAccessibility()"/><span class="toggle-slider"></span></label></div>
-            </div>
-          </div>
-          <div class="profile-col">
-            <div class="card" style="padding:1.75rem;"><div class="profile-sec-title">Your Statistics</div><div class="profile-stats-grid" id="profile-stats-grid"></div></div>
-            <div class="card" style="padding:1.75rem;"><div class="profile-sec-title">Earned Badges</div><div id="profile-badges" class="badges-row"></div></div>
-            <div class="card danger-card" style="padding:1.75rem;">
-              <div class="profile-sec-title danger-sec-title">Danger Zone</div>
-              <p class="danger-desc">Permanently delete all local assessment history and cached data.</p>
-              <button class="btn-danger" onclick="clearAllData()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear Local Data</button>
+          <div class="np hidden" id="np">
+            <div class="np-hdr"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
+            <div id="np-list">
+              <p class="np-empty">No notifications</p>
             </div>
           </div>
         </div>
+        <div class="tb-divider"></div>
+        <a class="tb-admin" href="#">
+          <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+          <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role">Vendor</span></div>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--muted);margin-left:.2rem"><path d="M4 6l4 4 4-4"/></svg>
+        </a>
       </div>
     </div>
+    <div class="content">
 
-    <!-- SECURITY TIPS -->
-    <div id="page-tips" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header"><div><h2 class="page-title">Security Tips</h2><p class="page-subtitle">Practical guides to strengthen your cybersecurity posture</p></div></div>
-        <div class="filter-bar">
-          <button class="filter-btn active" onclick="filterTips('all',this)">All Tips</button>
-          <button class="filter-btn" onclick="filterTips('password',this)">Passwords</button>
-          <button class="filter-btn" onclick="filterTips('phishing',this)">Phishing</button>
-          <button class="filter-btn" onclick="filterTips('device',this)">Devices</button>
-          <button class="filter-btn" onclick="filterTips('network',this)">Networks</button>
+<div class="sec-hdr"><h2>Dashboard Overview</h2><p>Your cybersecurity posture summary and recent activity.</p></div>
+<div class="stats-row" id="stats-row">
+  <div class="card stat-card" style="--accent:var(--blue)"><div class="si" style="background:rgba(59,139,255,.12);color:var(--blue)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="slabel">Latest Score</div><div class="sval" id="sv-score"><?php echo $stats['latest_score'] ?? '--'; ?></div><div class="ssub"><?php echo $stats['latest_rank'] ? 'Rank ' . $stats['latest_rank'] : 'No assessments yet'; ?></div></div>
+  <div class="card stat-card" style="--accent:var(--teal)"><div class="si" style="background:rgba(0,212,170,.12);color:var(--teal)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div class="slabel">Risk Rank</div><div class="sval" id="sv-rank"><?php echo $stats['latest_rank'] ?? '--'; ?></div><div class="ssub"><?php 
+              if ($stats['latest_rank'] === 'A') echo 'Low Risk';
+              elseif ($stats['latest_rank'] === 'B') echo 'Moderate Risk';
+              elseif ($stats['latest_rank'] === 'C') echo 'High Risk';
+              elseif ($stats['latest_rank'] === 'D') echo 'Critical Risk';
+              else echo '--';
+            ?></div></div>
+  <div class="card stat-card" style="--accent:var(--green)"><div class="si" style="background:rgba(0,255,148,.12);color:var(--green)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="slabel">Assessments</div><div class="sval" id="sv-total"><?php echo $stats['total_assessments']; ?></div><div class="ssub">Total completed</div></div>
+  <div class="card stat-card" style="--accent:var(--yellow)"><div class="si" style="background:rgba(255,214,10,.1);color:var(--yellow)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="slabel">Trend</div><div class="sval" id="sv-trend"><?php 
+              if ($stats['total_assessments'] > 1) echo '↑ Improving';
+              elseif ($stats['total_assessments'] == 1) echo 'First';
+              else echo '--';
+            ?></div><div class="ssub"><?php 
+              if ($stats['total_assessments'] > 1) echo 'Keep it up!';
+              elseif ($stats['total_assessments'] == 1) echo 'Great start!';
+              else echo '--';
+            ?></div></div>
+</div>
+
+<div class="sec-hdr"><h2>Security Tips</h2><p>Daily recommendations to improve your cybersecurity posture.</p></div>
+<div class="card" style="padding:1.25rem;margin-bottom:1.25rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+    <h3 style="font-family:var(--mono);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2)">Tip of the Day</h3>
+    <button class="btn btn-s btn-sm" onclick="refreshTip()">Refresh</button>
+  </div>
+  <p id="tip-text" style="font-size:.9rem;color:var(--text);line-height:1.5">Loading tip...</p>
+</div>
+
+<div class="sec-hdr"><h2>Badges & Achievements</h2><p>Your cybersecurity milestones and accomplishments.</p></div>
+<div class="card" style="padding:1.25rem;margin-bottom:1.25rem">
+  <div id="dash-badges" style="display:flex;gap:.75rem;flex-wrap:wrap">
+    <?php if (empty($badges)): ?>
+      <p style="color:var(--muted2);font-size:.85rem">Complete assessments to earn badges</p>
+    <?php else: ?>
+      <?php foreach ($badges as $badge): ?>
+        <div style="display:flex;align-items:center;gap:.5rem;background:<?php echo $badge['color']; ?>20;padding:.5rem .85rem;border-radius:8px;border:1px solid <?php echo $badge['color']; ?>30">
+          <span style="font-size:1.2rem"><?php echo $badge['icon']; ?></span>
+          <span style="font-size:.78rem;font-weight:600;color:<?php echo $badge['color']; ?>"><?php echo $badge['name']; ?></span>
         </div>
-        <div class="tips-grid" id="tips-grid"></div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
+<div class="sec-hdr"><h2>Quick Actions</h2><p>Common tasks and shortcuts for your security workflow.</p></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.9rem;margin-bottom:1.25rem">
+  <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="startAssessment()">
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <div style="width:40px;height:40px;background:rgba(59,139,255,.12);color:var(--blue);border-radius:8px;display:grid;place-items:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div>
+        <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">New Assessment</h4>
+        <p style="font-size:.75rem;color:var(--muted2)">Take a fresh 12-question quiz</p>
       </div>
     </div>
-
-    <!-- TERMS & PRIVACY -->
-    <div id="page-terms" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header"><div><h2 class="page-title" data-i18n="terms_title">Terms &amp; Privacy</h2><p class="page-subtitle" data-i18n="terms_sub">Last updated: March 2025</p></div></div>
-        <div class="terms-layout">
-          <div class="card terms-toc">
-            <div class="terms-toc-title">Contents</div>
-            <a class="terms-nav-item" onclick="scrollToSection('terms-s1')">1. Introduction</a>
-            <a class="terms-nav-item" onclick="scrollToSection('terms-s2')">2. Data We Collect</a>
-            <a class="terms-nav-item" onclick="scrollToSection('terms-s3')">3. How We Use Data</a>
-            <a class="terms-nav-item" onclick="scrollToSection('terms-s4')">4. Data Storage</a>
-            <a class="terms-nav-item" onclick="scrollToSection('terms-s5')">5. Your Rights</a>
-            <a class="terms-nav-item" onclick="scrollToSection('terms-s6')">6. Contact Us</a>
-          </div>
-          <div class="terms-content">
-            <div class="card terms-section" id="terms-s1"><h3 class="terms-heading">1. Introduction</h3><p class="terms-body">CyberShield Vendor Hygiene Assessment Platform is designed to help organizations evaluate their cybersecurity awareness and practices. By using this Platform, you agree to these Terms of Service and our Privacy Policy.</p></div>
-            <div class="card terms-section" id="terms-s2"><h3 class="terms-heading">2. Data We Collect</h3><p class="terms-body">Assessment responses, scores, and account information are stored securely in our MySQL database hosted on your server.</p><div class="terms-highlight">Your data is stored server-side and protected by PHP session authentication.</div></div>
-            <div class="card terms-section" id="terms-s3"><h3 class="terms-heading">3. How We Use Data</h3><p class="terms-body">Data is used to display scores, track progress, generate recommendations, and maintain leaderboard standings.</p></div>
-            <div class="card terms-section" id="terms-s4"><h3 class="terms-heading">4. Data Storage &amp; Security</h3><p class="terms-body">All data is stored in a MySQL database. Passwords are hashed using bcrypt. Sessions expire automatically for security.</p></div>
-            <div class="card terms-section" id="terms-s5"><h3 class="terms-heading">5. Your Rights</h3><p class="terms-body">You may request export or deletion of your data by contacting the administrator.</p><button class="btn btn-outline btn-sm" onclick="clearAllData()" style="margin-top:1rem;">Clear Local Cache</button></div>
-            <div class="card terms-section" id="terms-s6"><h3 class="terms-heading">6. Contact Us</h3><p class="terms-body">For questions, contact the CyberShield platform administrator at <strong>admin@cybershield.ph</strong>.</p></div>
-          </div>
-        </div>
+  </div>
+  <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="showPage('results')">
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <div style="width:40px;height:40px;background:rgba(16,217,130,.12);color:var(--green);border-radius:8px;display:grid;place-items:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <div>
+        <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">View Results</h4>
+        <p style="font-size:.75rem;color:var(--muted2)">Charts & recommendations</p>
       </div>
     </div>
-
-    <!-- SELLER STORE -->
-    <div id="page-seller-store" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header">
-          <div><h2 class="page-title">My Store</h2><p class="page-subtitle">Manage your product listings, inventory, and postings</p></div>
-          <button class="btn btn-primary" onclick="openProductModal()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Product
-          </button>
-        </div>
-        <div class="stats-grid" id="seller-stats-grid">
-          <div class="card stat-card"><div class="stat-label">Total Products</div><div class="stat-val mono" id="s-stat-total">0</div><div class="stat-sub">Listed items</div></div>
-          <div class="card stat-card"><div class="stat-label">Active Listings</div><div class="stat-val mono" id="s-stat-active" style="color:var(--green)">0</div><div class="stat-sub">Visible to buyers</div></div>
-          <div class="card stat-card"><div class="stat-label">Out of Stock</div><div class="stat-val mono" id="s-stat-oos" style="color:var(--red)">0</div><div class="stat-sub">Needs restocking</div></div>
-          <div class="card stat-card"><div class="stat-label">Total Value</div><div class="stat-val mono" id="s-stat-value" style="font-size:1.5rem">₱0</div><div class="stat-sub">Inventory worth</div></div>
-        </div>
-        <div class="card" style="padding:1rem 1.5rem;margin-bottom:1.25rem;">
-          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-            <div class="topbar-search" style="flex:1;min-width:180px;">
-              <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-              <input type="text" id="product-search" placeholder="Search products…" oninput="renderProductGrid()" autocomplete="off"/>
-            </div>
-            <div class="filter-group" style="margin:0;">
-              <button class="filter-btn active" onclick="filterProducts('all',this)">All</button>
-              <button class="filter-btn" onclick="filterProducts('active',this)">Active</button>
-              <button class="filter-btn" onclick="filterProducts('inactive',this)">Inactive</button>
-              <button class="filter-btn" onclick="filterProducts('out_of_stock',this)">Out of Stock</button>
-            </div>
-          </div>
-        </div>
-        <div id="product-grid" class="product-grid"></div>
-        <div id="product-empty" class="card" style="padding:3rem;text-align:center;display:none;">
-          <div style="font-size:2.5rem;margin-bottom:1rem;">📦</div>
-          <h3 style="margin-bottom:.5rem;font-family:var(--display);letter-spacing:1px;">No products yet</h3>
-          <p style="color:var(--text2);font-size:.85rem;margin-bottom:1.5rem;">Start building your store by adding your first product listing.</p>
-          <button class="btn btn-primary" onclick="openProductModal()">Add Your First Product</button>
-        </div>
+  </div>
+  <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="showPage('leaderboard')">
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <div style="width:40px;height:40px;background:rgba(123,114,240,.12);color:var(--purple);border-radius:8px;display:grid;place-items:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg>
+      </div>
+      <div>
+        <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">Leaderboard</h4>
+        <p style="font-size:.75rem;color:var(--muted2)">Compare with other vendors</p>
       </div>
     </div>
-
-    <!-- SELLER ANALYTICS -->
-    <div id="page-seller-analytics" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header">
-          <div><h2 class="page-title">Analytics Dashboard</h2><p class="page-subtitle">Performance insights and data-driven metrics for your store</p></div>
-          <div class="filter-group" style="margin:0;">
-            <button class="filter-btn active" onclick="setAnalyticsPeriod(7,this)">7D</button>
-            <button class="filter-btn" onclick="setAnalyticsPeriod(30,this)">30D</button>
-            <button class="filter-btn" onclick="setAnalyticsPeriod(90,this)">90D</button>
-          </div>
-        </div>
-        <div class="stats-grid">
-          <div class="card stat-card kpi-card"><div class="kpi-icon" style="background:rgba(59,139,255,.12);color:var(--blue)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div><div class="stat-label">Total Revenue</div><div class="stat-val mono" id="kpi-revenue" style="font-size:1.6rem">₱0</div><div class="stat-sub kpi-trend" id="kpi-revenue-trend">—</div></div>
-          <div class="card stat-card kpi-card"><div class="kpi-icon" style="background:rgba(0,232,130,.12);color:var(--green)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></div><div class="stat-label">Orders Placed</div><div class="stat-val mono" id="kpi-orders">0</div><div class="stat-sub kpi-trend" id="kpi-orders-trend">—</div></div>
-          <div class="card stat-card kpi-card"><div class="kpi-icon" style="background:rgba(176,97,255,.12);color:var(--purple)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div><div class="stat-label">Product Views</div><div class="stat-val mono" id="kpi-views">0</div><div class="stat-sub kpi-trend" id="kpi-views-trend">—</div></div>
-          <div class="card stat-card kpi-card"><div class="kpi-icon" style="background:rgba(255,140,66,.12);color:var(--orange)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><div class="stat-label">Engagement Rate</div><div class="stat-val mono" id="kpi-engage">0%</div><div class="stat-sub kpi-trend" id="kpi-engage-trend">—</div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.25rem;margin-bottom:1.25rem;" class="analytics-grid-2">
-          <div class="card chart-card"><div class="chart-card-header">Revenue Over Time</div><div class="chart-wrap" style="height:240px;"><canvas id="analytics-revenue-chart"></canvas></div></div>
-          <div class="card chart-card"><div class="chart-card-header">Sales by Category</div><div class="chart-wrap" style="height:240px;"><canvas id="analytics-category-chart"></canvas></div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;" class="analytics-grid-2">
-          <div class="card chart-card"><div class="chart-card-header">Views vs Orders</div><div class="chart-wrap" style="height:220px;"><canvas id="analytics-views-chart"></canvas></div></div>
-          <div class="card chart-card"><div class="chart-card-header">Customer Engagement Score</div><div class="chart-wrap" style="height:220px;"><canvas id="analytics-engagement-chart"></canvas></div></div>
-        </div>
-        <div class="card" style="padding:1.75rem;margin-bottom:2rem;">
-          <div class="section-title" style="margin-bottom:1.25rem;">Top Performing Products</div>
-          <div id="analytics-top-products"></div>
-        </div>
+  </div>
+  <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="showPage('tips')">
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <div style="width:40px;height:40px;background:rgba(245,183,49,.12);color:var(--yellow);border-radius:8px;display:grid;place-items:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       </div>
-    </div>
-
-  </div><!-- end main-content -->
-</div><!-- end app -->
-
-<!-- PRODUCT MODAL -->
-<div id="product-modal" class="fp-overlay hidden" onclick="closeProductModal(event)">
-  <div class="fp-card product-modal-card" style="max-width:560px;">
-    <button class="fp-close-btn" onclick="closeProductModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    <h3 id="product-modal-title" style="font-family:var(--display);font-size:1.55rem;letter-spacing:1px;margin-bottom:1.5rem;">Add New Product</h3>
-    <input type="hidden" id="product-edit-id"/>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-      <div class="form-group" style="grid-column:1/-1"><label>Product Name *</label><input type="text" id="p-name" placeholder="e.g. Wireless Headphones"/></div>
-      <div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="p-desc" rows="3" placeholder="Describe your product…" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;resize:vertical;"></textarea></div>
-      <div class="form-group"><label>Price (₱) *</label><input type="number" id="p-price" placeholder="0.00" min="0" step="0.01"/></div>
-      <div class="form-group"><label>Stock Quantity *</label><input type="number" id="p-stock" placeholder="0" min="0"/></div>
-      <div class="form-group"><label>Category</label>
-        <select id="p-category" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;">
-          <option value="Electronics">Electronics</option>
-          <option value="Clothing">Clothing</option>
-          <option value="Home &amp; Garden">Home &amp; Garden</option>
-          <option value="Sports">Sports</option>
-          <option value="Books">Books</option>
-          <option value="Food &amp; Beverage">Food &amp; Beverage</option>
-          <option value="Health &amp; Beauty">Health &amp; Beauty</option>
-          <option value="Other">Other</option>
-        </select>
+      <div>
+        <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">Security Tips</h4>
+        <p style="font-size:.75rem;color:var(--muted2)">Guides to improve your score</p>
       </div>
-      <div class="form-group"><label>Status</label>
-        <select id="p-status" style="font-family:var(--font);font-size:.85rem;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:.6rem .85rem;width:100%;">
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-      </div>
-      <div class="form-group" style="grid-column:1/-1"><label>Product Image URL</label><input type="text" id="p-image" placeholder="https://… (leave blank for default)"/></div>
-    </div>
-    <div id="product-modal-error" class="form-error" style="display:none;margin-bottom:.75rem;"></div>
-    <div style="display:flex;gap:.75rem;margin-top:.5rem;">
-      <button class="btn btn-primary" style="flex:1" onclick="saveProduct()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save Product
-      </button>
-      <button class="btn btn-outline" onclick="closeProductModal()">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- FORGOT PASSWORD OVERLAY -->
-<div id="forgot-overlay" class="fp-overlay hidden" onclick="closeForgotOverlay(event)">
-  <div class="fp-card">
-    <button class="fp-close-btn" onclick="closeForgotPassword()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    <div class="fp-step" id="fp-step-1">
-      <div class="fp-step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-      <h3>Reset Password</h3>
-      <p>Enter your registered email address to receive a reset code.</p>
-      <div class="form-group" style="margin-top:1rem;"><label>Email Address</label><input type="email" id="fp-email" placeholder="demo@company.com"/></div>
-      <div id="fp-error" class="form-error" style="display:none;">Email not found.</div>
-      <button class="btn btn-primary btn-full" onclick="doForgotStep1()">Send Reset Code</button>
+<div class="sec-hdr"><h2>Assessment History</h2><p>Your past security assessments and performance trends.</p></div>
+<div class="card tbl-card">
+  <div class="tbl-bar">
+    <h3>Recent Assessments</h3>
+    <div class="frow">
+      <button class="btn btn-p btn-sm" onclick="startAssessment()">New Assessment</button>
     </div>
-    <div class="fp-step hidden" id="fp-step-2">
-      <div class="fp-step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
-      <h3>Enter Reset Code</h3>
-      <p>We generated a code for <strong id="fp-sent-email"></strong></p>
-      <div class="fp-code-box"><span class="fp-code" id="fp-code"></span></div>
-      <div class="form-group" style="margin-top:.75rem;"><label>Reset Code</label><input type="text" id="fp-code-input" placeholder="CS-RESET-XXXXXX"/></div>
-      <div id="fp-code-error" class="form-error" style="display:none;">Invalid code. Please try again.</div>
-      <button class="btn btn-primary btn-full" onclick="doForgotStep2()">Verify Code</button>
-    </div>
-    <div class="fp-step hidden" id="fp-step-3">
-      <div class="fp-step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-      <h3>Set New Password</h3>
-      <p>Choose a strong password for your account.</p>
-      <div class="form-group" style="margin-top:1rem;"><label>New Password</label><input type="password" id="fp-newpass" placeholder="••••••••"/></div>
-      <div class="form-group"><label>Confirm Password</label><input type="password" id="fp-confirmpass" placeholder="••••••••"/></div>
-      <div class="pass-strength-bar"><div id="pass-strength-fill" class="pass-strength-fill"></div></div>
-      <div id="pass-strength-label" class="pass-strength-label"></div>
-      <div id="fp-pass-error" class="form-error" style="display:none;"></div>
-      <button class="btn btn-primary btn-full" style="margin-top:.75rem;" onclick="doForgotStep3()">Reset Password</button>
-    </div>
-    <div class="fp-step hidden" id="fp-step-4">
-      <div class="fp-step-icon success"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <h3>Password Reset!</h3>
-      <p>Your password has been updated. You can now sign in.</p>
-      <button class="btn btn-primary btn-full" style="margin-top:1rem;" onclick="closeForgotPassword()">Back to Sign In</button>
+  </div>
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Score</th>
+          <th>Rank</th>
+          <th>Duration</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (empty($history)): ?>
+          <tr>
+            <td colspan="5" style="text-align:center;color:var(--muted2);padding:2rem">No assessments taken yet. Start one now!</td>
+          </tr>
+        <?php else: ?>
+          <?php foreach ($history as $assessment): ?>
+            <tr>
+              <td><?php echo date('M j, Y', strtotime($assessment['created_at'])); ?></td>
+              <td>
+                <div class="sbw">
+                  <div class="sbb">
+                    <div class="sbf" style="width:<?php echo $assessment['score']; ?>%;background:<?php 
+                      echo $assessment['score'] >= 80 ? 'var(--green)' : 
+                           ($assessment['score'] >= 60 ? 'var(--yellow)' : 
+                           ($assessment['score'] >= 40 ? 'var(--orange)' : 'var(--red)')); ?>"></div>
+                  </div>
+                  <span class="sbn"><?php echo $assessment['score']; ?>%</span>
+                </div>
+              </td>
+              <td><span class="rank r<?php echo $assessment['rank']; ?>"><?php echo $assessment['rank']; ?></span></td>
+              <td><?php echo $assessment['duration'] ?? 'N/A'; ?></td>
+              <td><button class="btn btn-s btn-sm" onclick="viewAssessment(<?php echo $assessment['id']; ?>)">View</button></td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
     </div>
   </div>
 </div>
 
-<!-- SEARCH OVERLAY -->
-<div id="search-overlay" class="search-overlay hidden" onclick="closeSearchOverlay(event)">
-  <div class="search-results-panel">
-    <div class="search-results-header"><span>Search Results</span><button onclick="closeSearchOverlay()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div id="search-results-list"></div>
+<div id="modal-overlay" class="mo hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="mhdr"><h3 id="modal-title">Detail</h3><button class="mcl" onclick="closeModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="mbdy" id="modal-body"></div>
   </div>
 </div>
-
-<div id="print-area" class="hidden"></div>
-
-<script src="script.js"></script>
-<script src="sidebar.js"></script>
-
-<!-- ── DB-aware login & boot overrides ── -->
+<div id="toast-c"></div>
 <script>
-// Fill demo credentials
-function fillDemo(u, p) {
-    document.getElementById('login-username').value = u;
-    document.getElementById('login-password').value = p;
+// Client-side functionality
+function isDark(){return document.documentElement.getAttribute('data-theme')==='dark'}
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  localStorage.setItem('cs_sb',document.getElementById('sidebar').classList.contains('collapsed')?'1':'0');
+}
+function toggleTheme(){
+  const d=!isDark();
+  document.documentElement.setAttribute('data-theme',d?'dark':'light');
+  localStorage.setItem('cs_th',d?'dark':'light');
+  const m=document.getElementById('tmoon'),s=document.getElementById('tsun');
+  if(m)m.style.display=d?'':'none';
+  if(s)s.style.display=d?'none':'';
+  if(typeof onThemeChange==='function')onThemeChange();
+}
+function toggleNotif(){
+  const p=document.getElementById('np');
+  if(p)p.classList.toggle('hidden');
+}
+function clearNotifs(){
+  const l=document.getElementById('np-list');
+  if(l)l.innerHTML='<p class="np-empty">No notifications</p>';
+  const d=document.getElementById('notif-dot');
+  if(d)d.style.display='none';
+  const p=document.getElementById('np');
+  if(p)p.classList.add('hidden');
+}
+function showToast(msg,color='blue'){
+  const cols={blue:'var(--blue)',green:'var(--green)',red:'var(--red)',yellow:'var(--yellow)'};
+  const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<span class="ti" style="background:${cols[color]||cols.blue}"></span><span>${msg}</span>`;
+  document.getElementById('toast-c').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2500);
+}
+function closeModal(){document.getElementById('modal-overlay').classList.add('hidden')}
+
+function startAssessment(){
+  showToast('Starting assessment...', 'blue');
+  // Redirect to assessment page or show assessment modal
+  setTimeout(() => {
+    window.location.href = '?page=assessment';
+  }, 1000);
 }
 
-// Login button handler — calls PHP API
-async function attemptLogin() {
-    const btn  = document.getElementById('login-btn');
-    const user = document.getElementById('login-username').value.trim();
-    const pass = document.getElementById('login-password').value;
-    const err  = document.getElementById('login-error');
-
-    err.style.display = 'none';
-    btn.disabled = true;
-    btn.textContent = 'Signing in…';
-
-    try {
-        await doLogin(user, pass);
-    } catch(e) {
-        showLoginError('Connection error. Check your server.');
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Sign In';
+function showPage(page){
+  showToast(`Navigating to ${page}...`, 'blue');
+  setTimeout(() => {
+    window.location.href = `?page=${page}`;
+  }, 500);
 }
 
-// Override forgot password steps to use PHP API
-async function doForgotStep1() {
-    const email = document.getElementById('fp-email').value.trim();
-    const errEl = document.getElementById('fp-error');
-    errEl.style.display = 'none';
-
-    const r = await API.forgotCheckEmail(email);
-    if (!r.success) { errEl.textContent = r.error || 'Email not found.'; errEl.style.display = 'block'; return; }
-
-    document.getElementById('fp-sent-email').textContent = email;
-    document.getElementById('fp-code').textContent = r.code; // Show in UI; in prod, email it
-    document.getElementById('fp-step-1').classList.add('hidden');
-    document.getElementById('fp-step-2').classList.remove('hidden');
+function viewAssessment(id){
+  showToast('Loading assessment details...', 'blue');
+  // Show assessment details in modal
 }
 
-async function doForgotStep2() {
-    const code  = document.getElementById('fp-code-input').value.trim();
-    const errEl = document.getElementById('fp-code-error');
-    errEl.style.display = 'none';
-
-    const r = await API.forgotVerifyCode(code);
-    if (!r.success) { errEl.style.display = 'block'; return; }
-
-    document.getElementById('fp-step-2').classList.add('hidden');
-    document.getElementById('fp-step-3').classList.remove('hidden');
+function refreshTip(){
+  const tips = [
+    'Use a password manager to generate and store strong, unique passwords for all your accounts.',
+    'Enable multi-factor authentication (MFA) on all accounts that support it.',
+    'Regularly update your software and operating system to protect against security vulnerabilities.',
+    'Be cautious of phishing emails - verify sender identity before clicking links or downloading attachments.',
+    'Use a VPN when connecting to public Wi-Fi networks to encrypt your internet traffic.',
+    'Back up your important data regularly to protect against ransomware and data loss.'
+  ];
+  const randomTip = tips[Math.floor(Math.random() * tips.length)];
+  document.getElementById('tip-text').textContent = randomTip;
+  showToast('Tip refreshed!', 'green');
 }
 
-async function doForgotStep3() {
-    const np = document.getElementById('fp-newpass').value;
-    const cp = document.getElementById('fp-confirmpass').value;
-    const errEl = document.getElementById('fp-pass-error');
-    errEl.style.display = 'none';
-
-    if (np !== cp) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
-    if (np.length < 6) { errEl.textContent = 'Password too short.'; errEl.style.display = 'block'; return; }
-
-    const r = await API.forgotResetPassword(np);
-    if (!r.success) { errEl.textContent = r.error; errEl.style.display = 'block'; return; }
-
-    document.getElementById('fp-step-3').classList.add('hidden');
-    document.getElementById('fp-step-4').classList.remove('hidden');
+function doLogout() {
+  const modal = document.getElementById('modal-overlay');
+  const modalTitle = document.getElementById('modal-title');
+  const modalBody = document.getElementById('modal-body');
+  
+  modalTitle.textContent = 'Confirm Logout';
+  modalBody.innerHTML = `
+    <div style="text-align: center; padding: 1rem;">
+      <div style="font-size: 3rem; margin-bottom: 1rem; color: var(--red);">🚪</div>
+      <h3 style="margin-bottom: 0.5rem; color: var(--text);">Are you sure you want to sign out?</h3>
+      <p style="color: var(--muted2); margin-bottom: 1.5rem;">You will be redirected to the landing page.</p>
+      <div style="display: flex; gap: 0.75rem; justify-content: center;">
+        <button class="btn btn-s" onclick="closeModal()" style="padding: 0.5rem 1.5rem;">Cancel</button>
+        <button class="btn btn-d" onclick="confirmLogout()" style="padding: 0.5rem 1.5rem;">Sign Out</button>
+      </div>
+    </div>
+  `;
+  
+  modal.classList.remove('hidden');
 }
 
-// Override profile save to use PHP API
-async function saveProfile() {
-    const fullName  = document.getElementById('profile-name').value.trim();
-    const storeName = document.getElementById('profile-company').value.trim();
-    const r = await API.updateProfile({ full_name: fullName, store_name: storeName });
-    if (r.success) {
-        document.getElementById('sidebar-name').textContent = fullName;
-        document.getElementById('nav-name').textContent     = fullName;
-        if (typeof showToast === 'function') showToast('Profile saved!', 'success');
-    } else {
-        alert(r.error || 'Could not save profile.');
-    }
+function confirmLogout() {
+  window.location.href = '../landingpage.php';
 }
 
-// Change password via PHP
-async function submitPasswordChange() {
-    const cur  = document.getElementById('pw-current').value;
-    const newP = document.getElementById('pw-new').value;
-    const con  = document.getElementById('pw-confirm').value;
-    const errEl = document.getElementById('pw-change-error');
-    errEl.style.display = 'none';
-
-    if (newP !== con) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
-    const r = await changePasswordInDB(cur, newP);
-    if (r.success) {
-        document.getElementById('pw-current').value = '';
-        document.getElementById('pw-new').value     = '';
-        document.getElementById('pw-confirm').value = '';
-        if (typeof showToast === 'function') showToast('Password updated!', 'success');
-    } else {
-        errEl.textContent = r.error || 'Failed to update password.';
-        errEl.style.display = 'block';
-    }
-}
-
-// Boot: check PHP session, then launch app or show login
-(async () => {
-    const r = await API.checkSession();
-    if (r.loggedIn) {
-        window._phpUser = r.user;
-        // Populate sidebar & topbar with real user info
-        const u = r.user;
-        const initial = (u.full_name || u.username || 'U')[0].toUpperCase();
-        document.getElementById('sidebar-avatar').textContent = initial;
-        document.getElementById('sidebar-name').textContent   = u.full_name || u.username;
-        document.getElementById('nav-avatar').textContent     = initial;
-        document.getElementById('nav-name').textContent       = u.full_name || u.username;
-        document.getElementById('dash-greeting').textContent  = u.full_name || u.username;
-
-        // Pre-fill profile fields
-        if (document.getElementById('profile-name'))    document.getElementById('profile-name').value    = u.full_name || '';
-        if (document.getElementById('profile-email'))   document.getElementById('profile-email').value   = u.email || '';
-        if (document.getElementById('profile-company')) document.getElementById('profile-company').value = u.store_name || '';
-        if (document.getElementById('profile-name-display'))  document.getElementById('profile-name-display').textContent  = u.full_name || '';
-        if (document.getElementById('profile-email-display')) document.getElementById('profile-email-display').textContent = u.email || '';
-        if (document.getElementById('profile-avatar-big'))    document.getElementById('profile-avatar-big').textContent   = initial;
-
-        hideLoginScreen();
-        if (typeof bootApp === 'function') bootApp();
-    } else {
-        showLoginScreen();
-    }
-})();
+document.addEventListener('DOMContentLoaded',()=>{
+  const th=localStorage.getItem('cs_th')||'dark';
+  document.documentElement.setAttribute('data-theme',th);
+  const m=document.getElementById('tmoon'),s=document.getElementById('tsun');
+  if(m)m.style.display=th==='dark'?'':'none';
+  if(s)s.style.display=th==='dark'?'none':'';
+  const sb=localStorage.getItem('cs_sb');
+  if(sb==='1')document.getElementById('sidebar').classList.add('collapsed');
+  const d=document.getElementById('tb-date');
+  if(d)d.textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  
+  // Initialize tip of the day
+  refreshTip();
+  
+  if(typeof pageInit==='function')pageInit();
+});
 </script>
 </body>
 </html>
+              </body>
+</html
