@@ -9,7 +9,7 @@ $db = $database->getConnection();
 
 if ($db) {
     echo "Database connection: SUCCESS<br>";
-    
+
     // Test if tables exist
     $tables = ['vendors', 'vendor_assessments', 'users', 'activity_log'];
     foreach ($tables as $table) {
@@ -21,14 +21,14 @@ if ($db) {
             echo "Table '$table': MISSING<br>";
         }
     }
-    
+
     // Test session
     if (isset($_SESSION['user_id'])) {
         echo "Session: ACTIVE (User ID: " . $_SESSION['user_id'] . ")<br>";
     } else {
         echo "Session: NOT ACTIVE<br>";
     }
-    
+
 } else {
     echo "Database connection: FAILED<br>";
 }

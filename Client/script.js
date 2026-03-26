@@ -273,7 +273,14 @@ function toast(msg) {
 function doLogout() {
   if (confirm('Are you sure you want to sign out?')) {
     localStorage.removeItem('cs_session');
-    window.location.href = '../landingpage.php';
+    // If running under PHP session, hit the logout API before redirecting
+    if (window._phpUser && typeof API !== 'undefined' && API.logout) {
+      API.logout().finally(function() {
+        window.location.href = 'index.php';
+      });
+    } else {
+      window.location.href = '../landingpage.php';
+    }
   }
 }
 
@@ -281,6 +288,18 @@ function doLogout() {
 //  AUTHENTICATION
 // ═══════════════════════════════════════════════════════════════
 function checkSession() {
+  // If the PHP API bridge already verified the session, trust it
+  if (window._phpUser) {
+    const u = window._phpUser;
+    session = {
+      email:   u.email      || '',
+      name:    u.full_name  || u.username || 'User',
+      company: u.store_name || '',
+      role:    u.role       || 'vendor'
+    };
+    return true;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const user = urlParams.get('user');
   const role = urlParams.get('role');
@@ -305,12 +324,16 @@ function checkSession() {
   return false;
 }
 
+
 // ═══════════════════════════════════════════════════════════════
 //  APP BOOT
 // ═══════════════════════════════════════════════════════════════
 function bootApp() {
   if (!checkSession()) {
-    window.location.href = '../Landingpage/landingpage.html';
+    // On PHP pages the API bridge handles the redirect; only redirect here for legacy mode
+    if (!window._phpUser) {
+      window.location.href = '../Landingpage/landingpage.html';
+    }
     return;
   }
 
@@ -332,7 +355,14 @@ function bootApp() {
   applyTheme(savedTheme === 'dark');
 
   renderNotifBadge();
-  showPage('dashboard');
+
+  // Only call showPage('dashboard') when we are actually on index.php (single-page app).
+  // On dedicated PHP sub-pages (assessment.php, result.php, etc.) the page content
+  // is already rendered server-side — calling showPage('dashboard') would hide it.
+  //if (document.getElementById('page-dashboard')) {
+    //showPage('dashboard');
+    {
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

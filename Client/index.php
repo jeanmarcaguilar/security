@@ -307,19 +307,19 @@ textarea.fi{resize:vertical}
       <div class="sb-brand-text"><h2>CyberShield</h2><span class="badge">Client Portal</span></div>
       <button class="sb-toggle" onclick="toggleSidebar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
     </div>
-    <div class="sb-section">
-      <div class="sb-label">Main Menu</div>
+<div class="sb-section">
+      <div class="sb-label">Navigation</div>
       <a class="sb-item active" href="index.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span><span class="sb-text">Dashboard</span></a>
       <a class="sb-item" href="assessment.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-text">Assessment</span></a>
       <a class="sb-item" href="result.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-text">Results</span></a>
       <a class="sb-item" href="leaderboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span><span class="sb-text">Leaderboard</span></a>
       <div class="sb-divider"></div>
       <div class="sb-label">Seller Hub</div>
-      <a class="sb-item" href="seller-store.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2 2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span><span class="sb-text">My Store</span></a>
+      <a class="sb-item" href="seller-store.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1 0 8 0"/></svg></span><span class="sb-text">My Store</span></a>
       <a class="sb-item" href="seller-analytics.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="2 20 22 20"/></svg></span><span class="sb-text">Analytics</span></a>
       <div class="sb-divider"></div>
       <div class="sb-label">Account</div>
-      <a class="sb-item" href="profile.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0 4-4H8a4 4 0 0 0 4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="sb-text">Profile</span></a>
+      <a class="sb-item" href="profile.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="sb-text">Profile</span></a>
       <a class="sb-item" href="security-tips.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span><span class="sb-text">Security Tips</span></a>
       <a class="sb-item" href="terms.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="sb-text">Terms & Privacy</span></a>
     </div>
@@ -361,6 +361,7 @@ textarea.fi{resize:vertical}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="notif-dot" id="notif-dot"></span>
           </button>
+<<<<<<< HEAD
           <div class="np hidden" id="np">
             <div class="np-hdr"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
             <div id="np-list">
@@ -472,6 +473,103 @@ textarea.fi{resize:vertical}
     </div>
   </div>
 </div>
+=======
+          <div class="notif-panel hidden" id="notif-panel">
+            <div class="notif-header"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
+            <div id="notif-list"><p class="notif-empty">No notifications</p></div>
+          </div>
+        </div>
+        <div class="topbar-user" onclick="showPage('profile')" title="My Profile">
+          <div class="topbar-avatar" id="nav-avatar">D</div>
+          <div class="topbar-user-info">
+            <span class="topbar-user-name" id="nav-name">Demo User</span>
+            <span class="topbar-user-role">Vendor</span>
+          </div>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </div>
+      </div>
+    </header>
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page hidden">
+      <div class="page-inner fade-in">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Good day, <span id="dash-greeting">User</span></h2>
+            <p class="page-subtitle">Here's your cybersecurity hygiene overview for today.</p>
+          </div>
+          <button class="btn btn-primary" onclick="startAssessment()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Start Assessment
+          </button>
+        </div>
+        <div id="welcome-banner" class="welcome-banner hidden">
+          <div class="welcome-inner">
+            <div class="welcome-icon-wrap"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <h3>Welcome to CyberShield</h3>
+            <p>You haven't taken an assessment yet. Start your first quiz to discover your cybersecurity posture — it only takes a few minutes.</p>
+            <button class="btn btn-primary btn-lg" onclick="startAssessment()">Start My First Assessment</button>
+          </div>
+        </div>
+        <div class="stats-grid" id="stats-grid">
+          <div class="card stat-card"><div class="stat-label">Latest Score</div><div class="stat-val mono" id="stat-score">—</div><div class="stat-sub" id="stat-rank-text">No assessments yet</div></div>
+          <div class="card stat-card"><div class="stat-label">Risk Rank</div><div class="stat-val" id="stat-rank">—</div><div class="stat-sub" id="stat-rank-sub">—</div></div>
+          <div class="card stat-card"><div class="stat-label">Assessments Done</div><div class="stat-val mono" id="stat-count">0</div><div class="stat-sub">Total sessions</div></div>
+          <div class="card stat-card"><div class="stat-label">Trend</div><div class="stat-val" id="stat-trend">—</div><div class="stat-sub" id="stat-trend-sub">—</div></div>
+        </div>
+        <div class="card tip-card" id="tip-of-day">
+          <div class="tip-card-header">
+            <span class="tip-card-label">Tip of the Day</span>
+            <button class="btn-ghost-sm" onclick="refreshTip()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+          </div>
+          <p class="tip-card-text" id="tip-text">Loading tip…</p>
+        </div>
+        <div class="card section-card">
+          <div class="section-title">Badges &amp; Achievements</div>
+          <div id="dash-badges" class="badges-row"></div>
+        </div>
+        <div class="quick-actions">
+          <div class="action-card" onclick="startAssessment()">
+            <div class="action-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <div class="action-text"><h4>New Assessment</h4><p>Take a fresh 12-question quiz</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="action-card" onclick="showPage('results')">
+            <div class="action-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+            <div class="action-text"><h4>View Results</h4><p>Charts &amp; recommendations</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="action-card" onclick="showPage('leaderboard')">
+            <div class="action-icon purple"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></div>
+            <div class="action-text"><h4>Leaderboard</h4><p>Compare with other vendors</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div class="action-card" onclick="showPage('tips')">
+            <div class="action-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <div class="action-text"><h4>Security Tips</h4><p>Guides to improve your score</p></div>
+            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+        </div>
+        <div class="card chart-card"><div class="chart-card-header">Risk Score Trend</div><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></div>
+        <div class="card section-card"><div class="section-title">Assessment History</div><div id="history-container"><p class="empty-state">No assessments taken yet. Start one now!</p></div></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+  </div><!-- end main-content -->
+</div><!-- end app -->
+
+>>>>>>> ffb18a752ab124402d4952ea0483fe767210a8d9
 
 <div class="sec-hdr"><h2>Assessment History</h2><p>Your past security assessments and performance trends.</p></div>
 <div class="card tbl-card">
