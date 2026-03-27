@@ -98,14 +98,30 @@ $stmt->bindParam(':user_id', $_SESSION['user_id']);
 $stmt->execute();
 $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get badge achievements based on scores
-$badges = [];
-if ($stats['best_score'] >= 90) $badges[] = ['name' => 'Security Elite', 'icon' => '🏆', 'color' => '#f5c518'];
-if ($stats['best_score'] >= 80) $badges[] = ['name' => 'Security Champion', 'icon' => '🛡️', 'color' => '#00d97e'];
-if ($stats['total_assessments'] >= 5) $badges[] = ['name' => 'Consistent Learner', 'icon' => '📚', 'color' => '#4090ff'];
-if ($stats['latest_rank'] === 'A') $badges[] = ['name' => 'Low Risk Hero', 'icon' => '✅', 'color' => '#00d97e'];
-if ($stats['latest_rank'] === 'B') $badges[] = ['name' => 'On The Right Track', 'icon' => '📈', 'color' => '#4090ff'];
-if ($stats['total_assessments'] >= 10) $badges[] = ['name' => 'Dedicated Defender', 'icon' => '🔒', 'color' => '#a855f7'];
+// Get user's badge achievements from database
+$badges_query = "SELECT b.*, ua.earned_at, ua.points_earned 
+    FROM user_achievements ua 
+    JOIN badges b ON ua.badge_id = b.id 
+    WHERE ua.user_id = :user_id 
+    ORDER BY ua.earned_at DESC";
+$stmt = $db->prepare($badges_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$earned_badges = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Get badge statistics
+$badge_stats_query = "SELECT 
+    COUNT(*) as total_badges,
+    SUM(b.points) as total_points,
+    COUNT(CASE WHEN b.category = 'assessment' THEN 1 END) as assessment_badges,
+    COUNT(CASE WHEN b.category = 'consistency' THEN 1 END) as consistency_badges
+    FROM user_achievements ua 
+    JOIN badges b ON ua.badge_id = b.id 
+    WHERE ua.user_id = :user_id";
+$stmt = $db->prepare($badge_stats_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$badge_stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Get leaderboard data
 $leaderboard_query = "SELECT v.name as vendor_name, v.store_name, 
@@ -135,6 +151,87 @@ $totalProducts = count($products);
 $activeProducts = count(array_filter($products, fn($p) => $p['status'] === 'active'));
 $outOfStock = count(array_filter($products, fn($p) => ($p['stock'] ?? 0) == 0));
 $totalValue = array_sum(array_column($products, 'price'));
+
+// Handle AJAX requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
+    header('Content-Type: application/json');
+    
+    if ($_GET['action'] === 'save_assessment') {
+        try {
+            // Get POST data
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            // Find or create vendor for this user
+            $vendor_query = "SELECT id FROM vendors WHERE email = :email";
+            $stmt = $db->prepare($vendor_query);
+            $stmt->bindParam(':email', $user['email']);
+            $stmt->execute();
+            $vendor = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$vendor) {
+                // Create new vendor
+                $insert_vendor = "INSERT INTO vendors (name, email, store_name, contact_person) 
+                                 VALUES (:name, :email, :store_name, :contact_person)";
+                $stmt = $db->prepare($insert_vendor);
+                $stmt->bindParam(':name', $user['full_name']);
+                $stmt->bindParam(':email', $user['email']);
+                $stmt->bindParam(':store_name', $user['store_name']);
+                $stmt->bindParam(':contact_person', $user['full_name']);
+                $stmt->execute();
+                $vendor_id = $db->lastInsertId();
+            } else {
+                $vendor_id = $vendor['id'];
+            }
+            
+            // Insert assessment
+            $insert_assessment = "INSERT INTO vendor_assessments 
+                                  (vendor_id, score, rank, password_score, phishing_score, device_score, network_score, assessment_notes, assessed_by) 
+                                  VALUES (:vendor_id, :score, :rank, :password_score, :phishing_score, :device_score, :network_score, :notes, :assessed_by)";
+            $stmt = $db->prepare($insert_assessment);
+            $stmt->bindParam(':vendor_id', $vendor_id);
+            $stmt->bindParam(':score', $input['score']);
+            $stmt->bindParam(':rank', $input['rank']);
+            $stmt->bindParam(':password_score', $input['password_score']);
+            $stmt->bindParam(':phishing_score', $input['phishing_score']);
+            $stmt->bindParam(':device_score', $input['device_score']);
+            $stmt->bindParam(':network_score', $input['network_score']);
+            $stmt->bindParam(':notes', $input['assessment_notes']);
+            $stmt->bindParam(':assessed_by', $_SESSION['user_id']);
+            $stmt->execute();
+            
+            $assessment_id = $db->lastInsertId();
+            
+            // Award badges using the badge system
+            require_once '../includes/badge_system.php';
+            $badge_system = new BadgeSystem($db, $_SESSION['user_id']);
+            
+            $assessment_data = [
+                'score' => $input['score'],
+                'rank' => $input['rank'],
+                'password_score' => $input['password_score'],
+                'phishing_score' => $input['phishing_score'],
+                'device_score' => $input['device_score'],
+                'network_score' => $input['network_score'],
+                'id' => $assessment_id
+            ];
+            
+            $awarded_badges = $badge_system->awardBadgesForAssessment($assessment_data);
+            
+            echo json_encode([
+                'success' => true,
+                'assessment_id' => $assessment_id,
+                'awarded_badges' => $awarded_badges
+            ]);
+            
+        } catch (Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+        exit;
+    }
+}
 
 ?>
 <!DOCTYPE html>
@@ -310,7 +407,7 @@ textarea.fi{resize:vertical}
 <div class="sb-section">
       <div class="sb-label">Navigation</div>
       <a class="sb-item active" href="index.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span><span class="sb-text">Dashboard</span></a>
-      <a class="sb-item" href="assessment.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-text">Assessment</span></a>
+      <a class="sb-item" id="nav-assessment" href="assessment.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-text">Take Assessment</span></a>
       <a class="sb-item" href="result.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-text">Results</span></a>
       <a class="sb-item" href="leaderboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span><span class="sb-text">Leaderboard</span></a>
       <div class="sb-divider"></div>
@@ -361,7 +458,7 @@ textarea.fi{resize:vertical}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="notif-dot" id="notif-dot"></span>
           </button>
-<<<<<<< HEAD
+
           <div class="np hidden" id="np">
             <div class="np-hdr"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
             <div id="np-list">
@@ -412,16 +509,34 @@ textarea.fi{resize:vertical}
 
 <div class="sec-hdr"><h2>Badges & Achievements</h2><p>Your cybersecurity milestones and accomplishments.</p></div>
 <div class="card" style="padding:1.25rem;margin-bottom:1.25rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+    <div>
+      <h3 style="font-family:var(--mono);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2)">Your Badges</h3>
+      <p style="font-size:.75rem;color:var(--muted2);margin-top:.2rem"><?php echo $badge_stats['total_badges'] ?? 0; ?> badges earned • <?php echo $badge_stats['total_points'] ?? 0; ?> points</p>
+    </div>
+    <button class="btn btn-s btn-sm" onclick="viewAllBadges()">View All</button>
+  </div>
   <div id="dash-badges" style="display:flex;gap:.75rem;flex-wrap:wrap">
-    <?php if (empty($badges)): ?>
+    <?php if (empty($earned_badges)): ?>
       <p style="color:var(--muted2);font-size:.85rem">Complete assessments to earn badges</p>
     <?php else: ?>
-      <?php foreach ($badges as $badge): ?>
-        <div style="display:flex;align-items:center;gap:.5rem;background:<?php echo $badge['color']; ?>20;padding:.5rem .85rem;border-radius:8px;border:1px solid <?php echo $badge['color']; ?>30">
+      <?php 
+      // Show only the latest 6 badges on dashboard
+      $dashboard_badges = array_slice($earned_badges, 0, 6);
+      foreach ($dashboard_badges as $badge): 
+      ?>
+        <div style="display:flex;align-items:center;gap:.5rem;background:<?php echo $badge['color']; ?>20;padding:.5rem .85rem;border-radius:8px;border:1px solid <?php echo $badge['color']; ?>30;cursor:pointer;transition:var(--t)" 
+             onclick="showBadgeDetails(<?php echo $badge['id']; ?>)" 
+             title="<?php echo htmlspecialchars($badge['description']); ?>">
           <span style="font-size:1.2rem"><?php echo $badge['icon']; ?></span>
           <span style="font-size:.78rem;font-weight:600;color:<?php echo $badge['color']; ?>"><?php echo $badge['name']; ?></span>
         </div>
       <?php endforeach; ?>
+      <?php if (count($earned_badges) > 6): ?>
+        <div style="display:flex;align-items:center;gap:.5rem;background:var(--border2);padding:.5rem .85rem;border-radius:8px;border:1px solid var(--border);color:var(--muted2);font-size:.78rem;font-weight:600">
+          +<?php echo count($earned_badges) - 6; ?> more
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 </div>
@@ -473,103 +588,6 @@ textarea.fi{resize:vertical}
     </div>
   </div>
 </div>
-=======
-          <div class="notif-panel hidden" id="notif-panel">
-            <div class="notif-header"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
-            <div id="notif-list"><p class="notif-empty">No notifications</p></div>
-          </div>
-        </div>
-        <div class="topbar-user" onclick="showPage('profile')" title="My Profile">
-          <div class="topbar-avatar" id="nav-avatar">D</div>
-          <div class="topbar-user-info">
-            <span class="topbar-user-name" id="nav-name">Demo User</span>
-            <span class="topbar-user-role">Vendor</span>
-          </div>
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
-        </div>
-      </div>
-    </header>
-
-    <!-- DASHBOARD -->
-    <div id="page-dashboard" class="page hidden">
-      <div class="page-inner fade-in">
-        <div class="page-header">
-          <div>
-            <h2 class="page-title">Good day, <span id="dash-greeting">User</span></h2>
-            <p class="page-subtitle">Here's your cybersecurity hygiene overview for today.</p>
-          </div>
-          <button class="btn btn-primary" onclick="startAssessment()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Start Assessment
-          </button>
-        </div>
-        <div id="welcome-banner" class="welcome-banner hidden">
-          <div class="welcome-inner">
-            <div class="welcome-icon-wrap"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-            <h3>Welcome to CyberShield</h3>
-            <p>You haven't taken an assessment yet. Start your first quiz to discover your cybersecurity posture — it only takes a few minutes.</p>
-            <button class="btn btn-primary btn-lg" onclick="startAssessment()">Start My First Assessment</button>
-          </div>
-        </div>
-        <div class="stats-grid" id="stats-grid">
-          <div class="card stat-card"><div class="stat-label">Latest Score</div><div class="stat-val mono" id="stat-score">—</div><div class="stat-sub" id="stat-rank-text">No assessments yet</div></div>
-          <div class="card stat-card"><div class="stat-label">Risk Rank</div><div class="stat-val" id="stat-rank">—</div><div class="stat-sub" id="stat-rank-sub">—</div></div>
-          <div class="card stat-card"><div class="stat-label">Assessments Done</div><div class="stat-val mono" id="stat-count">0</div><div class="stat-sub">Total sessions</div></div>
-          <div class="card stat-card"><div class="stat-label">Trend</div><div class="stat-val" id="stat-trend">—</div><div class="stat-sub" id="stat-trend-sub">—</div></div>
-        </div>
-        <div class="card tip-card" id="tip-of-day">
-          <div class="tip-card-header">
-            <span class="tip-card-label">Tip of the Day</span>
-            <button class="btn-ghost-sm" onclick="refreshTip()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Refresh
-            </button>
-          </div>
-          <p class="tip-card-text" id="tip-text">Loading tip…</p>
-        </div>
-        <div class="card section-card">
-          <div class="section-title">Badges &amp; Achievements</div>
-          <div id="dash-badges" class="badges-row"></div>
-        </div>
-        <div class="quick-actions">
-          <div class="action-card" onclick="startAssessment()">
-            <div class="action-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-            <div class="action-text"><h4>New Assessment</h4><p>Take a fresh 12-question quiz</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="action-card" onclick="showPage('results')">
-            <div class="action-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-            <div class="action-text"><h4>View Results</h4><p>Charts &amp; recommendations</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="action-card" onclick="showPage('leaderboard')">
-            <div class="action-icon purple"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></div>
-            <div class="action-text"><h4>Leaderboard</h4><p>Compare with other vendors</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-          <div class="action-card" onclick="showPage('tips')">
-            <div class="action-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
-            <div class="action-text"><h4>Security Tips</h4><p>Guides to improve your score</p></div>
-            <svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </div>
-        </div>
-        <div class="card chart-card"><div class="chart-card-header">Risk Score Trend</div><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></div>
-        <div class="card section-card"><div class="section-title">Assessment History</div><div id="history-container"><p class="empty-state">No assessments taken yet. Start one now!</p></div></div>
-      </div>
-    </div>
-
-
-
-
-
-
-
-
-
-  </div><!-- end main-content -->
-</div><!-- end app -->
-
->>>>>>> ffb18a752ab124402d4952ea0483fe767210a8d9
 
 <div class="sec-hdr"><h2>Assessment History</h2><p>Your past security assessments and performance trends.</p></div>
 <div class="card tbl-card">
@@ -669,12 +687,8 @@ function showToast(msg,color='blue'){
 }
 function closeModal(){document.getElementById('modal-overlay').classList.add('hidden')}
 
-function startAssessment(){
-  showToast('Starting assessment...', 'blue');
-  // Redirect to assessment page or show assessment modal
-  setTimeout(() => {
-    window.location.href = '?page=assessment';
-  }, 1000);
+function startAssessment() {
+  window.location.href = 'assessment.php';
 }
 
 function showPage(page){

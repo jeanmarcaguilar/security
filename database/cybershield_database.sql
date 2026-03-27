@@ -316,6 +316,104 @@ LEFT JOIN products p ON p.user_id = u.id
 GROUP BY u.id, u.full_name, u.store_name;
 
 -- ─────────────────────────────────────────────────────────────
+--  BADGES & ACHIEVEMENTS SYSTEM
+-- ─────────────────────────────────────────────────────────────
+
+-- Badges table
+CREATE TABLE IF NOT EXISTS badges (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(100) NOT NULL,
+    description     TEXT NOT NULL,
+    icon            VARCHAR(50) NOT NULL,
+    color           VARCHAR(7) DEFAULT '#3B8BFF',
+    category        ENUM('assessment','consistency','improvement','milestone','special') NOT NULL,
+    requirement_type ENUM('score','count','rank','streak','special') NOT NULL,
+    requirement_value INT NOT NULL,
+    points          INT DEFAULT 10,
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_category (category),
+    INDEX idx_requirement (requirement_type, requirement_value)
+);
+
+-- User achievements table
+CREATE TABLE IF NOT EXISTS user_achievements (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    user_id         INT NOT NULL,
+    badge_id        INT NOT NULL,
+    earned_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    assessment_id   INT NULL,
+    points_earned   INT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (badge_id) REFERENCES badges(id) ON DELETE CASCADE,
+    FOREIGN KEY (assessment_id) REFERENCES vendor_assessments(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_user_badge (user_id, badge_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_badge_id (badge_id),
+    INDEX idx_earned_at (earned_at)
+);
+
+-- Seed badges data
+INSERT INTO badges (name, description, icon, color, category, requirement_type, requirement_value, points) VALUES
+('Security Elite', 'Achieve a perfect score (100%) on any assessment', '🏆', '#f5c518', 'assessment', 'score', 100, 50),
+('Security Master', 'Score 90% or higher on any assessment', '🥇', '#f5c518', 'assessment', 'score', 90, 40),
+('Security Expert', 'Score 80% or higher on any assessment', '🥈', '#c0c0c0', 'assessment', 'score', 80, 30),
+('Security Pro', 'Score 70% or higher on any assessment', '🥉', '#cd7f32', 'assessment', 'score', 70, 20),
+('Low Risk Hero', 'Achieve Rank A on any assessment', '✅', '#10d982', 'assessment', 'rank', 1, 35),
+('Risk Manager', 'Achieve Rank B on any assessment', '📈', '#3b8bff', 'assessment', 'rank', 2, 25),
+('Risk Aware', 'Achieve Rank C on any assessment', '⚠️', '#f5b731', 'assessment', 'rank', 3, 15),
+('Consistent Learner', 'Complete 5 assessments', '📚', '#4090ff', 'consistency', 'count', 5, 20),
+('Dedicated Defender', 'Complete 10 assessments', '🔒', '#a855f7', 'consistency', 'count', 10, 35),
+('Security Veteran', 'Complete 25 assessments', '🛡️', '#ef4444', 'consistency', 'count', 25, 50),
+('Assessment Master', 'Complete 50 assessments', '👑', '#f5c518', 'consistency', 'count', 50, 75),
+('Quick Learner', 'Improve score by 20% in next assessment', '📈', '#10d982', 'improvement', 'special', 20, 30),
+('Rise and Shine', 'Improve from Rank D to Rank B or better', '☀️', '#f5b731', 'improvement', 'special', 1, 40),
+('First Steps', 'Complete your first assessment', '🎯', '#3b8bff', 'milestone', 'count', 1, 10),
+('Week Warrior', 'Complete 3 assessments in one week', '⚡', '#ff8c42', 'milestone', 'special', 3, 25),
+('Monthly Champion', 'Complete 10 assessments in one month', '🏅', '#10d982', 'milestone', 'special', 10, 40),
+('Password Protector', 'Score 90% or higher in password security', '🔐', '#3b8bff', 'assessment', 'special', 90, 20),
+('Phishing Fighter', 'Score 90% or higher in phishing awareness', '🎣', '#ff8c42', 'assessment', 'special', 90, 20),
+('Device Guardian', 'Score 90% or higher in device security', '💻', '#10d982', 'assessment', 'special', 90, 20),
+('Network Defender', 'Score 90% or higher in network security', '🌐', '#7b72f0', 'assessment', 'special', 90, 20),
+('Password Perfect', 'Score 100% in password security', '🔑', '#f5c518', 'assessment', 'special', 100, 25),
+('Phishing Perfect', 'Score 100% in phishing awareness', '📧', '#f5c518', 'assessment', 'special', 100, 25),
+('Device Perfect', 'Score 100% in device security', '🖥️', '#f5c518', 'assessment', 'special', 100, 25),
+('Network Perfect', 'Score 100% in network security', '🔌', '#f5c518', 'assessment', 'special', 100, 25);
+
+-- Badge statistics views
+CREATE OR REPLACE VIEW user_badge_summary AS
+SELECT 
+    u.id as user_id,
+    u.full_name,
+    u.email,
+    COUNT(ua.id) as total_badges_earned,
+    SUM(b.points) as total_points,
+    COUNT(CASE WHEN b.category = 'assessment' THEN 1 END) as assessment_badges,
+    COUNT(CASE WHEN b.category = 'consistency' THEN 1 END) as consistency_badges,
+    COUNT(CASE WHEN b.category = 'improvement' THEN 1 END) as improvement_badges,
+    COUNT(CASE WHEN b.category = 'milestone' THEN 1 END) as milestone_badges,
+    COUNT(CASE WHEN b.category = 'special' THEN 1 END) as special_badges,
+    MAX(ua.earned_at) as last_earned_at
+FROM users u
+LEFT JOIN user_achievements ua ON u.id = ua.user_id
+LEFT JOIN badges b ON ua.badge_id = b.id
+GROUP BY u.id, u.full_name, u.email;
+
+CREATE OR REPLACE VIEW badge_leaderboard AS
+SELECT 
+    u.id as user_id,
+    u.full_name,
+    u.store_name,
+    COUNT(ua.id) as total_badges,
+    SUM(b.points) as total_points,
+    RANK() OVER (ORDER BY SUM(b.points) DESC, COUNT(ua.id) DESC) as rank_position
+FROM users u
+LEFT JOIN user_achievements ua ON u.id = ua.user_id
+LEFT JOIN badges b ON ua.badge_id = b.id
+GROUP BY u.id, u.full_name, u.store_name
+ORDER BY total_points DESC, total_badges DESC;
+
+-- ─────────────────────────────────────────────────────────────
 --  QUICK VERIFICATION SELECTS
 -- ─────────────────────────────────────────────────────────────
 SELECT 'users'              AS `table`, COUNT(*) AS `rows` FROM users
@@ -328,4 +426,8 @@ SELECT 'products',                      COUNT(*)           FROM products
 UNION ALL
 SELECT 'activity_log',                  COUNT(*)           FROM activity_log
 UNION ALL
-SELECT 'email_reports',                 COUNT(*)           FROM email_reports;
+SELECT 'email_reports',                 COUNT(*)           FROM email_reports
+UNION ALL
+SELECT 'badges',                        COUNT(*)           FROM badges
+UNION ALL
+SELECT 'user_achievements',             COUNT(*)           FROM user_achievements;
