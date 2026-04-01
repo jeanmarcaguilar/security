@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once '../config.php';
+require_once '../includes/config.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
@@ -108,6 +108,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);transition:b
 .tb-admin-info{display:flex;flex-direction:column}
 .tb-admin-name{font-size:.78rem;font-weight:600;line-height:1.2}
 .tb-admin-role{font-size:.6rem;color:var(--blue);letter-spacing:.5px;font-family:var(--mono)}
+.tb-search-wrap{position:relative}
+.tb-search-icon{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted2);pointer-events:none}
+.tb-search{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:8px;padding:.38rem .8rem .38rem 2rem;font-family:var(--font);font-size:.78rem;color:var(--text);outline:none;width:200px;transition:var(--t)}
+.tb-search:focus{border-color:rgba(59,139,255,.4)}
+.tb-search::placeholder{color:var(--muted)}
+.notif-wrap{position:relative}
+.notif-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg2)}
+.np{position:absolute;right:0;top:calc(100% + 8px);width:280px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;box-shadow:var(--shadow);z-index:100}
+.np.hidden{display:none}
+.np-hdr{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid var(--border);font-size:.82rem;font-weight:600}
+.np-hdr button{font-size:.72rem;color:var(--muted2);background:none;border:none;cursor:pointer}
+.np-empty{font-size:.8rem;color:var(--muted2);padding:1rem;text-align:center}
+.np-item{display:flex;gap:.6rem;padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem}
+.np-item:last-child{border-bottom:none}
+.np-dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;margin-top:4px}
 
 /* ── Content ── */
 .content{flex:1;overflow-y:auto;padding:1.5rem}
@@ -222,11 +237,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);transition:b
       <a class="sb-item" href="index.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg></span><span class="sb-text">Dashboard</span></a>
       <a class="sb-item" href="assessment.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-text">Take Assessment</span></a>
       <a class="sb-item" href="results.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-text">My Results</span></a>
-      <a class="sb-item" href="leaderboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span><span class="sb-text">Leaderboard</span></a>
-      <div class="sb-divider"></div>
-      <div class="sb-label">Seller Hub</div>
-      <a class="sb-item" href="seller-store.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></span><span class="sb-text">My Store</span></a>
-      <a class="sb-item" href="seller-analytics.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><polyline points="2 20 22 20"/></svg></span><span class="sb-text">Analytics</span></a>
+      <a class="sb-item" href="review.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span><span class="sb-text">Review</span></a>
       <div class="sb-divider"></div>
       <div class="sb-label">Account</div>
       <a class="sb-item active" href="profile.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="sb-text">My Profile</span></a>
@@ -262,23 +273,61 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);transition:b
         <p class="tb-sub">Manage your account information and preferences</p>
       </div>
       <div class="tb-right">
+        <div class="tb-search-wrap">
+          <span class="tb-search-icon"><svg width="12" height="12" viewBox="0 0 20 20" fill="none">
+                <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7" />
+                <path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              </svg></span>
+          <input type="text" class="tb-search" placeholder="Search assessments, tips…" autocomplete="off" />
+        </div>
         <span class="tb-date" id="tb-date"></span>
         <div class="tb-divider"></div>
         <button class="tb-icon-btn" onclick="toggleTheme()" title="Toggle theme">
-          <svg id="tmoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <svg id="tsun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
-        </button>
-        <div class="tb-divider"></div>
-        <a class="tb-admin" href="profile.php">
-          <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-          <div class="tb-admin-info">
-            <span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span>
-            <span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Vendor'); ?></span>
+            <svg id="tmoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 21 12.79z" />
+            </svg>
+            <svg id="tsun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+            </svg>
+          </button>
+          <div class="notif-wrap">
+            <button class="tb-icon-btn" onclick="toggleNotif()" title="Notifications" style="position:relative">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              <span class="notif-dot" id="notif-dot"></span>
+            </button>
+
+            <div class="np hidden" id="np">
+              <div class="np-hdr"><span>Notifications</span><button onclick="clearNotifs()">Clear all</button></div>
+              <div id="np-list">
+                <p class="np-empty">No notifications</p>
+              </div>
+            </div>
           </div>
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--muted);margin-left:.2rem"><path d="M4 6l4 4 4-4"/></svg>
-        </a>
+          <div class="tb-divider"></div>
+          <a class="tb-admin" href="#">
+            <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Vendor'); ?></span></div>
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </a>
+        </div>
       </div>
-    </div>
 
     <div class="content">
       <div class="sec-hdr">
@@ -459,10 +508,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);transition:b
 
 <script>
 function isDark(){return document.documentElement.getAttribute('data-theme')==='dark'}
-function toggleSidebar(){
-  document.getElementById('sidebar').classList.toggle('collapsed');
-  localStorage.setItem('cs_sb',document.getElementById('sidebar').classList.contains('collapsed')?'1':'0');
-}
+/* ── Theme ── */
 function toggleTheme(){
   const d=!isDark();
   document.documentElement.setAttribute('data-theme',d?'dark':'light');
@@ -470,14 +516,27 @@ function toggleTheme(){
   const m=document.getElementById('tmoon'),s=document.getElementById('tsun');
   if(m)m.style.display=d?'':'none';
   if(s)s.style.display=d?'none':'';
+  if (typeof onThemeChange === 'function') onThemeChange();
 }
-function applyTheme(isDarkMode){
-  document.documentElement.setAttribute('data-theme',isDarkMode?'dark':'light');
-  localStorage.setItem('cs_th',isDarkMode?'dark':'light');
-  const m=document.getElementById('tmoon'),s=document.getElementById('tsun');
-  if(m)m.style.display=isDarkMode?'':'none';
-  if(s)s.style.display=isDarkMode?'none':'';
+/* ── Notifications ── */
+function toggleNotif(){
+  const p=document.getElementById('np');
+  if(p)p.classList.toggle('hidden');
 }
+function clearNotifs(){
+  const l=document.getElementById('np-list');
+  if(l)l.innerHTML='<p class="np-empty">No notifications</p>';
+  const d=document.getElementById('notif-dot');
+  if(d)d.style.display='none';
+  const p=document.getElementById('np');
+  if(p)p.classList.add('hidden');
+}
+/* ── Sidebar ── */
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  localStorage.setItem('cs_sb',document.getElementById('sidebar').classList.contains('collapsed')?'1':'0');
+}
+/* ── Modal ── */
 function closeModal(){document.getElementById('modal-overlay').classList.add('hidden')}
 function clearAllData(){document.getElementById('modal-overlay').classList.remove('hidden')}
 function confirmClearData(){
@@ -563,6 +622,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(sb==='1')document.getElementById('sidebar').classList.add('collapsed');
   const d=document.getElementById('tb-date');
   if(d)d.textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+  // Close notif on outside click
+  document.addEventListener('click', e => {
+    const p=document.getElementById('np');
+    const b=document.getElementById('notif-btn');
+    if(p && !p.classList.contains('hidden') && !p.contains(e.target) && b && !b.contains(e.target))
+      p.classList.add('hidden');
+  });
+
   const darkPref=document.getElementById('pref-dark');
   if(darkPref)darkPref.checked=th==='dark';
   const largeText=localStorage.getItem('largeText')==='true';

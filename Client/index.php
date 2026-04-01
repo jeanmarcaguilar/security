@@ -1,5 +1,5 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Check if user is logged in
@@ -33,34 +33,34 @@ $stats_query = "SELECT
     AVG(score) as avg_score,
     MAX(score) as best_score,
     MIN(score) as worst_score,
-    (SELECT score FROM vendor_assessments WHERE assessed_by = :user_id ORDER BY created_at DESC LIMIT 1) as latest_score,
-    (SELECT rank FROM vendor_assessments WHERE assessed_by = :user_id ORDER BY created_at DESC LIMIT 1) as latest_rank
-    FROM vendor_assessments 
-    WHERE assessed_by = :user_id";
+    (SELECT score FROM assessments WHERE vendor_id = :user_id ORDER BY created_at DESC LIMIT 1) as latest_score,
+    (SELECT rank FROM assessments WHERE vendor_id = :user_id ORDER BY created_at DESC LIMIT 1) as latest_rank
+    FROM assessments 
+    WHERE vendor_id = :user_id";
 $stmt = $db->prepare($stats_query);
 $stmt->bindParam(':user_id', $_SESSION['user_id']);
 $stmt->execute();
 $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Get latest assessment for this user's vendor
-$assessment_query = "SELECT va.*, v.name as vendor_name 
-    FROM vendor_assessments va 
-    JOIN vendors v ON va.vendor_id = v.id 
-    WHERE v.email = :email 
-    ORDER BY va.created_at DESC LIMIT 1";
+$assessment_query = "SELECT a.*, u.store_name as vendor_name 
+    FROM assessments a 
+    JOIN users u ON a.vendor_id = u.id 
+    WHERE u.id = :user_id 
+    ORDER BY a.created_at DESC LIMIT 1";
 $stmt = $db->prepare($assessment_query);
-$stmt->bindParam(':email', $user['email']);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
 $stmt->execute();
 $latest_assessment = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Get all assessments for history
-$history_query = "SELECT va.*, v.name as vendor_name 
-    FROM vendor_assessments va 
-    JOIN vendors v ON va.vendor_id = v.id 
-    WHERE v.email = :email 
-    ORDER BY va.created_at DESC";
+$history_query = "SELECT a.*, u.store_name as vendor_name 
+    FROM assessments a 
+    JOIN users u ON a.vendor_id = u.id 
+    WHERE u.id = :user_id 
+    ORDER BY a.created_at DESC";
 $stmt = $db->prepare($history_query);
-$stmt->bindParam(':email', $user['email']);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
 $stmt->execute();
 $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -97,25 +97,25 @@ $stmt->execute();
 $badge_stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Get leaderboard data
-$leaderboard_query = "SELECT v.name as vendor_name, v.store_name, 
-    va.score, va.rank, va.password_score, va.phishing_score, 
-    va.device_score, va.network_score, va.created_at
-    FROM vendor_assessments va
-    JOIN vendors v ON va.vendor_id = v.id
-    WHERE va.id IN (SELECT MAX(id) FROM vendor_assessments GROUP BY vendor_id)
-    ORDER BY va.score DESC";
+$leaderboard_query = "SELECT u.store_name, 
+    a.score, a.rank, a.password_score, a.phishing_score, 
+    a.device_score, a.network_score, a.created_at
+    FROM assessments a
+    JOIN users u ON a.vendor_id = u.id
+    WHERE a.id IN (SELECT MAX(id) FROM assessments GROUP BY vendor_id)
+    ORDER BY a.score DESC";
 $stmt = $db->prepare($leaderboard_query);
 $stmt->execute();
 $leaderboard = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get all assessments history for results page
-$history_query2 = "SELECT va.*, v.name as vendor_name 
-    FROM vendor_assessments va 
-    JOIN vendors v ON va.vendor_id = v.id 
-    WHERE v.email = :email 
-    ORDER BY va.created_at DESC";
+$history_query2 = "SELECT a.*, u.store_name as vendor_name 
+    FROM assessments a 
+    JOIN users u ON a.vendor_id = u.id 
+    WHERE u.id = :user_id 
+    ORDER BY a.created_at DESC";
 $stmt = $db->prepare($history_query2);
-$stmt->bindParam(':email', $user['email']);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
 $stmt->execute();
 $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -134,42 +134,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
       // Get POST data
       $input = json_decode(file_get_contents('php://input'), true);
 
-      // Find or create vendor for this user
-      $vendor_query = "SELECT id FROM vendors WHERE email = :email";
-      $stmt = $db->prepare($vendor_query);
-      $stmt->bindParam(':email', $user['email']);
-      $stmt->execute();
-      $vendor = $stmt->fetch(PDO::FETCH_ASSOC);
-
-      if (!$vendor) {
-        // Create new vendor
-        $insert_vendor = "INSERT INTO vendors (name, email, store_name, contact_person) 
-                                 VALUES (:name, :email, :store_name, :contact_person)";
-        $stmt = $db->prepare($insert_vendor);
-        $stmt->bindParam(':name', $user['full_name']);
-        $stmt->bindParam(':email', $user['email']);
-        $stmt->bindParam(':store_name', $user['store_name']);
-        $stmt->bindParam(':contact_person', $user['full_name']);
-        $stmt->execute();
-        $vendor_id = $db->lastInsertId();
-      } else {
-        $vendor_id = $vendor['id'];
-      }
-
-      // Insert assessment
-      $insert_assessment = "INSERT INTO vendor_assessments 
-                                  (vendor_id, score, rank, password_score, phishing_score, device_score, network_score, assessment_notes, assessed_by) 
-                                  VALUES (:vendor_id, :score, :rank, :password_score, :phishing_score, :device_score, :network_score, :notes, :assessed_by)";
+      // Insert assessment directly using user_id as vendor_id
+      $insert_assessment = "INSERT INTO assessments 
+                                  (vendor_id, score, rank, password_score, phishing_score, device_score, network_score, social_engineering_score, data_handling_score, time_spent, questions_answered, total_questions, assessment_date, assessment_token, session_id) 
+                                  VALUES (:vendor_id, :score, :rank, :password_score, :phishing_score, :device_score, :network_score, :social_engineering_score, :data_handling_score, :time_spent, :questions_answered, :total_questions, NOW(), :assessment_token, :session_id)";
       $stmt = $db->prepare($insert_assessment);
-      $stmt->bindParam(':vendor_id', $vendor_id);
+      $stmt->bindParam(':vendor_id', $_SESSION['user_id']);
       $stmt->bindParam(':score', $input['score']);
       $stmt->bindParam(':rank', $input['rank']);
       $stmt->bindParam(':password_score', $input['password_score']);
       $stmt->bindParam(':phishing_score', $input['phishing_score']);
       $stmt->bindParam(':device_score', $input['device_score']);
       $stmt->bindParam(':network_score', $input['network_score']);
-      $stmt->bindParam(':notes', $input['assessment_notes']);
-      $stmt->bindParam(':assessed_by', $_SESSION['user_id']);
+      $stmt->bindParam(':social_engineering_score', $input['social_engineering_score'] ?? 0);
+      $stmt->bindParam(':data_handling_score', $input['data_handling_score'] ?? 0);
+      $stmt->bindParam(':time_spent', $input['time_spent'] ?? 0);
+      $stmt->bindParam(':questions_answered', $input['questions_answered'] ?? 100);
+      $stmt->bindParam(':total_questions', $input['total_questions'] ?? 100);
+      $stmt->bindParam(':assessment_token', $input['assessment_token'] ?? bin2hex(random_bytes(32)));
+      $stmt->bindParam(':session_id', $input['session_id'] ?? bin2hex(random_bytes(32)));
       $stmt->execute();
 
       $assessment_id = $db->lastInsertId();
@@ -362,22 +345,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
     }
 
     .sb-toggle {
-      width: 22px;
-      height: 22px;
-      background: none;
-      border: 1px solid var(--border2);
-      border-radius: 5px;
+      width: 28px;
+      height: 28px;
+      background: rgba(59, 139, 255, 0.1);
+      border: 1px solid var(--blue);
+      border-radius: 6px;
       cursor: pointer;
-      color: var(--muted2);
+      color: var(--blue);
       display: grid;
       place-items: center;
       flex-shrink: 0;
-      transition: var(--t)
+      transition: var(--t);
+      z-index: 100;
     }
 
     .sb-toggle:hover {
+      background: rgba(59, 139, 255, 0.2);
       border-color: var(--blue);
-      color: var(--text)
+      color: var(--text);
+      transform: scale(1.05);
     }
 
     #sidebar.collapsed .sb-toggle svg {
@@ -1441,30 +1427,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               <line x1="12" y1="20" x2="12" y2="4" />
               <line x1="6" y1="20" x2="6" y2="14" />
             </svg></span><span class="sb-text">Results</span></a>
-        <a class="sb-item" href="leaderboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
+        <a class="sb-item" href="review.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M8 6l4-4 4 4" />
               <path d="M12 2v13" />
               <path d="M20 21H4" />
               <path d="M17 12h3v9" />
               <path d="M4 12h3v9" />
-            </svg></span><span class="sb-text">Leaderboard</span></a>
-        <div class="sb-divider"></div>
-        <div class="sb-label">Seller Hub</div>
-        <a class="sb-item" href="seller-store.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <path d="M16 10a4 4 0 0 1 0 8 0" />
-            </svg></span><span class="sb-text">My Store</span></a>
-        <a class="sb-item" href="seller-analytics.php"><span class="sb-icon"><svg width="15" height="15"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
-              stroke-linejoin="round">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-              <polyline points="2 20 22 20" />
-            </svg></span><span class="sb-text">Analytics</span></a>
+            </svg></span><span class="sb-text">Review</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Account</div>
         <a class="sb-item" href="profile.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
