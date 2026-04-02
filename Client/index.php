@@ -57,7 +57,7 @@ $latest_assessment = $stmt->fetch(PDO::FETCH_ASSOC);
 $history_query = "SELECT a.*, u.store_name as vendor_name 
     FROM assessments a 
     JOIN users u ON a.vendor_id = u.id 
-    WHERE u.id = :user_id 
+    WHERE u.id = :user_id   
     ORDER BY a.created_at DESC";
 $stmt = $db->prepare($history_query);
 $stmt->bindParam(':user_id', $_SESSION['user_id']);
@@ -124,6 +124,57 @@ $totalProducts = count($products);
 $activeProducts = count(array_filter($products, fn($p) => $p['status'] === 'active'));
 $outOfStock = count(array_filter($products, fn($p) => ($p['stock'] ?? 0) == 0));
 $totalValue = array_sum(array_column($products, 'price'));
+
+// Security analytics derived from assessment history
+$riskDistribution = ['low' => 0, 'moderate' => 0, 'high' => 0, 'critical' => 0];
+$topWeaknessLabel = '--';
+$categoryAverages = [
+  'password' => 0,
+  'phishing' => 0,
+  'device' => 0,
+  'network' => 0,
+  'social' => 0,
+  'data' => 0
+];
+
+if (!empty($history)) {
+  foreach ($history as $assessment) {
+    $score = (float) ($assessment['score'] ?? 0);
+    if ($score >= 80) {
+      $riskDistribution['low']++;
+    } elseif ($score >= 60) {
+      $riskDistribution['moderate']++;
+    } elseif ($score >= 40) {
+      $riskDistribution['high']++;
+    } else {
+      $riskDistribution['critical']++;
+    }
+
+    $categoryAverages['password'] += (float) ($assessment['password_score'] ?? 0);
+    $categoryAverages['phishing'] += (float) ($assessment['phishing_score'] ?? 0);
+    $categoryAverages['device'] += (float) ($assessment['device_score'] ?? 0);
+    $categoryAverages['network'] += (float) ($assessment['network_score'] ?? 0);
+    $categoryAverages['social'] += (float) ($assessment['social_engineering_score'] ?? 0);
+    $categoryAverages['data'] += (float) ($assessment['data_handling_score'] ?? 0);
+  }
+
+  $count = count($history);
+  foreach ($categoryAverages as $key => $value) {
+    $categoryAverages[$key] = round($value / $count, 1);
+  }
+
+  $labelMap = [
+    'password' => 'Password',
+    'phishing' => 'Phishing',
+    'device' => 'Device',
+    'network' => 'Network',
+    'social' => 'Social',
+    'data' => 'Data'
+  ];
+  asort($categoryAverages);
+  $topWeaknessKey = array_key_first($categoryAverages);
+  $topWeaknessLabel = $topWeaknessKey ? $labelMap[$topWeaknessKey] : '--';
+}
 
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
@@ -1631,123 +1682,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
         </div>
 
         <div class="sec-hdr">
-          <h2>Badges & Achievements</h2>
-          <p>Your cybersecurity milestones and accomplishments.</p>
+          <h2>Security Analytics</h2>
+          <p>Your cybersecurity performance trends and detailed insights.</p>
         </div>
-        <div class="card" style="padding:1.25rem;margin-bottom:1.25rem">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-            <div>
-              <h3
-                style="font-family:var(--mono);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2)">
-                Your Badges</h3>
-              <p style="font-size:.75rem;color:var(--muted2);margin-top:.2rem">
-                <?php echo $badge_stats['total_badges'] ?? 0; ?> badges earned •
-                <?php echo $badge_stats['total_points'] ?? 0; ?> points</p>
+        
+        <!-- Analytics Charts Grid -->
+        <div class="charts-grid" style="grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <!-- Score Progress Chart -->
+          <div class="card chart-card" style="padding: 0.75rem;">
+            <h3 style="font-size: 0.6rem; margin-bottom: 0.5rem;">Score Progress</h3>
+            <div class="cw sm" style="height: 140px;">
+              <canvas id="scoreProgressChart"></canvas>
             </div>
           </div>
-          <div id="dash-badges" style="display:flex;gap:.75rem;flex-wrap:wrap">
-            <?php if (empty($earned_badges)): ?>
-              <p style="color:var(--muted2);font-size:.85rem">Complete assessments to earn badges</p>
-            <?php else: ?>
-              <?php
-              // Show only the latest 6 badges on dashboard
-              $dashboard_badges = array_slice($earned_badges, 0, 6);
-              foreach ($dashboard_badges as $badge):
-                ?>
-                <div
-                  style="display:flex;align-items:center;gap:.5rem;background:<?php echo $badge['color']; ?>20;padding:.5rem .85rem;border-radius:8px;border:1px solid <?php echo $badge['color']; ?>30;cursor:pointer;transition:var(--t)"
-                  title="<?php echo htmlspecialchars($badge['description']); ?>">
-                  <span style="font-size:1.2rem"><?php echo $badge['icon']; ?></span>
-                  <span
-                    style="font-size:.78rem;font-weight:600;color:<?php echo $badge['color']; ?>"><?php echo $badge['name']; ?></span>
-                </div>
-              <?php endforeach; ?>
-              <?php if (count($earned_badges) > 6): ?>
-                <div
-                  style="display:flex;align-items:center;gap:.5rem;background:var(--border2);padding:.5rem .85rem;border-radius:8px;border:1px solid var(--border);color:var(--muted2);font-size:.78rem;font-weight:600">
-                  +<?php echo count($earned_badges) - 6; ?> more
-                </div>
-              <?php endif; ?>
-            <?php endif; ?>
+          
+          <!-- Category Performance Chart -->
+          <div class="card chart-card" style="padding: 0.75rem;">
+            <h3 style="font-size: 0.6rem; margin-bottom: 0.5rem;">Security Categories</h3>
+            <div class="cw sm" style="height: 140px;">
+              <canvas id="categoryChart"></canvas>
+            </div>
+          </div>
+          
+          <!-- Performance Timeline -->
+          <div class="card chart-card" style="padding: 0.75rem;">
+            <h3 style="font-size: 0.6rem; margin-bottom: 0.5rem;">Performance Timeline</h3>
+            <div class="cw sm" style="height: 140px;">
+              <canvas id="timelineChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Risk Distribution Chart -->
+          <div class="card chart-card" style="padding: 0.75rem;">
+            <h3 style="font-size: 0.6rem; margin-bottom: 0.5rem;">Risk Distribution</h3>
+            <div class="cw sm" style="height: 140px;">
+              <canvas id="riskDistributionChart"></canvas>
+            </div>
           </div>
         </div>
 
-        <div class="sec-hdr">
-          <h2>Quick Actions</h2>
-          <p>Common tasks and shortcuts for your security workflow.</p>
-        </div>
-        <div
-          style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.9rem;margin-bottom:1.25rem">
-          <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="startAssessment()">
-            <div style="display:flex;align-items:center;gap:.75rem">
-              <div
-                style="width:40px;height:40px;background:rgba(59,139,255,.12);color:var(--blue);border-radius:8px;display:grid;place-items:center">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 11l3 3L22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-              </div>
-              <div>
-                <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">New Assessment</h4>
-                <p style="font-size:.75rem;color:var(--muted2)">Take a fresh 12-question quiz</p>
-              </div>
+        <!-- Analytics Summary Cards -->
+        <div class="stats-row" style="gap: 0.5rem;">
+          <div class="card stat-card" style="--accent:var(--orange); padding: 0.75rem;">
+            <div class="si" style="background:rgba(255,140,66,.12);color:var(--orange); width: 24px; height: 24px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
             </div>
-          </div>
-          <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="showPage('results')">
-            <div style="display:flex;align-items:center;gap:.75rem">
-              <div
-                style="width:40px;height:40px;background:rgba(16,217,130,.12);color:var(--green);border-radius:8px;display:grid;place-items:center">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10" />
-                  <line x1="12" y1="20" x2="12" y2="4" />
-                  <line x1="6" y1="20" x2="6" y2="14" />
-                </svg>
-              </div>
-              <div>
-                <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">View Results</h4>
-                <p style="font-size:.75rem;color:var(--muted2)">Charts & recommendations</p>
-              </div>
+            <div class="slabel">Avg Response</div>
+            <div class="sval" style="font-size: 1.4rem;" id="avg-time">
+              <?php 
+              if (!empty($history)) {
+                $total_time = array_sum(array_column($history, 'time_spent'));
+                $avg_time = round($total_time / count($history) / 60, 1);
+                echo $avg_time . 'm';
+              } else {
+                echo '--';
+              }
+              ?>
             </div>
+            <div class="ssub">Time per assessment</div>
           </div>
-          <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)"
-            onclick="showPage('leaderboard')">
-            <div style="display:flex;align-items:center;gap:.75rem">
-              <div
-                style="width:40px;height:40px;background:rgba(123,114,240,.12);color:var(--purple);border-radius:8px;display:grid;place-items:center">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M8 6l4-4 4 4" />
-                  <path d="M12 2v13" />
-                  <path d="M20 21H4" />
-                  <path d="M17 12h3v9" />
-                  <path d="M4 12h3v9" />
-                </svg>
-              </div>
-              <div>
-                <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">Leaderboard</h4>
-                <p style="font-size:.75rem;color:var(--muted2)">Compare with other vendors</p>
-              </div>
+          
+          <div class="card stat-card" style="--accent:var(--teal); padding: 0.75rem;">
+            <div class="si" style="background:rgba(0,212,170,.12);color:var(--teal); width: 24px; height: 24px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
             </div>
+            <div class="slabel">Peak Score</div>
+            <div class="sval" style="font-size: 1.4rem;" id="peak-score"><?php echo $stats['best_score'] ?? '--'; ?></div>
+            <div class="ssub">Best performance</div>
           </div>
-          <div class="card" style="padding:1.15rem;cursor:pointer;transition:var(--t)" onclick="showPage('tips')">
-            <div style="display:flex;align-items:center;gap:.75rem">
-              <div
-                style="width:40px;height:40px;background:rgba(245,183,49,.12);color:var(--yellow);border-radius:8px;display:grid;place-items:center">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-              </div>
-              <div>
-                <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.2rem">Security Tips</h4>
-                <p style="font-size:.75rem;color:var(--muted2)">Guides to improve your score</p>
-              </div>
+
+          <div class="card stat-card" style="--accent:var(--red); padding: 0.75rem;">
+            <div class="si" style="background:rgba(255,59,92,.12);color:var(--red); width: 24px; height: 24px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 9v4"/>
+                <path d="M12 17h.01"/>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              </svg>
             </div>
+            <div class="slabel">Top Weakness</div>
+            <div class="sval" style="font-size: 1.4rem;" id="top-weakness"><?php echo $topWeaknessLabel; ?></div>
+            <div class="ssub">Lowest average category</div>
           </div>
+
         </div>
 
         <div class="sec-hdr">
@@ -1906,8 +1927,274 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
       const d = document.getElementById('tb-date');
       if (d) d.textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
+      // Initialize Analytics Charts
+      initializeAnalyticsCharts();
+
       if (typeof pageInit === 'function') pageInit();
     });
+
+    function initializeAnalyticsCharts() {
+      const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
+      const textColor = isDarkTheme ? '#dde4f0' : '#0f172a';
+      const gridColor = isDarkTheme ? 'rgba(59, 139, 255, 0.08)' : 'rgba(59, 139, 255, 0.12)';
+      
+      Chart.defaults.color = textColor;
+      Chart.defaults.borderColor = gridColor;
+
+      // Score Progress Chart
+      const scoreCtx = document.getElementById('scoreProgressChart');
+      if (scoreCtx) {
+        new Chart(scoreCtx, {
+          type: 'line',
+          data: {
+            labels: <?php echo json_encode(array_map(function($a) { return date('M j', strtotime($a['created_at'])); }, array_slice($history, 0, 10))); ?>,
+            datasets: [{
+              label: 'Score Progress',
+              data: <?php echo json_encode(array_map(function($a) { return $a['score']; }, array_slice($history, 0, 10))); ?>,
+              borderColor: getComputedStyle(document.documentElement).getPropertyValue('--blue'),
+              backgroundColor: 'rgba(59, 139, 255, 0.1)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4,
+              pointRadius: 5,
+              pointBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--blue'),
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 7
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: isDarkTheme ? '#0d1421' : '#fff',
+                titleColor: textColor,
+                bodyColor: textColor,
+                borderColor: gridColor,
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false,
+                callbacks: {
+                  label: function(context) {
+                    return `Score: ${context.parsed.y}%`;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+                grid: { color: gridColor },
+                ticks: { color: textColor, callback: value => value + '%' }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: textColor }
+              }
+            }
+          }
+        });
+      }
+
+      // Category Performance Chart
+      const categoryCtx = document.getElementById('categoryChart');
+      if (categoryCtx) {
+        const latestAssessment = <?php echo json_encode($latest_assessment); ?>;
+        const categoryData = [
+          latestAssessment.password_score || 0,
+          latestAssessment.phishing_score || 0,
+          latestAssessment.device_score || 0,
+          latestAssessment.network_score || 0,
+          latestAssessment.social_engineering_score || 0,
+          latestAssessment.data_handling_score || 0
+        ];
+        
+        new Chart(categoryCtx, {
+          type: 'pie',
+          data: {
+            labels: ['Password Security', 'Phishing Detection', 'Device Security', 'Network Security', 'Social Engineering', 'Data Handling'],
+            datasets: [{
+              data: categoryData,
+              backgroundColor: [
+                'rgba(59, 139, 255, 0.8)',  // Blue
+                'rgba(16, 217, 130, 0.8)',  // Green
+                'rgba(245, 183, 49, 0.8)',  // Yellow
+                'rgba(255, 140, 66, 0.8)',  // Orange
+                'rgba(123, 114, 240, 0.8)', // Purple
+                'rgba(0, 212, 170, 0.8)'    // Teal
+              ],
+              borderColor: [
+                'rgba(59, 139, 255, 1)',
+                'rgba(16, 217, 130, 1)',
+                'rgba(245, 183, 49, 1)',
+                'rgba(255, 140, 66, 1)',
+                'rgba(123, 114, 240, 1)',
+                'rgba(0, 212, 170, 1)'
+              ],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: { 
+                  color: textColor, 
+                  padding: 15, 
+                  font: { size: 11 },
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `${context.label}: ${context.parsed}%`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Performance Timeline Chart
+      const timelineCtx = document.getElementById('timelineChart');
+      if (timelineCtx) {
+        new Chart(timelineCtx, {
+          type: 'bar',
+          data: {
+            labels: <?php echo json_encode(array_map(function($a) { return date('M j', strtotime($a['created_at'])); }, array_slice($history, 0, 8))); ?>,
+            datasets: [{
+              label: 'Assessment Score',
+              data: <?php echo json_encode(array_map(function($a) { return $a['score']; }, array_slice($history, 0, 8))); ?>,
+              backgroundColor: function(context) {
+                const value = context.parsed.y;
+                if (value >= 80) return 'rgba(16, 217, 130, 0.8)';
+                if (value >= 60) return 'rgba(245, 183, 49, 0.8)';
+                if (value >= 40) return 'rgba(255, 140, 66, 0.8)';
+                return 'rgba(255, 59, 92, 0.8)';
+              },
+              borderColor: function(context) {
+                const value = context.parsed.y;
+                if (value >= 80) return 'rgba(16, 217, 130, 1)';
+                if (value >= 60) return 'rgba(245, 183, 49, 1)';
+                if (value >= 40) return 'rgba(255, 140, 66, 1)';
+                return 'rgba(255, 59, 92, 1)';
+              },
+              borderWidth: 2,
+              borderRadius: 6,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `Score: ${context.parsed.y}%`;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+                grid: { color: gridColor },
+                ticks: { color: textColor, callback: value => value + '%' }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: textColor }
+              }
+            }
+          }
+        });
+      }
+
+      // Risk distribution chart
+      const riskCtx = document.getElementById('riskDistributionChart');
+      if (riskCtx) {
+        const riskData = <?php echo json_encode(array_values($riskDistribution)); ?>;
+        new Chart(riskCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Low', 'Moderate', 'High', 'Critical'],
+            datasets: [{
+              data: riskData,
+              backgroundColor: [
+                'rgba(16, 217, 130, 0.8)',
+                'rgba(245, 183, 49, 0.8)',
+                'rgba(255, 140, 66, 0.8)',
+                'rgba(255, 59, 92, 0.8)'
+              ],
+              borderColor: isDarkTheme ? '#0d1421' : '#ffffff',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: textColor, boxWidth: 10, font: { size: 10 } }
+              }
+            },
+            cutout: '62%'
+          }
+        });
+      }
+
+      // Category gap to target chart
+      const comparisonCtx = document.getElementById('comparisonChart');
+      if (comparisonCtx) {
+        const categoryAverageScores = <?php echo json_encode(array_values($categoryAverages)); ?>;
+        const targetScore = 80;
+        const gapData = categoryAverageScores.map(score => Math.max(0, targetScore - score));
+
+        new Chart(comparisonCtx, {
+          type: 'bar',
+          data: {
+            labels: ['Password', 'Phishing', 'Device', 'Network', 'Social', 'Data'],
+            datasets: [{
+              label: 'Gap to Target',
+              data: gapData,
+              backgroundColor: 'rgba(255, 59, 92, 0.7)',
+              borderColor: 'rgba(255, 59, 92, 1)',
+              borderWidth: 1.5,
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 80,
+                grid: { color: gridColor },
+                ticks: { color: textColor, callback: value => value + '%' }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: textColor, maxRotation: 0, autoSkip: false }
+              }
+            }
+          }
+        });
+      }
+    }
   </script>
 </body>
 

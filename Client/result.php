@@ -554,7 +554,7 @@ function getIntelligentVideoRecommendations($score, $categoryScores, $incorrectA
     $videoLibrary = [
         'password' => [
             [
-                'video_id' => '65x1FakHcdU',
+                'video_id' => 'YQSDOBkONK4',
                 'title' => 'How to Create a Strong Password – Google Security',
                 'description' => 'Learn Google\'s best practices for creating and managing strong, secure passwords',
                 'difficulty' => 'beginner',
@@ -676,7 +676,7 @@ function getIntelligentVideoRecommendations($score, $categoryScores, $incorrectA
                 'tags' => ['data privacy', 'protection', 'GDPR']
             ],
             [
-                'video_id' => '65x1FakHcdU',
+                'video_id' => 'YQSDOBkONK4',
                 'title' => 'Data Encryption Basics – Google',
                 'description' => 'Understand how encryption protects your information at rest and in transit',
                 'difficulty' => 'beginner',
@@ -903,7 +903,7 @@ function getIntelligentVideoRecommendations($score, $categoryScores, $incorrectA
         $defaultVideos = [
             ['video_id' => 'bPVaOlJ6ln0', 'title' => 'Cybersecurity Fundamentals – CrashCourse', 'description' => 'Essential cybersecurity concepts for everyone', 'category' => 'general', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Core security knowledge'],
             ['video_id' => 'XBkzBrXlle0', 'title' => 'Phishing Awareness – IBM', 'description' => 'Learn to spot and avoid phishing attacks', 'category' => 'phishing', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Critical email security skills'],
-            ['video_id' => '65x1FakHcdU', 'title' => 'Password Security – Google', 'description' => 'Create and manage strong passwords effectively', 'category' => 'password', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Account protection fundamentals']
+        ['video_id' => 'YQSDOBkONK4', 'title' => 'Password Security – Google', 'description' => 'Create and manage strong passwords effectively', 'category' => 'password', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Account protection fundamentals']
         ];
         
         if (count($recommendedVideos) < count($defaultVideos)) {
@@ -931,7 +931,7 @@ if (count($recommendedVideos) < 6) {
     $fallbackVideos = [
         ['video_id' => 'bPVaOlJ6ln0', 'title' => 'Cybersecurity Fundamentals – CrashCourse', 'description' => 'Essential cybersecurity concepts for everyone', 'category' => 'general', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Core security knowledge'],
         ['video_id' => 'XBkzBrXlle0', 'title' => 'Phishing Awareness – IBM', 'description' => 'Learn to spot and avoid phishing attacks', 'category' => 'phishing', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Critical email security skills'],
-        ['video_id' => '65x1FakHcdU', 'title' => 'Password Security – Google', 'description' => 'Create and manage strong passwords effectively', 'category' => 'password', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Account protection fundamentals'],
+        ['video_id' => 'YQSDOBkONK4', 'title' => 'Password Security – Google', 'description' => 'Create and manage strong passwords effectively', 'category' => 'password', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Account protection fundamentals'],
         ['video_id' => 'sdpxddDzXfE', 'title' => 'Network Security Basics – IBM', 'description' => 'Understanding network protection fundamentals', 'category' => 'network', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Network safety essentials'],
         ['video_id' => 'lc7scxvKQOo', 'title' => 'Social Engineering Defense – IBM', 'description' => 'Recognize and resist manipulation tactics', 'category' => 'social_engineering', 'difficulty' => 'intermediate', 'priority' => 'medium', 'reason' => 'Protect against psychological attacks'],
         ['video_id' => 'u-yLGIH0oFM', 'title' => 'Data Protection Essentials – IBM', 'description' => 'Best practices for data privacy and security', 'category' => 'data_handling', 'difficulty' => 'beginner', 'priority' => 'medium', 'reason' => 'Safe data handling practices']

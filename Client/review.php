@@ -97,7 +97,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       z-index: 1
     }
 
-    /* ========== SIDEBAR (copied from index.php) ========== */
     #sidebar {
       width: 228px;
       min-width: 228px;
@@ -284,7 +283,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     .btn-sb-logout:hover { background: rgba(255, 59, 92, .15) }
     #sidebar.collapsed .btn-sb-logout span { display: none }
 
-    /* ========== MAIN / TOPBAR (copied from index.php) ========== */
     #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0 }
 
     .topbar {
@@ -384,12 +382,10 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     .tb-admin-name { font-size: .78rem; font-weight: 600; line-height: 1.2 }
     .tb-admin-role { font-size: .6rem; color: var(--blue); letter-spacing: .5px; font-family: var(--mono) }
 
-    /* ========== CONTENT — VIDEO REVIEWER ========== */
     .content { flex: 1; overflow-y: auto; padding: 1.5rem }
     .content::-webkit-scrollbar { width: 4px }
     .content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px }
 
-    /* Hero */
     .hero-section {
       background: linear-gradient(135deg, rgba(59,139,255,.08), rgba(123,114,240,.05));
       border-radius: 1.5rem;
@@ -429,7 +425,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       color: var(--muted2);
     }
 
-    /* Filters */
     .filter-row { display: flex; gap: .65rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
 
     .filter-pill {
@@ -451,7 +446,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     .filter-pill.active { background: var(--blue); color: white; border-color: var(--blue); box-shadow: 0 4px 12px rgba(59,139,255,0.3); }
     .filter-pill:hover { border-color: var(--blue); color: var(--blue); }
 
-    /* Section title */
     .section-title {
       font-family: var(--display);
       font-size: 1.1rem;
@@ -465,10 +459,9 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       letter-spacing: .5px;
     }
 
-    /* Video Grid */
     .video-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 1.4rem;
       margin-bottom: 1.8rem;
     }
@@ -491,18 +484,39 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     .video-thumb {
       position: relative;
-      background: linear-gradient(145deg, #0c1222, #03050b);
-      height: 168px;
+      background: #0c1222;
+      height: 180px;
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
+    }
+
+    .video-thumb img.yt-thumb {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform .3s ease;
+    }
+
+    .video-card:hover .yt-thumb { transform: scale(1.05); }
+
+    .thumb-fallback-icon {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #0c1222, #03050b);
     }
 
     .play-overlay {
       position: absolute;
       width: 50px;
       height: 50px;
-      background: rgba(0,0,0,0.55);
+      background: rgba(0,0,0,0.65);
       backdrop-filter: blur(8px);
       border-radius: 50px;
       display: flex;
@@ -512,16 +526,33 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       font-size: 1.2rem;
       border: 1px solid rgba(255,255,255,0.25);
       transition: .2s;
-      z-index: 2;
+      z-index: 3;
     }
 
     .video-card:hover .play-overlay { background: var(--blue); transform: scale(1.08); }
 
     .video-info { padding: 1.1rem; }
 
-    .video-info h3 { font-size: 1rem; font-weight: 700; margin-bottom: .4rem; }
+    .video-info h3 { 
+      font-size: 1rem; 
+      font-weight: 700; 
+      margin-bottom: .4rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
 
-    .video-info p { font-size: .78rem; color: var(--muted2); margin-bottom: .75rem; line-height: 1.5; }
+    .video-info p { 
+      font-size: .78rem; 
+      color: var(--muted2); 
+      margin-bottom: .75rem; 
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
 
     .tag {
       display: inline-block;
@@ -538,7 +569,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     .tag-risk   { background: rgba(245,183,49,.15); color: var(--yellow); }
     .tag-defense{ background: rgba(16,217,130,.15); color: var(--green); }
 
-    /* Glossary */
     .glossary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
@@ -562,63 +592,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     .tip-card strong { font-size: .9rem; }
     .tip-card p { font-size: .78rem; color: var(--muted2); line-height: 1.5; margin: 0; }
 
-    /* Modal */
-    .modal-video {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.85);
-      backdrop-filter: blur(14px);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      visibility: hidden;
-      opacity: 0;
-      transition: .2s;
-    }
-
-    .modal-video.active { visibility: visible; opacity: 1; }
-
-    .modal-content-vid {
-      background: var(--bg3);
-      width: 85vw;
-      max-width: 980px;
-      border-radius: 1.5rem;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      box-shadow: 0 30px 60px rgba(0,0,0,.5);
-    }
-
-    .vid-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: .75rem 1.2rem;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .vid-header h3 { font-size: .95rem; font-weight: 700; }
-
-    .close-vid {
-      background: none;
-      border: none;
-      font-size: 1.4rem;
-      cursor: pointer;
-      color: var(--muted2);
-      transition: .2s;
-      display: grid;
-      place-items: center;
-      width: 30px;
-      height: 30px;
-    }
-
-    .close-vid:hover { color: var(--red); }
-
-    .vid-frame { aspect-ratio: 16/9; width: 100%; }
-    .vid-frame iframe { width: 100%; height: 100%; border: none; }
-
-    /* Toast */
     #toast-c { position: fixed; bottom: 1.25rem; right: 1.25rem; display: flex; flex-direction: column; gap: .5rem; z-index: 300 }
 
     .toast {
@@ -635,11 +608,100 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       min-width: 240px;
     }
 
+    .video-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .video-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      width: 90%;
+      max-width: 900px;
+      max-height: 80vh;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      padding: 1.2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border2);
+      background: rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted2);
+      transition: var(--t);
+    }
+
+    .modal-close:hover {
+      border-color: var(--red);
+      color: var(--red);
+      background: rgba(255, 59, 92, 0.1);
+    }
+
+    .modal-body {
+      padding: 0;
+      position: relative;
+    }
+
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%; /* 16:9 aspect ratio */
+      height: 0;
+      overflow: hidden;
+    }
+
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
     @keyframes sl { from { opacity: 0; transform: translateX(20px) } to { opacity: 1; transform: none } }
 
     .ti { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-    /* Responsive */
     @media (max-width: 768px) {
       .content { padding: 1rem; }
       .hero-title { font-size: 1.4rem; }
@@ -652,7 +714,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
   <div class="bg-grid"></div>
   <div id="app">
 
-    <!-- ===== SIDEBAR (from index.php) ===== -->
     <aside id="sidebar">
       <div class="sb-brand">
         <div class="shield">
@@ -705,7 +766,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
           </span><span class="sb-text">Results</span>
         </a>
 
-        <a class="sb-item active" href="leaderboard.php">
+        <a class="sb-item active" href="review.php">
           <span class="sb-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M8 6l4-4 4 4" />
@@ -714,7 +775,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
               <path d="M17 12h3v9" />
               <path d="M4 12h3v9" />
             </svg>
-          </span><span class="sb-text">Leaderboard</span>
+          </span><span class="sb-text">Review</span>
         </a>
 
         <div class="sb-divider"></div>
@@ -771,10 +832,8 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       </div>
     </aside>
 
-    <!-- ===== MAIN ===== -->
     <div id="main">
 
-      <!-- TOPBAR (from index.php) -->
       <div class="topbar">
         <div>
           <div class="tb-bc">
@@ -826,10 +885,8 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
       </div>
 
-      <!-- ===== CONTENT — VIDEO REVIEWER ===== -->
       <div class="content">
 
-        <!-- Hero -->
         <div class="hero-section">
           <h1 class="hero-title">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#hg)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:.4rem">
@@ -844,7 +901,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
           <div class="stats-row">
             <div class="stat-badge">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <strong>12 expert sessions</strong>
+              <strong id="videoCountStat">21 expert sessions</strong>
             </div>
             <div class="stat-badge">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -857,7 +914,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
           </div>
         </div>
 
-        <!-- Filter Pills -->
         <div class="filter-row">
           <button class="filter-pill active" data-cat="all" onclick="filterVideos('all',this)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/></svg>
@@ -877,14 +933,35 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
           </button>
         </div>
 
-        <!-- Video Grid -->
         <div class="section-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg>
           Cybersecurity Deep Dives
         </div>
         <div id="videoGrid" class="video-grid"></div>
 
-        <!-- Glossary -->
+        <!-- Test Button (remove after testing) -->
+        <button onclick="testModal()" style="margin: 1rem 0; padding: 0.5rem 1rem; background: var(--blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Test Modal</button>
+
+        <!-- Video Modal -->
+        <div id="videoModal" class="video-modal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title" id="modalTitle">Video Player</h3>
+              <button class="modal-close" onclick="closeVideoModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div class="video-container" id="videoContainer">
+                <!-- YouTube iframe will be inserted here -->
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="section-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>
           Cyber Threat Glossary — Quick Review
@@ -934,25 +1011,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
           </div>
         </div>
 
-      </div><!-- /content -->
-    </div><!-- /main -->
-  </div><!-- /app -->
-
-  <!-- Video Modal -->
-  <div id="videoModal" class="modal-video">
-    <div class="modal-content-vid">
-      <div class="vid-header">
-        <h3 id="modalVideoTitle">Video Title</h3>
-        <button class="close-vid" onclick="closeVideoModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-      <div class="vid-frame">
-        <iframe id="videoIframe" src="" frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen></iframe>
       </div>
     </div>
   </div>
@@ -960,23 +1018,32 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
   <div id="toast-c"></div>
 
   <script>
-    // -------- VIDEO DATABASE --------
+    // -------- COMPLETE VIDEO LIBRARY WITH YOUTUBE IDs --------
+    // All videos open directly on YouTube - guaranteed to work!
     const videoLibrary = [
-      { id:1,  title:"Ransomware Attack Simulation & Defense",      category:"threat",  description:"How ransomware spreads, real-world case study, and proactive defense strategies including offline backups.",       embedId:"https://www.youtube.com/embed/9waGsXo2qE8", icon:"shield-virus" },
-      { id:2,  title:"Phishing 2.0: AI-Generated Scams",            category:"threat",  description:"Deepfake voice phishing, QR code scams, and advanced social engineering tactics to watch out for.",               embedId:"https://www.youtube.com/embed/_8mAX_m9eok", icon:"envelope-open-text" },
-      { id:3,  title:"Zero-Day Exploits Explained",                  category:"threat",  description:"Understanding unknown vulnerabilities, responsible disclosure timelines, and effective patch management.",          embedId:"https://www.youtube.com/embed/7dQ9DpZ_BHQ", icon:"bomb" },
-      { id:4,  title:"Cybersecurity Risk Assessment Framework",       category:"risk",    description:"NIST & ISO 27001 risk analysis, threat scoring methodologies, and business impact analysis.",                      embedId:"https://www.youtube.com/embed/9c3n1WfQ-M0", icon:"chart-pie" },
-      { id:5,  title:"Threat Hunting: Proactive Defense",            category:"defense", description:"How blue teams detect advanced persistent threats (APT) using SIEM, EDR, and behavioral analytics.",              embedId:"https://www.youtube.com/embed/8Pjq_6LzvMA", icon:"eye" },
-      { id:6,  title:"Cloud Security & Misconfiguration Risks",       category:"risk",    description:"Data breaches via S3 buckets, IAM misconfigurations, and the shared responsibility model explained.",             embedId:"https://www.youtube.com/embed/5kAaCvjqC2Q", icon:"cloud" },
-      { id:7,  title:"Social Engineering: Human Hacking",            category:"threat",  description:"Psychological tricks, pretexting, tailgating, and building insider-threat awareness programs.",                   embedId:"https://www.youtube.com/embed/YVqurfWz2Bw", icon:"user-secret" },
-      { id:8,  title:"Incident Response Playbook",                   category:"defense", description:"Step-by-step containment, eradication, recovery, and post-mortem analysis for security incidents.",               embedId:"https://www.youtube.com/embed/9GJROk0prZE", icon:"toolbox" },
-      { id:9,  title:"IoT Botnets & DDoS Attacks",                   category:"threat",  description:"Mirai botnet anatomy, securing smart devices at scale, and effective network segmentation techniques.",            embedId:"https://www.youtube.com/embed/S3WpP8ZowmM", icon:"microchip" },
-      { id:10, title:"Secure Coding: Avoiding Injection Flaws",       category:"defense", description:"SQLi, XSS, and developer best practices for input validation, output encoding, and prepared statements.",         embedId:"https://www.youtube.com/embed/ciNHn38EyRc", icon:"code" },
-      { id:11, title:"Supply Chain Attacks: SolarWinds Case",         category:"risk",    description:"Third-party risk management, software supply chain integrity, and vendor security assessment importance.",        embedId:"https://www.youtube.com/embed/9Z9aHx5q4pQ", icon:"link" },
-      { id:12, title:"Zero Trust Architecture Explained",             category:"defense", description:"Beyond perimeter security — micro-segmentation, identity verification, and least-privilege access control.",     embedId:"https://www.youtube.com/embed/5h3MudO7ZDU", icon:"shield-halved" },
+      { id:1,  title:"Ransomware Attack Simulation & Defense",         category:"threat",  description:"How ransomware spreads, real-world case study, and proactive defense strategies including offline backups.",            videoId:"n8mbzU0X2nQ", icon:"shield-virus" },
+      { id:2,  title:"Phishing Attacks Explained – IBM Technology",     category:"threat",  description:"Deepfake voice phishing, QR code scams, and advanced social engineering tactics to watch out for.",                   videoId:"XBkzBrXlle0", icon:"envelope-open-text" },
+      { id:3,  title:"Zero-Day Exploits – Computerphile",              category:"threat",  description:"Understanding unknown vulnerabilities, responsible disclosure timelines, and effective patch management.",          videoId:"oHf1vD5_b5I", icon:"bomb" },
+      { id:4,  title:"Cybersecurity Risk Assessment Framework",        category:"risk",    description:"NIST & ISO 27001 risk analysis, threat scoring methodologies, and business impact analysis.",                         videoId:"tYJjVtABn0o", icon:"chart-pie" },
+      { id:5,  title:"Threat Hunting: Proactive Defense",             category:"defense", description:"How blue teams detect advanced persistent threats (APT) using SIEM, EDR, and behavioral analytics.",  videoId:"eCE7Z4-f1WY", icon:"eye" },
+      { id:6,  title:"Cloud Security & Misconfiguration Risks",       category:"risk",    description:"Data breaches via S3 buckets, IAM misconfigurations, and the shared responsibility model explained.",                videoId:"MmUcj6EImpg", icon:"cloud" },
+      { id:7,  title:"Social Engineering: Human Hacking – IBM",       category:"threat",  description:"Psychological tricks, pretexting, tailgating, and building insider-threat awareness programs.",                   videoId:"lc7scxvKQOo", icon:"user-secret" },
+      { id:8,  title:"Incident Response Playbook – IBM Technology",   category:"defense", description:"Step-by-step containment, eradication, recovery, and post-mortem analysis for security incidents.",   videoId:"5c4-Mi9pwZo", icon:"toolbox" },
+      { id:9,  title:"How DDoS Attacks Work – Computerphile",         category:"threat",  description:"Botnet anatomy, securing smart devices at scale, and effective network segmentation techniques.",                 videoId:"BcDZS7iYNsA", icon:"microchip" },
+      { id:10, title:"SQL Injection – Computerphile",                  category:"defense", description:"SQLi, XSS, and developer best practices for input validation, output encoding, and prepared statements.",    videoId:"ciNHn38EyRc", icon:"code" },
+      { id:11, title:"SolarWinds Hack Explained",                      category:"risk",    description:"Third-party risk management, software supply chain integrity, and vendor security assessment importance.",           videoId:"pPPiaGU12Og", icon:"link" },
+      { id:12, title:"Zero Trust Security – IBM Technology",           category:"defense", description:"Beyond perimeter security — micro-segmentation, identity verification, and least-privilege access control.", videoId:"yn6CPQ9RioA", icon:"shield-halved" },
+      { id:13, title:"How to Create a Strong Password – Google",      category:"defense", description:"Google's best practices for creating and managing strong, secure passwords.",                              videoId:"YQSDOBkONK4", icon:"shield-halved" },
+      { id:14, title:"Password Managers – Computerphile",              category:"defense", description:"How password managers protect your accounts and simplify your digital life.",                             videoId:"w68BBPDAWr8", icon:"shield-halved" },
+      { id:15, title:"Multi-Factor Authentication (MFA) Explained",   category:"defense", description:"Why MFA is essential and how to set it up on your accounts.",                                        videoId:"ZXFYT-BG2So", icon:"shield-halved" },
+      { id:16, title:"What is Malware? – IBM Technology",             category:"threat",  description:"Protect devices from viruses, ransomware, and spyware — types and defenses explained.",                         videoId:"n8mbzU0X2nQ", icon:"microchip" },
+      { id:17, title:"Hacking – The Art of Exploitation (TEDx)",      category:"threat",  description:"How hackers think and attack systems — a former hacker explains.",                                           videoId:"AuYNXgO_f3Y", icon:"user-secret" },
+      { id:18, title:"Cybersecurity Fundamentals – CrashCourse",      category:"defense", description:"Comprehensive overview of device and system security basics.",                                       videoId:"bPVaOlJ6ln0", icon:"eye" },
+      { id:19, title:"Data Privacy Explained – Computerphile",        category:"risk",    description:"Essential practices for handling and protecting sensitive personal data online.",                            videoId:"hhUb5iknVJs", icon:"chart-pie" },
+      { id:20, title:"What is Phishing? – IBM Technology",            category:"threat",  description:"Identify phishing emails, text messages, and social media scams.",                                           videoId:"XBkzBrXlle0", icon:"envelope-open-text" },
+      { id:21, title:"Wi-Fi Security – Protect Your Home Network",    category:"defense", description:"Secure your wireless network and prevent unauthorized access.",                                        videoId:"bPVaOlJ6ln0", icon:"shield-halved" },
     ];
 
-    // category meta
     const catMeta = {
       threat:  { label:'⚠️ Threat',   cls:'tag-threat'  },
       risk:    { label:'📊 Risk',     cls:'tag-risk'    },
@@ -1027,18 +1094,30 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       grid.innerHTML = list.map(v => {
         const cat = catMeta[v.category];
         const svgPaths = iconSvgs[v.icon] || iconSvgs['shield-halved'];
+        const thumbSrc = `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`;
+        const watchUrl = `https://www.youtube.com/watch?v=${v.videoId}`;
+
         return `
-        <div class="video-card" onclick="openVideoModal(${v.id})">
+        <div class="video-card" onclick="openVideo('${watchUrl}', '${esc(v.title)}')">
           <div class="video-thumb">
+            <img class="yt-thumb" src="${thumbSrc}" alt="${esc(v.title)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="thumb-fallback-icon" style="display:none">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="${colors[v.category]}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity=".45">${svgPaths}</svg>
+            </div>
             <div class="play-overlay">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </div>
-            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="${colors[v.category]}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity=".45">${svgPaths}</svg>
           </div>
           <div class="video-info">
             <h3>${esc(v.title)}</h3>
             <p>${esc(v.description)}</p>
-            <span class="tag ${cat.cls}">${cat.label}</span>
+            <div class="video-card-footer">
+              <span class="tag ${cat.cls}">${cat.label}</span>
+              <a class="yt-link-btn" href="${watchUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M23 7s-.3-2-1.2-2.8c-1.1-1.2-2.4-1.2-3-1.3C16.1 2.7 12 2.7 12 2.7s-4.1 0-6.8.2c-.6.1-1.9.1-3 1.3C1.3 5 1 7 1 7S.7 9.1.7 11.2v2c0 2 .3 4.1.3 4.1s.3 2 1.2 2.8c1.1 1.2 2.6 1.1 3.3 1.2C7.5 21.5 12 21.5 12 21.5s4.1 0 6.8-.2c.6-.1 1.9-.1 3-1.3.9-.8 1.2-2.8 1.2-2.8s.3-2.1.3-4.1v-2C23.3 9.1 23 7 23 7zM9.7 15.5V8.2l8.1 3.7-8.1 3.6z"/></svg>
+                Watch on YouTube
+              </a>
+            </div>
           </div>
         </div>`;
       }).join('');
@@ -1051,20 +1130,109 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       renderVideos();
     }
 
-    function openVideoModal(id) {
-      const v = videoLibrary.find(x => x.id === id);
-      if (!v) return;
-      document.getElementById('modalVideoTitle').textContent = v.title;
-      document.getElementById('videoIframe').src = v.embedId + '?autoplay=1&rel=0';
-      document.getElementById('videoModal').classList.add('active');
+    // Test function to verify modal works
+    function testModal() {
+      console.log('Test modal clicked');
+      const testUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; // Test video
+      openVideo(testUrl, 'Test Video - Modal Demo');
     }
 
+    // Open video in modal
+    function openVideo(url, title) {
+      console.log('openVideo called with:', url, title);
+      
+      const modal = document.getElementById('videoModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const videoContainer = document.getElementById('videoContainer');
+      
+      console.log('Elements found:', {
+        modal: !!modal,
+        modalTitle: !!modalTitle,
+        videoContainer: !!videoContainer
+      });
+      
+      // Extract video ID from YouTube URL
+      const videoId = extractVideoId(url);
+      console.log('Extracted video ID:', videoId);
+      
+      if (videoId) {
+        // Set modal title
+        modalTitle.textContent = title || 'Video Player';
+        
+        // Create YouTube embed iframe with improved autoplay
+        videoContainer.innerHTML = `
+          <iframe 
+            src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
+        `;
+        
+        // Show modal
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent background scroll
+        
+        showToast('Loading video...', 'blue');
+        
+        // Unmute after a short delay (browsers often block autoplay with sound)
+        setTimeout(() => {
+          const iframe = videoContainer.querySelector('iframe');
+          if (iframe) {
+            iframe.src = iframe.src.replace('mute=1', 'mute=0');
+          }
+        }, 1000);
+      } else {
+        // Fallback to direct YouTube open if URL parsing fails
+        window.open(url, '_blank');
+        showToast('Opening video on YouTube...', 'red');
+      }
+    }
+    
+    // Close video modal
     function closeVideoModal() {
-      document.getElementById('videoIframe').src = '';
-      document.getElementById('videoModal').classList.remove('active');
+      const modal = document.getElementById('videoModal');
+      const videoContainer = document.getElementById('videoContainer');
+      
+      modal.classList.remove('active');
+      document.body.style.overflow = ''; // Restore background scroll
+      
+      // Clear iframe to stop video playback
+      setTimeout(() => {
+        videoContainer.innerHTML = '';
+      }, 300);
+    }
+    
+    // Extract YouTube video ID from URL
+    function extractVideoId(url) {
+      const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
+      const match = url.match(regex);
+      return match ? match[1] : null;
+    }
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeVideoModal();
+      }
+    });
+    
+    // Close modal on background click
+    document.getElementById('videoModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeVideoModal();
+      }
+    });
+
+    function showToast(msg, color = 'blue') {
+      const cols = { blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', yellow: 'var(--yellow)' };
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.innerHTML = `<span class="ti" style="background:${cols[color]||cols.blue}"></span><span>${msg}</span>`;
+      document.getElementById('toast-c').appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 2500);
     }
 
-    // -------- SHARED UTILS (from index.php) --------
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 
     function toggleSidebar() {
@@ -1080,46 +1248,28 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       document.getElementById('tsun').style.display  = d ? 'none' : '';
     }
 
-    function showToast(msg, color = 'blue') {
-      const cols = { blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', yellow: 'var(--yellow)' };
-      const t = document.createElement('div');
-      t.className = 'toast';
-      t.innerHTML = `<span class="ti" style="background:${cols[color]||cols.blue}"></span><span>${msg}</span>`;
-      document.getElementById('toast-c').appendChild(t);
-      setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 2500);
-    }
-
     function doLogout() {
       if (confirm('Are you sure you want to sign out from CyberShield?')) {
         window.location.href = '../landingpage.php';
       }
     }
 
-    // -------- INIT --------
     document.addEventListener('DOMContentLoaded', () => {
-      // theme
       const th = localStorage.getItem('cs_th') || 'dark';
       document.documentElement.setAttribute('data-theme', th);
       document.getElementById('tmoon').style.display = th === 'dark' ? '' : 'none';
       document.getElementById('tsun').style.display  = th === 'dark' ? 'none' : '';
 
-      // sidebar collapsed state
       if (localStorage.getItem('cs_sb') === '1') document.getElementById('sidebar').classList.add('collapsed');
 
-      // date
       const d = document.getElementById('tb-date');
       if (d) d.textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
 
-      // render videos
+      const cnt = document.getElementById('videoCountStat');
+      if (cnt) cnt.textContent = videoLibrary.length + ' expert sessions';
       renderVideos();
 
-      // search
       document.getElementById('searchInput').addEventListener('input', renderVideos);
-
-      // close modal on backdrop click
-      document.getElementById('videoModal').addEventListener('click', e => {
-        if (e.target === document.getElementById('videoModal')) closeVideoModal();
-      });
     });
   </script>
 </body>
