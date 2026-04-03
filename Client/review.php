@@ -939,9 +939,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
         <div id="videoGrid" class="video-grid"></div>
 
-        <!-- Test Button (remove after testing) -->
-        <button onclick="testModal()" style="margin: 1rem 0; padding: 0.5rem 1rem; background: var(--blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Test Modal</button>
-
         <!-- Video Modal -->
         <div id="videoModal" class="video-modal">
           <div class="modal-content">

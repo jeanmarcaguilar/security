@@ -1,5 +1,6 @@
 <?php
 require_once 'includes/config.php';
+require_once 'includes/audit_helper.php';
 
 // Handle login POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -70,6 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['full_name'] = $user['full_name'];
                 $_SESSION['logged_in'] = true;
+                
+                // Create audit log for successful login
+                createAuditLog($db, $user['id'], 'login', 'User logged in successfully', getClientIP(), getClientUserAgent());
                 
                 // Determine redirect URL based on role
                 $redirect_url = $user['role'] === 'Admin' ? 
