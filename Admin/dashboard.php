@@ -53,18 +53,9 @@ try {
     $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get real assessment data with category breakdown
+    // Get real assessment data with overall scores
     $stmt = $db->prepare("
-        SELECT a.*, u.full_name, u.store_name, 
-               CASE 
-                   WHEN a.password_score > 0 THEN 'Password Security'
-                   WHEN a.phishing_score > 0 THEN 'Phishing'
-                   WHEN a.device_score > 0 THEN 'Device Security'
-                   WHEN a.network_score > 0 THEN 'Network Security'
-                   WHEN a.social_engineering_score > 0 THEN 'Social Engineering'
-                   WHEN a.data_handling_score > 0 THEN 'Data Handling'
-                   ELSE 'General'
-               END as category
+        SELECT a.*, u.full_name, u.store_name 
         FROM assessments a 
         JOIN users u ON a.vendor_id = u.id 
         ORDER BY a.assessment_date DESC
@@ -72,30 +63,17 @@ try {
     $stmt->execute();
     $allAssessments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Transform assessment data to match expected format
+    // Transform assessment data to match expected format - use overall scores
     foreach ($allAssessments as $assessment) {
-        $categories = [
-            ['name' => 'Password Security', 'score' => $assessment['password_score']],
-            ['name' => 'Phishing', 'score' => $assessment['phishing_score']],
-            ['name' => 'Device Security', 'score' => $assessment['device_score']],
-            ['name' => 'Network Security', 'score' => $assessment['network_score']],
-            ['name' => 'Social Engineering', 'score' => $assessment['social_engineering_score']],
-            ['name' => 'Data Handling', 'score' => $assessment['data_handling_score']]
+        $assessments[] = [
+            'id' => $assessment['id'],
+            'vid' => $assessment['vendor_id'],
+            'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+            'score' => $assessment['score'],
+            'rank' => ($assessment['score'] >= 80) ? 'A' : (($assessment['score'] >= 60) ? 'B' : (($assessment['score'] >= 40) ? 'C' : 'D')),
+            'cat' => 'Overall Assessment',
+            'date' => date('Y-m-d', strtotime($assessment['assessment_date']))
         ];
-        
-        foreach ($categories as $cat) {
-            if ($cat['score'] > 0) {
-                $assessments[] = [
-                    'id' => count($assessments) + 1,
-                    'vid' => $assessment['vendor_id'],
-                    'vname' => $assessment['full_name'] ?: $assessment['store_name'],
-                    'score' => $cat['score'],
-                    'rank' => ($cat['score'] >= 80) ? 'A' : (($cat['score'] >= 60) ? 'B' : (($cat['score'] >= 40) ? 'C' : 'D')),
-                    'cat' => $cat['name'],
-                    'date' => date('Y-m-d', strtotime($assessment['assessment_date']))
-                ];
-            }
-        }
     }
     
     // If no real assessment data exists, create sample data for demonstration
@@ -1981,8 +1959,22 @@ $assessmentsJson = json_encode($assessments);
     }
     function renderTbl() {
       const f = document.getElementById('rank-filter').value;
-      let d = DB_ASSESSMENTS;
+      
+      // Group assessments by user and get only the latest overall score for each user
+      const userLatestScores = {};
+      DB_ASSESSMENTS.forEach(a => {
+        if (!userLatestScores[a.vid] || a.date > userLatestScores[a.vid].date) {
+          userLatestScores[a.vid] = a;
+        }
+      });
+      
+      // Convert to array and filter by rank if specified
+      let d = Object.values(userLatestScores);
       if (f) d = d.filter(a => a.rank === f);
+      
+      // Sort by date (most recent first)
+      d.sort((a, b) => new Date(b.date) - new Date(a.date));
+      
       const tp = Math.ceil(d.length / PS);
       if (pg > tp) pg = 1;
       const sl = d.slice((pg - 1) * PS, pg * PS);
@@ -1992,7 +1984,7 @@ $assessmentsJson = json_encode($assessments);
       <td style="font-weight:600">${a.vname}</td>
       <td><div class="sbw"><div class="sbb"><div class="sbf" style="width:${a.score}%;background:${sc(a.score)}"></div></div><span class="sbn">${a.score}%</span></div></td>
       <td><span class="rank r${a.rank}">${a.rank}</span></td>
-      <td style="color:var(--muted2);font-size:.78rem">${a.cat}</td>
+      <td style="color:var(--muted2);font-size:.78rem">Overall Assessment</td>
       <td style="color:var(--muted2);font-family:var(--mono);font-size:.72rem">${a.date}</td>
       <td><button class="btn btn-s btn-sm" onclick="event.stopPropagation();openModal(${a.id})">View</button></td>
     </tr>`).join('');

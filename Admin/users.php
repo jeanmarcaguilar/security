@@ -12,6 +12,38 @@ if (!isset($_SESSION['user_id'])) {
 $database = new Database();
 $db = $database->getConnection();
 
+// Get current admin user data - prioritize session variables set by profile update
+if (isset($_SESSION['user_full_name'])) {
+    // Use session data if available (set by profile update)
+    $user = [
+        'id' => $_SESSION['user_id'],
+        'full_name' => $_SESSION['user_full_name'],
+        'email' => $_SESSION['user_email'],
+        'store_name' => $_SESSION['user_store_name'] ?? '',
+        'role' => $_SESSION['user_role'] ?? 'Admin'
+    ];
+} else {
+    // Fallback to database query and initialize session variables
+    $user_query = "SELECT * FROM users WHERE id = :user_id";
+    $stmt = $db->prepare($user_query);
+    $stmt->bindParam(':user_id', $_SESSION['user_id']);
+    $stmt->execute();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Initialize session variables for consistency
+    if ($user) {
+        $_SESSION['user_full_name'] = $user['full_name'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_store_name'] = $user['store_name'];
+        $_SESSION['user_role'] = $user['role'];
+    }
+}
+
+if (!$user) {
+  header('Location: ../index.html');
+  exit();
+}
+
 // Fetch users from database with real assessment data
 $users = [];
 $assessments = [];
@@ -42,23 +74,24 @@ try {
     }
     
     // Merge assessment data with user data
-    foreach ($users as &$user) {
-        $userId = $user['id'];
+    foreach ($users as &$u) {
+        $userId = $u['id'];
         
         if (isset($assessmentLookup[$userId])) {
             $stats = $assessmentLookup[$userId];
-            $user['latest_score'] = (int)$stats['latest_score'];
-            $user['latest_date'] = $stats['latest_date'];
-            $user['assessment_count'] = (int)$stats['assessment_count'];
-            $user['avg_score'] = (int)$stats['avg_score'];
+            $u['latest_score'] = (int)$stats['latest_score'];
+            $u['latest_date'] = $stats['latest_date'];
+            $u['assessment_count'] = (int)$stats['assessment_count'];
+            $u['avg_score'] = (int)$stats['avg_score'];
         } else {
             // Fallback to users table data if no assessments found
-            $user['latest_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
-            $user['latest_date'] = $user['last_assessment_date'];
-            $user['assessment_count'] = (int)$user['total_assessments'];
-            $user['avg_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
+            $u['latest_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
+            $u['latest_date'] = $u['last_assessment_date'];
+            $u['assessment_count'] = (int)$u['total_assessments'];
+            $u['avg_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
         }
     }
+    unset($u); // break reference to avoid variable shadowing
     
 } catch(PDOException $exception) {
     error_log("Error fetching users: " . $exception->getMessage());
@@ -139,23 +172,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                     
                     // Merge assessment data with user data
-                    foreach ($users as &$user) {
-                        $userId = $user['id'];
+                    foreach ($users as &$u) {
+                        $userId = $u['id'];
                         
                         if (isset($assessmentLookup[$userId])) {
                             $stats = $assessmentLookup[$userId];
-                            $user['latest_score'] = (int)$stats['latest_score'];
-                            $user['latest_date'] = $stats['latest_date'];
-                            $user['assessment_count'] = (int)$stats['assessment_count'];
-                            $user['avg_score'] = (int)$stats['avg_score'];
+                            $u['latest_score'] = (int)$stats['latest_score'];
+                            $u['latest_date'] = $stats['latest_date'];
+                            $u['assessment_count'] = (int)$stats['assessment_count'];
+                            $u['avg_score'] = (int)$stats['avg_score'];
                         } else {
                             // Fallback to users table data if no assessments found
-                            $user['latest_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
-                            $user['latest_date'] = $user['last_assessment_date'];
-                            $user['assessment_count'] = (int)$user['total_assessments'];
-                            $user['avg_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
+                            $u['latest_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
+                            $u['latest_date'] = $u['last_assessment_date'];
+                            $u['assessment_count'] = (int)$u['total_assessments'];
+                            $u['avg_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
                         }
                     }
+    unset($u); // break reference to avoid variable shadowing
                     
                     // Update statistics
                     $totalUsers = count($users);
@@ -1471,9 +1505,9 @@ $usersJson = json_encode($users);
       </div>
       <div class="sb-footer">
         <div class="sb-user">
-          <div class="sb-avatar">A</div>
+          <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p>Admin User</p><span>admin@cybershield.io</span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1546,8 +1580,8 @@ $usersJson = json_encode($users);
           </div>
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
-            <div class="tb-admin-av">A</div>
-            <div class="tb-admin-info"><span class="tb-admin-name">Admin</span><span class="tb-admin-role">Admin</span>
+            <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">

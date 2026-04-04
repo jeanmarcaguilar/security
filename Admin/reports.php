@@ -12,12 +12,32 @@ if (!isset($_SESSION['user_id'])) {
 $database = new Database();
 $db = $database->getConnection();
 
-// Get current admin user data
-$user_query = "SELECT * FROM users WHERE id = :user_id";
-$stmt = $db->prepare($user_query);
-$stmt->bindParam(':user_id', $_SESSION['user_id']);
-$stmt->execute();
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
+// Get current admin user data - prioritize session variables set by profile update
+if (isset($_SESSION['user_full_name'])) {
+    // Use session data if available (set by profile update)
+    $user = [
+        'id' => $_SESSION['user_id'],
+        'full_name' => $_SESSION['user_full_name'],
+        'email' => $_SESSION['user_email'],
+        'store_name' => $_SESSION['user_store_name'] ?? '',
+        'role' => $_SESSION['user_role'] ?? 'Admin'
+    ];
+} else {
+    // Fallback to database query and initialize session variables
+    $user_query = "SELECT * FROM users WHERE id = :user_id";
+    $stmt = $db->prepare($user_query);
+    $stmt->bindParam(':user_id', $_SESSION['user_id']);
+    $stmt->execute();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Initialize session variables for consistency
+    if ($user) {
+        $_SESSION['user_full_name'] = $user['full_name'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_store_name'] = $user['store_name'];
+        $_SESSION['user_role'] = $user['role'];
+    }
+}
 
 if (!$user) {
   header('Location: ../index.html');
@@ -49,7 +69,6 @@ try {
                 u.store_name,
                 a.score,
                 a.rank,
-                a.category,
                 DATE(a.assessment_date) as date
             FROM assessments a
             JOIN users u ON a.vendor_id = u.id
@@ -67,7 +86,7 @@ try {
                 'store' => $assessment['store_name'],
                 'score' => (int)$assessment['score'],
                 'rank' => $assessment['rank'],
-                'cat' => $assessment['category'],
+                'cat' => 'Overall Assessment',
                 'date' => $assessment['date']
             ];
         }
@@ -80,18 +99,18 @@ try {
         if (!$demoExists && !empty($users)) {
             $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
             
-            foreach ($users as $user) {
-                $baseScore = 50 + (($user['id'] * 7) % 45);
+            foreach ($users as $u) {
+                $baseScore = 50 + (($u['id'] * 7) % 45);
                 
                 foreach ($categories as $index => $category) {
-                    $categoryVariation = (($user['id'] + $index) % 31) - 15;
+                    $categoryVariation = (($u['id'] + $index) % 31) - 15;
                     $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
                     $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
                     
                     for ($i = 5; $i >= 0; $i--) {
                         $date = new DateTime();
                         $date->modify("-$i months");
-                        $historicalVariation = ((($user['id'] + $index + $i) % 21) - 10);
+                        $historicalVariation = ((($u['id'] + $index + $i) % 21) - 10);
                         $historicalScore = max(20, min(100, $categoryScore + $historicalVariation));
                         $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
                         
@@ -101,7 +120,7 @@ try {
                             VALUES (?, ?, ?, ?, ?, 1, NOW())
                         ");
                         $stmt->execute([
-                            $user['id'],
+                            $u['id'],
                             $historicalScore,
                             $historicalRank,
                             $category,
@@ -111,7 +130,7 @@ try {
                 }
             }
             
-            foreach ($users as $user) {
+            foreach ($users as $u) {
                 $stmt = $db->prepare("
                     UPDATE users 
                     SET last_assessment_score = (
@@ -121,7 +140,7 @@ try {
                     )
                     WHERE id = ?
                 ");
-                $stmt->execute([$user['id'], $user['id'], $user['id']]);
+                $stmt->execute([$u['id'], $u['id'], $u['id']]);
             }
         }
         
@@ -133,7 +152,6 @@ try {
                 u.store_name,
                 a.score,
                 a.rank,
-                a.category,
                 DATE(a.assessment_date) as date
             FROM assessments a
             JOIN users u ON a.vendor_id = u.id
@@ -150,7 +168,7 @@ try {
                 'store' => $assessment['store_name'],
                 'score' => (int)$assessment['score'],
                 'rank' => $assessment['rank'],
-                'cat' => $assessment['category'],
+                'cat' => 'Overall Assessment',
                 'date' => $assessment['date']
             ];
         }
@@ -159,13 +177,13 @@ try {
 } catch(PDOException $exception) {
     error_log("Error fetching reports data: " . $exception->getMessage());
     if (empty($assessments) && !empty($users)) {
-        foreach ($users as $user) {
-            $deterministicScore = 50 + (($user['id'] * 13) % 50);
+        foreach ($users as $u) {
+            $deterministicScore = 50 + (($u['id'] * 13) % 50);
             $assessments[] = [
-                'id' => $user['id'],
-                'vid' => $user['id'],
-                'vname' => $user['full_name'] ?: $user['store_name'],
-                'store' => $user['store_name'],
+                'id' => $u['id'],
+                'vid' => $u['id'],
+                'vname' => $u['full_name'] ?: $u['store_name'],
+                'store' => $u['store_name'],
                 'score' => $deterministicScore,
                 'rank' => getRankFromScore($deterministicScore),
                 'cat' => 'General Assessment',
