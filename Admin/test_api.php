@@ -1,6 +1,6 @@
 <?php
 // Simple API test
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Test database connection

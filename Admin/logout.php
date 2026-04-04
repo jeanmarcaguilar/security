@@ -1,5 +1,5 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Log the logout activity if user is logged in

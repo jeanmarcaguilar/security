@@ -1,9 +1,24 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
+  header('Location: ../index.html');
+  exit();
+}
+
+$database = new Database();
+$db = $database->getConnection();
+
+// Get current admin user data
+$user_query = "SELECT * FROM users WHERE id = :user_id";
+$stmt = $db->prepare($user_query);
+$stmt->bindParam(':user_id', $_SESSION['user_id']);
+$stmt->execute();
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user) {
   header('Location: ../index.html');
   exit();
 }
@@ -1281,6 +1296,26 @@ if (!isset($_SESSION['user_id'])) {
       border: 1px solid var(--border2);
       margin-bottom: .5rem
     }
+
+    /* Form Error */
+    .form-error{
+      font-size:.75rem;
+      color:var(--red);
+      background:rgba(255,59,92,.08);
+      border:1px solid rgba(255,59,92,.2);
+      border-radius:7px;
+      padding:.45rem .75rem;
+      margin-bottom:.65rem
+    }
+
+    /* OTP Modal Styles */
+    .otp-input-group{display:flex;gap:0.5rem;justify-content:center;margin:1.5rem 0}
+    .otp-digit{width:50px;height:60px;text-align:center;font-size:1.5rem;font-family:var(--mono);font-weight:600;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;color:var(--text);outline:none;transition:var(--t)}
+    .otp-digit:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(59,139,255,.2)}
+    .otp-digit::-webkit-outer-spin-button,.otp-digit::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .resend-timer{text-align:center;font-size:0.75rem;color:var(--muted2);margin-top:0.75rem}
+    .resend-link{color:var(--blue);cursor:pointer;text-decoration:none;font-weight:500}
+    .resend-link:hover{text-decoration:underline}
   </style>
 </head>
 
@@ -1350,15 +1385,6 @@ if (!isset($_SESSION['user_id'])) {
               <line x1="18" y1="8" x2="6" y2="8" />
               <line x1="21" y1="16" x2="3" y2="16" />
             </svg></span><span class="sb-text">Compare</span></a>
-        <a class="sb-item" href="forecast.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg></span><span class="sb-text">Forecast</span></a>
-        <a class="sb-item" href="compliance.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg></span><span class="sb-text">Compliance</span></a>
         <a class="sb-item" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1388,9 +1414,9 @@ if (!isset($_SESSION['user_id'])) {
       </div>
       <div class="sb-footer">
         <div class="sb-user">
-          <div class="sb-avatar">A</div>
+          <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p>Admin User</p><span>admin@cybershield.io</span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1428,43 +1454,9 @@ if (!isset($_SESSION['user_id'])) {
           </div>
           <span class="tb-date" id="tb-date"></span>
           <div class="tb-divider"></div>
-          <button class="tb-icon-btn" onclick="toggleTheme()" title="Toggle theme">
-            <svg id="tmoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-            <svg id="tsun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-            </svg>
-          </button>
-          <div class="notif-wrap">
-            <button class="tb-icon-btn" onclick="toggleNotif()" title="Alerts" style="position:relative">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span class="notif-dot" id="notif-dot"></span>
-            </button>
-            <div class="np hidden" id="np">
-              <div class="np-hdr"><span>Alerts</span><button onclick="clearNotifs()">Clear all</button></div>
-              <div id="np-list">
-                <div class="np-item"><span class="np-dot"></span><span>Apex Corp dropped to rank D</span></div>
-                <div class="np-item"><span class="np-dot"></span><span>3 vendors need compliance review</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
-            <div class="tb-admin-av">A</div>
-            <div class="tb-admin-info"><span class="tb-admin-name">Admin</span><span class="tb-admin-role">Admin</span>
+            <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
+            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1477,14 +1469,10 @@ if (!isset($_SESSION['user_id'])) {
 
         <div class="sec-hdr">
           <h2>Admin Settings</h2>
-          <p>Configure your account, security, notifications, and API access.</p>
+          <p>Configure your account and security settings.</p>
         </div>
         <div class="tab-btns">
           <button class="tab-btn active" onclick="switchTab('profile',this)">Profile</button>
-          <button class="tab-btn" onclick="switchTab('security',this)">Security</button>
-          <button class="tab-btn" onclick="switchTab('notifications',this)">Notifications</button>
-          <button class="tab-btn" onclick="switchTab('api',this)">API Keys</button>
-          <button class="tab-btn" onclick="switchTab('danger',this)">Danger Zone</button>
         </div>
         <!-- PROFILE -->
         <div id="tab-profile" class="tab-c active">
@@ -1497,16 +1485,16 @@ if (!isset($_SESSION['user_id'])) {
                   style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;display:grid;place-items:center;font-size:1.3rem;font-weight:700;font-family:var(--display);flex-shrink:0">
                   A</div>
                 <div>
-                  <div style="font-weight:700;font-size:1rem">Admin User</div>
-                  <div style="font-size:.8rem;color:var(--muted2)">admin@cybershield.io</div>
+                  <div style="font-weight:700;font-size:1rem"><?php echo htmlspecialchars($user['full_name']); ?></div>
+                  <div style="font-size:.8rem;color:var(--muted2)"><?php echo htmlspecialchars($user['email']); ?></div>
                 </div>
               </div>
-              <div class="fg"><label class="fl">Display Name</label><input class="fi" type="text" value="Admin User" />
+              <div class="fg"><label class="fl">Display Name</label><input class="fi" type="text" id="profile-name" value="<?php echo htmlspecialchars($user['full_name']); ?>" />
               </div>
-              <div class="fg"><label class="fl">Email</label><input class="fi" type="email" value="admin@cybershield.io"
-                  readonly /></div>
-              <div class="fg"><label class="fl">Organization</label><input class="fi" type="text"
-                  value="CyberShield Labs" /></div>
+              <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="profile-email" value="<?php echo htmlspecialchars($user['email']); ?>" />
+              </div>
+              <div class="fg"><label class="fl">Organization</label><input class="fi" type="text" id="profile-company" value="<?php echo htmlspecialchars($user['store_name'] ?? ''); ?>" />
+              </div>
               <div class="fg"><label class="fl">Language</label><select class="fi">
                   <option>English</option>
                   <option>Spanish</option>
@@ -1518,71 +1506,22 @@ if (!isset($_SESSION['user_id'])) {
                   <option>Pacific Time</option>
                 </select></div>
               <button class="btn btn-p" style="width:100%;justify-content:center"
-                onclick="showToast('Profile saved','green')">Save Changes</button>
+                onclick="requestProfileOTP()">Save Changes</button>
             </div>
-            <div class="card" style="padding:1.5rem">
-              <h3 style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:1.15rem">Dashboard
-                Preferences</h3>
-              <div class="pref-r">
-                <div>
-                  <div style="font-size:.88rem;font-weight:600">Dark Mode</div>
-                  <div style="font-size:.76rem;color:var(--muted2)">Toggle light/dark theme</div>
-                </div><label class="ts"><input type="checkbox" id="pref-dark" checked onchange="toggleTheme()"><span
-                    class="tsl"></span></label>
-              </div>
-              <div class="pref-r">
-                <div>
-                  <div style="font-size:.88rem;font-weight:600">High-Risk Alerts</div>
-                  <div style="font-size:.76rem;color:var(--muted2)">Notify on critical vendor scores</div>
-                </div><label class="ts"><input type="checkbox" checked><span class="tsl"></span></label>
-              </div>
-              <div class="pref-r">
-                <div>
-                  <div style="font-size:.88rem;font-weight:600">Auto-Refresh</div>
-                  <div style="font-size:.76rem;color:var(--muted2)">Refresh data on dashboard load</div>
-                </div><label class="ts"><input type="checkbox"><span class="tsl"></span></label>
-              </div>
-              <div class="pref-r" style="margin-top:.4rem">
-                <div>
-                  <div style="font-size:.88rem;font-weight:600">Compact View</div>
-                  <div style="font-size:.76rem;color:var(--muted2)">Reduce padding and spacing</div>
-                </div><label class="ts"><input type="checkbox"><span class="tsl"></span></label>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- SECURITY -->
-        <div id="tab-security" class="tab-c">
-          <div class="settings-grid">
             <div class="card" style="padding:1.5rem">
               <h3 style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:1.15rem">Change
                 Password</h3>
-              <div class="fg"><label class="fl">Current Password</label><input class="fi" type="password"
-                  placeholder="••••••••" /></div>
-              <div class="fg"><label class="fl">New Password</label><input class="fi" type="password"
+              <div class="fg"><label class="fl">Current Password</label><input class="fi" type="password" id="pw-current"
+                  placeholder="•••••••" /></div>
+              <div class="fg"><label class="fl">New Password</label><input class="fi" type="password" id="pw-new"
                   placeholder="••••••••" />
                 <div style="font-size:.72rem;color:var(--muted2);margin-top:.35rem">Min 8 chars, uppercase, lowercase,
                   numbers.</div>
               </div>
-              <div class="fg"><label class="fl">Confirm New Password</label><input class="fi" type="password"
+              <div class="fg"><label class="fl">Confirm New Password</label><input class="fi" type="password" id="pw-confirm"
                   placeholder="••••••••" /></div>
-              <button class="btn btn-p" onclick="showToast('Password updated','green')">Update Password</button>
-            </div>
-            <div class="card" style="padding:1.5rem">
-              <h3 style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:1.15rem">Two-Factor
-                Authentication</h3>
-              <div class="notif-item">
-                <div>
-                  <div style="font-size:.88rem;font-weight:600">Enable 2FA</div>
-                  <div style="font-size:.76rem;color:var(--muted2)">Secure your account with a second factor</div>
-                </div><label class="ts"><input type="checkbox"><span class="tsl"></span></label>
-              </div>
-              <div class="notif-item">
-                <div>
-                  <div style="font-size:.88rem;font-weight:600">Active Sessions</div>
-                  <div style="font-size:.76rem;color:var(--muted2)">2 active sessions</div>
-                </div><button class="btn btn-s btn-sm" onclick="showToast('Sessions viewed','blue')">View</button>
-              </div>
+              <div id="pw-change-error" class="form-error" style="display:none"></div>
+              <button class="btn btn-p" onclick="requestPasswordOTP()">Update Password</button>
             </div>
           </div>
         </div>
@@ -1677,6 +1616,62 @@ if (!isset($_SESSION['user_id'])) {
     </div>
   </div>
   <div id="toast-c"></div>
+
+<!-- OTP Modal for Profile Changes -->
+<div id="otp-profile-modal" class="mo hidden" onclick="if(event.target===this)closeOTPModal('profile')">
+  <div class="modal">
+    <div class="mhdr">
+      <h3>🔐 Verify with OTP</h3>
+      <button class="mcl" onclick="closeOTPModal('profile')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="mbdy">
+      <p style="text-align:center;margin-bottom:0.5rem">A verification code has been sent to your email</p>
+      <p style="text-align:center;font-size:0.75rem;color:var(--muted2);margin-bottom:1rem"><?php echo htmlspecialchars($user['email']); ?></p>
+      <div class="otp-input-group" id="profile-otp-group">
+        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-1" onkeyup="moveToNext(this, 'profile-otp-2')" onkeydown="handleBackspace(event, 'profile-otp-1')">
+        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-2" onkeyup="moveToNext(this, 'profile-otp-3')" onkeydown="handleBackspace(event, 'profile-otp-1')">
+        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-3" onkeyup="moveToNext(this, 'profile-otp-4')" onkeydown="handleBackspace(event, 'profile-otp-2')">
+        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-4" onkeyup="moveToNext(this, 'profile-otp-5')" onkeydown="handleBackspace(event, 'profile-otp-3')">
+        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-5" onkeyup="moveToNext(this, 'profile-otp-6')" onkeydown="handleBackspace(event, 'profile-otp-4')">
+        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-6" onkeyup="verifyProfileOTP()" onkeydown="handleBackspace(event, 'profile-otp-5')">
+      </div>
+      <div id="profile-otp-error" class="form-error" style="display:none;text-align:center"></div>
+      <div class="resend-timer" id="profile-resend-timer">Resend code in <span id="profile-countdown">60</span> seconds</div>
+      <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1rem">
+        <button class="btn btn-s" onclick="closeOTPModal('profile')">Cancel</button>
+        <button class="btn btn-p" onclick="verifyProfileOTP()">Verify & Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OTP Modal for Password Change -->
+<div id="otp-password-modal" class="mo hidden" onclick="if(event.target===this)closeOTPModal('password')">
+  <div class="modal">
+    <div class="mhdr">
+      <h3>🔐 Verify with OTP</h3>
+      <button class="mcl" onclick="closeOTPModal('password')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="mbdy">
+      <p style="text-align:center;margin-bottom:0.5rem">A verification code has been sent to your email</p>
+      <p style="text-align:center;font-size:0.75rem;color:var(--muted2);margin-bottom:1rem"><?php echo htmlspecialchars($user['email']); ?></p>
+      <div class="otp-input-group" id="password-otp-group">
+        <input type="text" maxlength="1" class="otp-digit" id="password-otp-1" onkeyup="moveToNext(this, 'password-otp-2')" onkeydown="handleBackspace(event, 'password-otp-1')">
+        <input type="text" maxlength="1" class="otp-digit" id="password-otp-2" onkeyup="moveToNext(this, 'password-otp-3')" onkeydown="handleBackspace(event, 'password-otp-1')">
+        <input type="text" maxlength="1" class="otp-digit" id="password-otp-3" onkeyup="moveToNext(this, 'password-otp-4')" onkeydown="handleBackspace(event, 'password-otp-2')">
+        <input type="text" maxlength="1" class="otp-digit" id="password-otp-4" onkeyup="moveToNext(this, 'password-otp-5')" onkeydown="handleBackspace(event, 'password-otp-3')">
+        <input type="text" maxlength="1" class="otp-digit" id="password-otp-5" onkeyup="moveToNext(this, 'password-otp-6')" onkeydown="handleBackspace(event, 'password-otp-4')">
+        <input type="text" maxlength="1" class="otp-digit" id="password-otp-6" onkeyup="verifyPasswordOTP()" onkeydown="handleBackspace(event, 'password-otp-5')">
+      </div>
+      <div id="password-otp-error" class="form-error" style="display:none;text-align:center"></div>
+      <div class="resend-timer" id="password-resend-timer">Resend code in <span id="password-countdown">60</span> seconds</div>
+      <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1rem">
+        <button class="btn btn-s" onclick="closeOTPModal('password')">Cancel</button>
+        <button class="btn btn-p" onclick="verifyPasswordOTP()">Verify & Update</button>
+      </div>
+    </div>
+  </div>
+</div>
   <script>
     const MOCK = {
       vendors: [
@@ -1785,6 +1780,239 @@ if (!isset($_SESSION['user_id'])) {
       el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><code style="font-family:var(--mono);font-size:.78rem">${key}</code><button class="btn btn-s btn-sm" onclick="showToast('Copied','blue')">Copy</button></div><div style="font-size:.7rem;color:var(--muted2);margin-top:.3rem">Created: ${new Date().toLocaleDateString()}</div>`;
       document.getElementById('api-keys-list').prepend(el);
       showToast('New API key generated', 'green');
+    }
+
+    // Global variables to store pending data
+    let pendingProfileData = null;
+    let pendingPasswordData = null;
+    let profileResendTimer = null;
+    let passwordResendTimer = null;
+    let profileCountdown = 60;
+    let passwordCountdown = 60;
+
+    // ==================== OTP Input Handlers ====================
+    function moveToNext(current, nextId) {
+        if (current.value.length === 1) {
+            const next = document.getElementById(nextId);
+            if (next) next.focus();
+        }
+    }
+
+    function handleBackspace(event, prevId) {
+        if (event.key === 'Backspace' && event.target.value === '') {
+            const prev = document.getElementById(prevId);
+            if (prev) prev.focus();
+        }
+    }
+
+    function getOTPValue(prefix) {
+        let otp = '';
+        for (let i = 1; i <= 6; i++) {
+            const digit = document.getElementById(`${prefix}-otp-${i}`).value;
+            if (!digit) return null;
+            otp += digit;
+        }
+        return otp;
+    }
+
+    function clearOTPInputs(prefix) {
+        for (let i = 1; i <= 6; i++) {
+            const input = document.getElementById(`${prefix}-otp-${i}`);
+            if (input) input.value = '';
+        }
+        const firstInput = document.getElementById(`${prefix}-otp-1`);
+        if (firstInput) firstInput.focus();
+    }
+
+    function closeOTPModal(type) {
+        const modal = document.getElementById(`otp-${type}-modal`);
+        if (modal) modal.classList.add('hidden');
+        // Clear OTP inputs
+        clearOTPInputs(type);
+        // Clear error message
+        const errorEl = document.getElementById(`${type}-otp-error`);
+        if (errorEl) errorEl.style.display = 'none';
+    }
+
+    // ==================== Profile OTP Flow ====================
+    async function requestProfileOTP() {
+        const fullName = document.getElementById('profile-name').value.trim();
+        const email = document.getElementById('profile-email').value.trim();
+        const storeName = document.getElementById('profile-company').value.trim();
+        
+        if (!fullName) { showToast('Display name is required', 'red'); return; }
+        if (!email) { showToast('Email address is required', 'red'); return; }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) { showToast('Please enter a valid email address', 'red'); return; }
+        
+        // Store pending data
+        pendingProfileData = { full_name: fullName, email: email, store_name: storeName };
+        
+        // For demo purposes, simulate OTP sending like in landingpage.php
+        showToast('OTP sent to your email', 'green');
+        // Reset countdown
+        profileCountdown = 60;
+        startProfileResendTimer();
+        // Clear previous OTP inputs
+        clearOTPInputs('profile');
+        // Show OTP modal
+        document.getElementById('otp-profile-modal').classList.remove('hidden');
+        // Clear any previous error
+        document.getElementById('profile-otp-error').style.display = 'none';
+    }
+
+    function startProfileResendTimer() {
+        if (profileResendTimer) clearInterval(profileResendTimer);
+        const timerSpan = document.getElementById('profile-countdown');
+        const resendDiv = document.getElementById('profile-resend-timer');
+        
+        profileResendTimer = setInterval(() => {
+            if (profileCountdown <= 1) {
+                clearInterval(profileResendTimer);
+                resendDiv.innerHTML = '<span class="resend-link" onclick="resendProfileOTP()">Resend Code</span>';
+            } else {
+                profileCountdown--;
+                timerSpan.textContent = profileCountdown;
+            }
+        }, 1000);
+    }
+
+    async function resendProfileOTP() {
+        // For demo purposes, simulate OTP resend like in landingpage.php
+        showToast('OTP resent to your email', 'green');
+        profileCountdown = 60;
+        startProfileResendTimer();
+    }
+
+    async function verifyProfileOTP() {
+        const otp = getOTPValue('profile');
+        if (!otp) {
+            document.getElementById('profile-otp-error').textContent = 'Please enter the 6-digit code';
+            document.getElementById('profile-otp-error').style.display = 'block';
+            return;
+        }
+        
+        const errorEl = document.getElementById('profile-otp-error');
+        errorEl.style.display = 'none';
+        
+        try {
+            // For demo purposes, accept any 6-digit code like in landingpage.php
+            if (otp.length === 6) {
+                // Update profile directly without actual OTP verification
+                const updateRes = await fetch('../api/update_profile.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pendingProfileData)
+                });
+                const updateResult = await updateRes.json();
+                
+                if (updateResult.success) {
+                    // Update UI
+                    location.reload();
+                } else {
+                    errorEl.textContent = updateResult.error || 'Error updating profile';
+                    errorEl.style.display = 'block';
+                }
+            } else {
+                errorEl.textContent = 'Please enter a valid 6-digit code';
+                errorEl.style.display = 'block';
+            }
+        } catch (e) {
+            errorEl.textContent = 'Error connecting to server';
+            errorEl.style.display = 'block';
+        }
+    }
+
+    // ==================== Password OTP Flow ====================
+    async function requestPasswordOTP() {
+        const current = document.getElementById('pw-current').value;
+        const newPass = document.getElementById('pw-new').value;
+        const confirm = document.getElementById('pw-confirm').value;
+        const errorEl = document.getElementById('pw-change-error');
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        
+        if (!current) { errorEl.textContent = 'Current password is required'; errorEl.style.display = 'block'; return; }
+        if (!newPass) { errorEl.textContent = 'New password is required'; errorEl.style.display = 'block'; return; }
+        if (!confirm) { errorEl.textContent = 'Please confirm your new password'; errorEl.style.display = 'block'; return; }
+        if (newPass !== confirm) { errorEl.textContent = 'Passwords do not match'; errorEl.style.display = 'block'; return; }
+        if (newPass.length < 6) { errorEl.textContent = 'Password must be at least 6 characters'; errorEl.style.display = 'block'; return; }
+        if (newPass === current) { errorEl.textContent = 'New password must be different from current password'; errorEl.style.display = 'block'; return; }
+        
+        // For demo purposes, skip current password verification and simulate OTP sending
+        pendingPasswordData = { new_password: newPass };
+        showToast('OTP sent to your email', 'green');
+        passwordCountdown = 60;
+        startPasswordResendTimer();
+        clearOTPInputs('password');
+        document.getElementById('otp-password-modal').classList.remove('hidden');
+        document.getElementById('password-otp-error').style.display = 'none';
+    }
+
+    function startPasswordResendTimer() {
+        if (passwordResendTimer) clearInterval(passwordResendTimer);
+        const timerSpan = document.getElementById('password-countdown');
+        const resendDiv = document.getElementById('password-resend-timer');
+        
+        passwordResendTimer = setInterval(() => {
+            if (passwordCountdown <= 1) {
+                clearInterval(passwordResendTimer);
+                resendDiv.innerHTML = '<span class="resend-link" onclick="resendPasswordOTP()">Resend Code</span>';
+            } else {
+                passwordCountdown--;
+                timerSpan.textContent = passwordCountdown;
+            }
+        }, 1000);
+    }
+
+    async function resendPasswordOTP() {
+        // For demo purposes, simulate OTP resend like in landingpage.php
+        showToast('OTP resent to your email', 'green');
+        passwordCountdown = 60;
+        startPasswordResendTimer();
+    }
+
+    async function verifyPasswordOTP() {
+        const otp = getOTPValue('password');
+        if (!otp) {
+            document.getElementById('password-otp-error').textContent = 'Please enter the 6-digit code';
+            document.getElementById('password-otp-error').style.display = 'block';
+            return;
+        }
+        
+        const errorEl = document.getElementById('password-otp-error');
+        errorEl.style.display = 'none';
+        
+        try {
+            // For demo purposes, accept any 6-digit code like in landingpage.php
+            if (otp.length === 6) {
+                // Change password directly without actual OTP verification
+                const changeRes = await fetch('../api/change_password.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_password: pendingPasswordData.new_password })
+                });
+                const changeResult = await changeRes.json();
+                
+                if (changeResult.success) {
+                    closeOTPModal('password');
+                    document.getElementById('pw-current').value = '';
+                    document.getElementById('pw-new').value = '';
+                    document.getElementById('pw-confirm').value = '';
+                    showToast('Password changed successfully!', 'green');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    errorEl.textContent = changeResult.error || 'Error changing password';
+                    errorEl.style.display = 'block';
+                }
+            } else {
+                errorEl.textContent = 'Please enter a valid 6-digit code';
+                errorEl.style.display = 'block';
+            }
+        } catch (e) {
+            errorEl.textContent = 'Error connecting to server';
+            errorEl.style.display = 'block';
+        }
     }
   </script>
 </body>

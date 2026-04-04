@@ -1,11 +1,58 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
+require_once '../includes/activity_logger.php';
 session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
   header('Location: ../index.html');
   exit();
+}
+
+// Handle clear log action
+if (isset($_POST['action']) && $_POST['action'] === 'clear_log') {
+    try {
+        $database = new Database();
+        $db = $database->getConnection();
+        
+        // Only clear logs older than 30 days for safety
+        $query = "DELETE FROM audit_log WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        
+        logActivity('data_clear', 'Admin cleared activity log (30+ days old)');
+        echo json_encode(['success' => true, 'message' => 'Activity log cleared']);
+        exit;
+    } catch(PDOException $exception) {
+        echo json_encode(['success' => false, 'message' => 'Error clearing log']);
+        exit;
+    }
+}
+
+// Handle API requests for pagination
+if (isset($_GET['page']) || isset($_GET['count'])) {
+    header('Content-Type: application/json');
+    
+    try {
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+        $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+        $offset = ($page - 1) * $limit;
+        
+        if (isset($_GET['count'])) {
+            // Return total count
+            $count = getActivitiesCount($filter);
+            echo json_encode(['count' => $count]);
+        } else {
+            // Return activities for current page
+            $activities = getRecentActivities($limit, $filter, $offset);
+            echo json_encode(['activities' => $activities]);
+        }
+        exit;
+    } catch(Exception $e) {
+        echo json_encode(['error' => 'Error fetching data']);
+        exit;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -1268,15 +1315,6 @@ if (!isset($_SESSION['user_id'])) {
               <line x1="18" y1="8" x2="6" y2="8" />
               <line x1="21" y1="16" x2="3" y2="16" />
             </svg></span><span class="sb-text">Compare</span></a>
-        <a class="sb-item" href="forecast.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg></span><span class="sb-text">Forecast</span></a>
-        <a class="sb-item" href="compliance.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg></span><span class="sb-text">Compliance</span></a>
         <a class="sb-item" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1403,16 +1441,18 @@ if (!isset($_SESSION['user_id'])) {
             <div class="frow">
               <select class="fsel" id="act-f" onchange="renderAct()">
                 <option value="">All Events</option>
-                <option value="export">Export</option>
-                <option value="flag">Flag</option>
-                <option value="refresh">Refresh</option>
-                <option value="alert">Alert</option>
-                <option value="profile">Profile</option>
+                <option value="login">Login</option>
+                <option value="profile_update">Profile Update</option>
+                <option value="password_change">Password Change</option>
+                <option value="assessment_complete">Assessment Complete</option>
+                <option value="data_clear">Data Clear</option>
+                <option value="other">Other</option>
               </select>
               <button class="btn btn-s btn-sm" onclick="clearAct()">Clear Log</button>
             </div>
           </div>
           <div id="act-list"></div>
+          <div id="pagination"></div>
         </div>
 
       </div>
@@ -1433,34 +1473,16 @@ if (!isset($_SESSION['user_id'])) {
   </div>
   <div id="toast-c"></div>
   <script>
-    const MOCK = {
-      vendors: [
-        { id: 1, name: 'TechNova Solutions' }, { id: 2, name: 'CloudSafe Inc' },
-        { id: 3, name: 'Apex Corp' }, { id: 4, name: 'DataGuard LLC' },
-        { id: 5, name: 'NetShield Pro' }, { id: 6, name: 'Vertex Systems' },
-        { id: 7, name: 'IronCore Security' }, { id: 8, name: 'BlueSky Tech' },
-        { id: 9, name: 'CipherNet' }, { id: 10, name: 'Quantum Sec' },
-        { id: 11, name: 'SafeNet LLC' }, { id: 12, name: 'TrustArc Inc' }
-      ],
-      cats: ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security']
-    };
-    MOCK.assessments = Array.from({ length: 60 }, (_, i) => {
-      const s = Math.round(Math.random() * 78 + 20);
-      const r = s >= 80 ? 'A' : s >= 60 ? 'B' : s >= 40 ? 'C' : 'D';
-      const v = MOCK.vendors[i % MOCK.vendors.length];
-      const d = new Date(2024, Math.floor(Math.random() * 14), Math.floor(Math.random() * 28) + 1);
-      return { id: i + 1, vid: v.id, vname: v.name, score: s, rank: r, cat: MOCK.cats[i % 6], date: d.toISOString().split('T')[0] };
-    });
-    MOCK.activity = [
-      { type: 'export', msg: 'Admin exported CSV report', time: '2 min ago' },
-      { type: 'alert', msg: 'Apex Corp dropped to Rank D', time: '15 min ago' },
-      { type: 'refresh', msg: 'Data refreshed manually', time: '32 min ago' },
-      { type: 'flag', msg: 'NetShield Pro flagged for review', time: '1 hr ago' },
-      { type: 'profile', msg: 'Admin profile updated', time: '3 hrs ago' },
-      { type: 'export', msg: 'PDF report downloaded', time: '5 hrs ago' },
-      { type: 'alert', msg: 'Quantum Sec score dropped 12%', time: '8 hrs ago' },
-    ];
-
+    // Pagination settings
+    const ITEMS_PER_PAGE = 20;
+    let currentPage = 1;
+    let totalItems = 0;
+    let currentFilter = '';
+    
+    // Get real activity data from database
+    const ACTIVITY_COUNT = <?php echo json_encode(getActivitiesCount()); ?>;
+    totalItems = ACTIVITY_COUNT;
+    
     function sc(s) { return s >= 80 ? 'var(--green)' : s >= 60 ? 'var(--yellow)' : s >= 40 ? 'var(--orange)' : 'var(--red)' }
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark' }
     function ax() { return isDark() ? { tick: '#8898b4', grid: 'rgba(59,139,255,.04)', tt: '#0d1421', ttB: 'rgba(255,255,255,.1)', tc: '#dde4f0', bc: '#8898b4' } : { tick: '#64748b', grid: 'rgba(0,0,0,.06)', tt: '#fff', ttB: 'rgba(0,0,0,.1)', tc: '#0f172a', bc: '#475569' } }
@@ -1523,20 +1545,243 @@ if (!isset($_SESSION['user_id'])) {
       if (typeof pageInit === 'function') pageInit();
     });
 
-    const ACT_ICONS = { export: '⬇', alert: '🚨', refresh: '🔄', flag: '🚩', profile: '👤', theme: '🎨' };
-    function pageInit() { renderAct(); }
+    const ACT_ICONS = { 
+      login: '🔐', 
+      profile_update: '👤', 
+      password_change: '🔒', 
+      assessment_complete: '📋', 
+      data_clear: '🗑️',
+      export: '⬇️', 
+      alert: '🚨', 
+      refresh: '🔄', 
+      flag: '🚩', 
+      other: '📝' 
+    };
+    
+    function formatActivityTimeJS(datetime) {
+      const now = new Date();
+      const activityTime = new Date(datetime);
+      const diffMs = now - activityTime;
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 0) {
+        return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
+      } else if (diffHours > 0) {
+        return diffHours + ' hr' + (diffHours > 1 ? 's' : '') + ' ago';
+      } else if (diffMins > 0) {
+        return diffMins + ' min' + (diffMins > 1 ? 's' : '') + ' ago';
+      } else {
+        return 'Just now';
+      }
+    }
+    
+    function pageInit() { 
+      currentPage = 1;
+      renderAct(); 
+    }
+    
     function renderAct() {
       const f = document.getElementById('act-f').value;
-      let d = MOCK.activity;
-      if (f) d = d.filter(a => a.type === f);
-      document.getElementById('act-list').innerHTML = d.length ? d.map(a => `
-    <div style="display:flex;align-items:center;gap:.85rem;padding:.65rem 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:1rem;width:24px;text-align:center">${ACT_ICONS[a.type] || '•'}</span>
-      <div style="flex:1"><div style="font-size:.82rem;font-weight:500">${a.msg}</div><div style="font-size:.7rem;color:var(--muted2);font-family:var(--mono);margin-top:.15rem">${a.time}</div></div>
-      <span style="font-family:var(--mono);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;padding:.2rem .5rem;border-radius:4px;background:rgba(255,255,255,.04);color:var(--muted2)">${a.type}</span>
-    </div>`).join('') : '<p style="color:var(--muted2);font-size:.84rem;padding:.5rem 0">No activity found.</p>';
+      currentFilter = f;
+      
+      // Update total count based on filter
+      fetchActivitiesCount(f).then(count => {
+        totalItems = count;
+        return fetchActivities(currentPage, ITEMS_PER_PAGE, f);
+      }).then(data => {
+        displayActivities(data);
+        renderPagination();
+      }).catch(error => {
+        console.error('Error fetching activities:', error);
+        document.getElementById('act-list').innerHTML = '<p style="color:var(--muted2);font-size:.84rem;padding:.5rem 0">Error loading activities.</p>';
+      });
     }
-    function clearAct() { document.getElementById('act-list').innerHTML = '<p style="color:var(--muted2);font-size:.84rem;padding:.5rem 0">Log cleared.</p>'; showToast('Activity log cleared', 'blue'); }
+    
+    function fetchActivities(page, limit, filter = '') {
+      const offset = (page - 1) * limit;
+      return fetch(`activity.php?page=${page}&limit=${limit}&filter=${filter}`)
+        .then(response => response.json())
+        .then(data => data.activities || []);
+    }
+    
+    function fetchActivitiesCount(filter = '') {
+      return fetch(`activity.php?count=true&filter=${filter}`)
+        .then(response => response.json())
+        .then(data => data.count || 0);
+    }
+    
+    function displayActivities(activities) {
+      document.getElementById('act-list').innerHTML = activities.length ? activities.map(a => {
+        const userDisplay = a.full_name || a.username || 'Unknown User';
+        const description = a.action_description || `${a.action_type.replace('_', ' ')} performed`;
+        const timeAgo = formatActivityTimeJS(a.created_at);
+        const ipAddress = a.ip_address || 'Unknown';
+        const userAgent = a.user_agent || '';
+        const deviceInfo = getDeviceInfo(userAgent);
+        
+        return `
+    <div style="display:flex;align-items:flex-start;gap:.85rem;padding:.65rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:1rem;width:24px;text-align:center;flex-shrink:0">${ACT_ICONS[a.action_type] || '📝'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.82rem;font-weight:500;margin-bottom:.25rem">${description}</div>
+        <div style="font-size:.7rem;color:var(--muted2);font-family:var(--mono);line-height:1.4">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem">
+            <span style="color:var(--text);font-weight:500">${userDisplay}</span>
+            <span>•</span>
+            <span>${timeAgo}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+            <span style="display:flex;align-items:center;gap:.3rem">
+              <span style="color:var(--blue)">🌐</span>
+              <span style="color:var(--muted2)">IP:</span>
+              <span style="color:var(--text);font-weight:500">${ipAddress}</span>
+            </span>
+            ${deviceInfo.type ? `
+            <span style="display:flex;align-items:center;gap:.3rem">
+              <span style="color:var(--green)">💻</span>
+              <span style="color:var(--muted2)">Device:</span>
+              <span style="color:var(--text);font-weight:500">${deviceInfo.type}</span>
+            </span>` : ''}
+            ${deviceInfo.os ? `
+            <span style="display:flex;aligremove thn-items:center;gap:.3rem">
+              <span style="color:var(--orange)">🖥️</span>
+              <span style="color:var(--muted2)">OS:</span>
+              <span style="color:var(--text);font-weight:500">${deviceInfo.os}</span>
+            </span>` : ''}
+            ${deviceInfo.browser ? `
+            <span style="display:flex;align-items:center;gap:.3rem">
+              <span style="color:var(--purple)">🌍</span>
+              <span style="color:var(--muted2)">Browser:</span>
+              <span style="color:var(--text);font-weight:500">${deviceInfo.browser}</span>
+            </span>` : ''}
+          </div>
+        </div>
+      </div>
+      <span style="font-family:var(--mono);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;padding:.2rem .5rem;border-radius:4px;background:rgba(255,255,255,.04);color:var(--muted2);flex-shrink:0">${a.action_type}</span>
+    </div>`;
+      }).join('') : '<p style="color:var(--muted2);font-size:.84rem;padding:.5rem 0">No activity found.</p>';
+    }
+    
+    function renderPagination() {
+      const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+      const paginationContainer = document.getElementById('pagination');
+      
+      if (totalPages <= 1) {
+        paginationContainer.innerHTML = '';
+        return;
+      }
+      
+      let paginationHTML = '<div class="pgn">';
+      
+      // Previous button
+      paginationHTML += `<button class="pb" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
+      
+      // Page numbers
+      const maxVisiblePages = 5;
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+      
+      if (startPage > 1) {
+        paginationHTML += `<button class="pb" onclick="goToPage(1)">1</button>`;
+        if (startPage > 2) {
+          paginationHTML += `<span style="padding:0 .5rem;color:var(--muted2)">...</span>`;
+        }
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `<button class="pb ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+      }
+      
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+          paginationHTML += `<span style="padding:0 .5rem;color:var(--muted2)">...</span>`;
+        }
+        paginationHTML += `<button class="pb" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+      }
+      
+      // Next button
+      paginationHTML += `<button class="pb" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
+      
+      paginationHTML += '</div>';
+      
+      // Add info text
+      const startItem = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+      const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
+      paginationHTML += `<div style="text-align:center;margin-top:.5rem;font-size:.75rem;color:var(--muted2);font-family:var(--mono)">Showing ${startItem}-${endItem} of ${totalItems} activities</div>`;
+      
+      paginationContainer.innerHTML = paginationHTML;
+    }
+    
+    function goToPage(page) {
+      const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+      if (page < 1 || page > totalPages) return;
+      
+      currentPage = page;
+      renderAct();
+    }
+    
+    function getDeviceInfo(userAgent) {
+      if (!userAgent) return { type: '', os: '', browser: '' };
+      
+      let deviceType = '';
+      let os = '';
+      let browser = '';
+      
+      // Detect device type
+      if (/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
+        deviceType = 'Mobile';
+      } else if (/Tablet|iPad/i.test(userAgent)) {
+        deviceType = 'Tablet';
+      } else {
+        deviceType = 'Desktop';
+      }
+      
+      // Detect OS
+      if (/Windows/i.test(userAgent)) os = 'Windows';
+      else if (/Mac/i.test(userAgent)) os = 'macOS';
+      else if (/Linux/i.test(userAgent)) os = 'Linux';
+      else if (/Android/i.test(userAgent)) os = 'Android';
+      else if (/iOS|iPhone|iPad/i.test(userAgent)) os = 'iOS';
+      
+      // Detect Browser
+      if (/Chrome/i.test(userAgent)) browser = 'Chrome';
+      else if (/Firefox/i.test(userAgent)) browser = 'Firefox';
+      else if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) browser = 'Safari';
+      else if (/Edge/i.test(userAgent)) browser = 'Edge';
+      else if (/Opera/i.test(userAgent)) browser = 'Opera';
+      
+      return { type: deviceType, os: os, browser: browser };
+    }
+    function clearAct() { 
+      if (confirm('Are you sure you want to clear old activity logs (older than 30 days)?')) {
+        fetch('activity.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'action=clear_log'
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showToast(data.message, 'green');
+            currentPage = 1; // Reset to first page
+            renderAct(); // Refresh the display
+          } else {
+            showToast(data.message, 'red');
+          }
+        })
+        .catch(error => {
+          showToast('Error clearing log', 'red');
+        });
+      }
+    }
   </script>
 </body>
 

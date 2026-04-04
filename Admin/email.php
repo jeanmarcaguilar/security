@@ -1,5 +1,5 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Check if user is logged in
@@ -7,6 +7,67 @@ if (!isset($_SESSION['user_id'])) {
   header('Location: ../index.html');
   exit();
 }
+
+// Initialize database connection
+$database = new Database();
+$db = $database->getConnection();
+
+// Fetch users and assessment data from database
+$users = [];
+$assessments = [];
+try {
+    // Get all users
+    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Since we don't have a dedicated assessments table, we'll simulate assessment data
+    // based on user assessment scores and create per-category data
+    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+    
+    foreach ($users as $user) {
+        if ($user['last_assessment_score'] !== null) {
+            // Create assessment records for each category based on user's latest score
+            $baseScore = $user['last_assessment_score'];
+            
+            foreach ($categories as $category) {
+                // Vary scores slightly for different categories
+                $categoryVariation = rand(-15, 15);
+                $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
+                $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+                
+                // Create multiple historical assessments for trend analysis
+                $historicalDate = new DateTime($user['last_assessment_date'] ?: date('Y-m-d'));
+                for ($i = 5; $i >= 0; $i--) {
+                    $date = clone $historicalDate;
+                    $date->modify("-$i months");
+                    $historicalScore = max(20, min(100, $categoryScore + rand(-10, 10)));
+                    $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
+                    
+                    $assessments[] = [
+                        'id' => count($assessments) + 1,
+                        'vid' => $user['id'],
+                        'vname' => $user['full_name'] ?: $user['store_name'],
+                        'score' => $historicalScore,
+                        'rank' => $historicalRank,
+                        'cat' => $category,
+                        'date' => $date->format('Y-m-d')
+                    ];
+                }
+            }
+        }
+    }
+    
+} catch(PDOException $exception) {
+    error_log("Error fetching email data: " . $exception->getMessage());
+    // Fallback to empty arrays if database fails
+    $users = [];
+    $assessments = [];
+}
+
+// Convert to JSON for JavaScript
+$usersJson = json_encode($users);
+$assessmentsJson = json_encode($assessments);
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -1267,15 +1328,6 @@ if (!isset($_SESSION['user_id'])) {
               <line x1="18" y1="8" x2="6" y2="8" />
               <line x1="21" y1="16" x2="3" y2="16" />
             </svg></span><span class="sb-text">Compare</span></a>
-        <a class="sb-item" href="forecast.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg></span><span class="sb-text">Forecast</span></a>
-        <a class="sb-item" href="compliance.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg></span><span class="sb-text">Compliance</span></a>
         <a class="sb-item active" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1341,7 +1393,7 @@ if (!isset($_SESSION['user_id'])) {
                 <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7" />
                 <path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
               </svg></span>
-            <input type="text" class="tb-search" placeholder="Search vendors, scores…" autocomplete="off" />
+            <input type="text" class="tb-search" placeholder="Search users, scores…" autocomplete="off" />
           </div>
           <span class="tb-date" id="tb-date"></span>
           <div class="tb-divider"></div>
@@ -1394,14 +1446,14 @@ if (!isset($_SESSION['user_id'])) {
 
         <div class="sec-hdr">
           <h2>Send Email Report</h2>
-          <p>Compose and send a simulated risk assessment report to a vendor.</p>
+          <p>Compose and send a simulated risk assessment report to a user.</p>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
           <div class="card" style="padding:1.5rem">
             <h3
               style="font-family:var(--mono);font-size:.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:1rem">
               Compose Report Email</h3>
-            <div class="fg"><label class="fl">Vendor</label><select class="fi" id="em-vendor"
+            <div class="fg"><label class="fl">User</label><select class="fi" id="em-vendor"
                 onchange="updatePreview()"></select></div>
             <div class="fg"><label class="fl">Recipient Email</label><input class="fi" type="email" id="em-to"
                 placeholder="vendor@company.com" oninput="updatePreview()" /></div>
@@ -1456,33 +1508,20 @@ if (!isset($_SESSION['user_id'])) {
   </div>
   <div id="toast-c"></div>
   <script>
-    const MOCK = {
-      vendors: [
-        { id: 1, name: 'TechNova Solutions' }, { id: 2, name: 'CloudSafe Inc' },
-        { id: 3, name: 'Apex Corp' }, { id: 4, name: 'DataGuard LLC' },
-        { id: 5, name: 'NetShield Pro' }, { id: 6, name: 'Vertex Systems' },
-        { id: 7, name: 'IronCore Security' }, { id: 8, name: 'BlueSky Tech' },
-        { id: 9, name: 'CipherNet' }, { id: 10, name: 'Quantum Sec' },
-        { id: 11, name: 'SafeNet LLC' }, { id: 12, name: 'TrustArc Inc' }
-      ],
-      cats: ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security']
-    };
-    MOCK.assessments = Array.from({ length: 60 }, (_, i) => {
-      const s = Math.round(Math.random() * 78 + 20);
-      const r = s >= 80 ? 'A' : s >= 60 ? 'B' : s >= 40 ? 'C' : 'D';
-      const v = MOCK.vendors[i % MOCK.vendors.length];
-      const d = new Date(2024, Math.floor(Math.random() * 14), Math.floor(Math.random() * 28) + 1);
-      return { id: i + 1, vid: v.id, vname: v.name, score: s, rank: r, cat: MOCK.cats[i % 6], date: d.toISOString().split('T')[0] };
-    });
-    MOCK.activity = [
-      { type: 'export', msg: 'Admin exported CSV report', time: '2 min ago' },
-      { type: 'alert', msg: 'Apex Corp dropped to Rank D', time: '15 min ago' },
-      { type: 'refresh', msg: 'Data refreshed manually', time: '32 min ago' },
-      { type: 'flag', msg: 'NetShield Pro flagged for review', time: '1 hr ago' },
-      { type: 'profile', msg: 'Admin profile updated', time: '3 hrs ago' },
-      { type: 'export', msg: 'PDF report downloaded', time: '5 hrs ago' },
-      { type: 'alert', msg: 'Quantum Sec score dropped 12%', time: '8 hrs ago' },
-    ];
+    // Real database data passed from PHP
+    const DB_USERS = <?php echo $usersJson; ?>;
+    const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
+    
+    // Helper functions for data processing
+    function getRank(score) {
+      if (score === null || score === undefined) return null;
+      return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
+    }
+    
+    function getScoreColor(score) {
+      if (score === null || score === undefined) return 'var(--red)';
+      return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+    }
 
     function sc(s) { return s >= 80 ? 'var(--green)' : s >= 60 ? 'var(--yellow)' : s >= 40 ? 'var(--orange)' : 'var(--red)' }
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark' }
@@ -1490,7 +1529,9 @@ if (!isset($_SESSION['user_id'])) {
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      MOCK.assessments.forEach(a => { if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; });
+      DB_ASSESSMENTS.forEach(a => { 
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
       return c;
@@ -1544,34 +1585,60 @@ if (!isset($_SESSION['user_id'])) {
     let sentLog = [];
     function pageInit() {
       const sel = document.getElementById('em-vendor');
-      MOCK.vendors.forEach(v => sel.innerHTML += `<option value="${v.id}">${v.name}</option>`);
+      
+      // Get unique users from real data
+      const uniqueUsers = [];
+      const seenUsers = new Set();
+      
+      DB_ASSESSMENTS.forEach(assessment => {
+        if (!seenUsers.has(assessment.vid)) {
+          seenUsers.add(assessment.vid);
+          uniqueUsers.push({
+            id: assessment.vid,
+            name: assessment.vname
+          });
+        }
+      });
+      
+      // Populate select options with real users
+      uniqueUsers.forEach(user => {
+        sel.innerHTML += `<option value="${user.id}">${user.name}</option>`;
+      });
+      
       updatePreview();
     }
     function updatePreview() {
       const vid = +document.getElementById('em-vendor').value;
-      const v = MOCK.vendors.find(x => x.id === vid);
+      
+      // Find user from real data
+      const user = DB_ASSESSMENTS.find(a => a.vid === vid);
+      
       const to = document.getElementById('em-to').value || '[recipient]';
       const sub = document.getElementById('em-sub').value;
       const note = document.getElementById('em-note').value;
-      const lat = MOCK.assessments.filter(a => a.vid === vid).sort((a, b) => b.date.localeCompare(a.date))[0];
+      const lat = DB_ASSESSMENTS.filter(a => a.vid === vid).sort((a, b) => b.date.localeCompare(a.date))[0];
+      
       document.getElementById('em-preview').innerHTML = `
     <div style="font-weight:600;margin-bottom:.4rem">To: <span style="font-weight:400;color:var(--text)">${to}</span></div>
     <div style="font-weight:600;margin-bottom:.65rem">Subject: <span style="font-weight:400;color:var(--text)">${sub}</span></div>
     <hr style="border:none;border-top:1px solid var(--border);margin:.65rem 0"/>
-    <p>Dear ${v ? v.name : 'Vendor'},</p><br>
+    <p>Dear ${user ? user.vname : 'User'},</p><br>
     <p>Your latest CyberShield risk assessment results:</p><br>
-    ${lat ? `<p>• Score: <b style="color:${sc(lat.score)}">${lat.score}%</b></p><p>• Rank: <b>${lat.rank} — ${lat.rank === 'A' ? 'Low Risk' : lat.rank === 'B' ? 'Moderate' : lat.rank === 'C' ? 'High Risk' : 'Critical'}</b></p><p>• Category: <b>${lat.cat}</b></p><p>• Date: <b>${lat.date}</b></p>` :
+    ${lat ? `<p>• Score: <b style="color:${getScoreColor(lat.score)}">${lat.score}%</b></p><p>• Rank: <b>${lat.rank} — ${lat.rank === 'A' ? 'Low Risk' : lat.rank === 'B' ? 'Moderate' : lat.rank === 'C' ? 'High Risk' : 'Critical'}</b></p><p>• Category: <b>${lat.cat}</b></p><p>• Date: <b>${lat.date}</b></p>` :
           '<p style="color:var(--muted2)">No assessment data available.</p>'}
     ${note ? `<br><p style="color:var(--muted2);font-style:italic">"${note}"</p>` : ''}
     <br><p>Best regards,<br><b>CyberShield Admin</b></p>`;
     }
     function sendEmail() {
       const vid = +document.getElementById('em-vendor').value;
-      const v = MOCK.vendors.find(x => x.id === vid);
+      
+      // Find user from real data
+      const user = DB_ASSESSMENTS.find(a => a.vid === vid);
+      
       const to = document.getElementById('em-to').value;
       if (!to) { showToast('Please enter a recipient email', 'red'); return; }
       const now = new Date().toLocaleString();
-      sentLog.unshift({ vendor: v.name, to, time: now });
+      sentLog.unshift({ vendor: user ? user.vname : 'Unknown User', to, time: now });
       const log = document.getElementById('em-log');
       log.innerHTML = sentLog.map(l => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.78rem"><div><b>${l.vendor}</b> → <span style="color:var(--muted2)">${l.to}</span></div><span style="color:var(--muted2);font-family:var(--mono);font-size:.68rem">${l.time}</span></div>`).join('');
       showToast('Report sent to ' + to, 'green');

@@ -1,5 +1,5 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Check if user is logged in
@@ -7,6 +7,181 @@ if (!isset($_SESSION['user_id'])) {
   header('Location: ../index.html');
   exit();
 }
+
+// Initialize database connection
+$database = new Database();
+$db = $database->getConnection();
+
+// Fetch users from database with real assessment data
+$users = [];
+$assessments = [];
+try {
+    // Get all users
+    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get real assessment data for each user
+    $stmt = $db->prepare("
+        SELECT 
+            vendor_id,
+            COUNT(*) as assessment_count,
+            MAX(score) as latest_score,
+            MAX(assessment_date) as latest_date,
+            AVG(score) as avg_score
+        FROM assessments 
+        GROUP BY vendor_id
+    ");
+    $stmt->execute();
+    $assessmentStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Create lookup array for assessment stats
+    $assessmentLookup = [];
+    foreach ($assessmentStats as $stat) {
+        $assessmentLookup[$stat['vendor_id']] = $stat;
+    }
+    
+    // Merge assessment data with user data
+    foreach ($users as &$user) {
+        $userId = $user['id'];
+        
+        if (isset($assessmentLookup[$userId])) {
+            $stats = $assessmentLookup[$userId];
+            $user['latest_score'] = (int)$stats['latest_score'];
+            $user['latest_date'] = $stats['latest_date'];
+            $user['assessment_count'] = (int)$stats['assessment_count'];
+            $user['avg_score'] = (int)$stats['avg_score'];
+        } else {
+            // Fallback to users table data if no assessments found
+            $user['latest_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
+            $user['latest_date'] = $user['last_assessment_date'];
+            $user['assessment_count'] = (int)$user['total_assessments'];
+            $user['avg_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
+        }
+    }
+    
+} catch(PDOException $exception) {
+    error_log("Error fetching users: " . $exception->getMessage());
+    // Fallback to empty arrays if database fails
+    $users = [];
+    $assessments = [];
+}
+
+// Calculate statistics
+$totalUsers = count($users);
+$activeUsers = count(array_filter($users, function($user) { return $user['is_active']; }));
+$inactiveUsers = $totalUsers - $activeUsers;
+$highRiskUsers = count(array_filter($users, function($user) { 
+    return $user['latest_score'] !== null && $user['latest_score'] < 40; 
+}));
+
+// Handle add user request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
+    $response = ['success' => false, 'message' => ''];
+    
+    try {
+        // Validate input
+        $full_name = sanitizeInput($_POST['full_name'] ?? '');
+        $email = sanitizeInput($_POST['email'] ?? '');
+        $store_name = sanitizeInput($_POST['store_name'] ?? '');
+        $username = sanitizeInput($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role = sanitizeInput($_POST['role'] ?? 'Seller');
+        
+        if (empty($full_name) || empty($email) || empty($username) || empty($password)) {
+            $response['message'] = 'All required fields must be filled';
+        } elseif (!validateEmail($email)) {
+            $response['message'] = 'Invalid email format';
+        } else {
+            // Check if username or email already exists
+            $check_stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+            $check_stmt->execute([$username, $email]);
+            
+            if ($check_stmt->fetch()) {
+                $response['message'] = 'Username or email already exists';
+            } else {
+                // Hash password
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                
+                // Insert new user
+                $insert_stmt = $db->prepare("
+                    INSERT INTO users (username, password_hash, email, full_name, store_name, role, is_active) 
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                ");
+                
+                if ($insert_stmt->execute([$username, $password_hash, $email, $full_name, $store_name, $role])) {
+                    $response['success'] = true;
+                    $response['message'] = 'User added successfully';
+                    
+                    // Refresh users data with real assessment data
+                    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+                    $stmt->execute();
+                    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Get real assessment data for each user
+                    $stmt = $db->prepare("
+                        SELECT 
+                            vendor_id,
+                            COUNT(*) as assessment_count,
+                            MAX(score) as latest_score,
+                            MAX(assessment_date) as latest_date,
+                            AVG(score) as avg_score
+                        FROM assessments 
+                        GROUP BY vendor_id
+                    ");
+                    $stmt->execute();
+                    $assessmentStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Create lookup array for assessment stats
+                    $assessmentLookup = [];
+                    foreach ($assessmentStats as $stat) {
+                        $assessmentLookup[$stat['vendor_id']] = $stat;
+                    }
+                    
+                    // Merge assessment data with user data
+                    foreach ($users as &$user) {
+                        $userId = $user['id'];
+                        
+                        if (isset($assessmentLookup[$userId])) {
+                            $stats = $assessmentLookup[$userId];
+                            $user['latest_score'] = (int)$stats['latest_score'];
+                            $user['latest_date'] = $stats['latest_date'];
+                            $user['assessment_count'] = (int)$stats['assessment_count'];
+                            $user['avg_score'] = (int)$stats['avg_score'];
+                        } else {
+                            // Fallback to users table data if no assessments found
+                            $user['latest_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
+                            $user['latest_date'] = $user['last_assessment_date'];
+                            $user['assessment_count'] = (int)$user['total_assessments'];
+                            $user['avg_score'] = $user['last_assessment_score'] ? (int)$user['last_assessment_score'] : null;
+                        }
+                    }
+                    
+                    // Update statistics
+                    $totalUsers = count($users);
+                    $activeUsers = count(array_filter($users, function($user) { return $user['is_active']; }));
+                    $inactiveUsers = $totalUsers - $activeUsers;
+                    $highRiskUsers = count(array_filter($users, function($user) { 
+                        return $user['latest_score'] !== null && $user['latest_score'] < 40; 
+                    }));
+                    
+                    $usersJson = json_encode($users);
+                } else {
+                    $response['message'] = 'Failed to add user';
+                }
+            }
+        }
+    } catch (PDOException $exception) {
+        $response['message'] = 'Database error: ' . $exception->getMessage();
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
+}
+
+// Convert users to JSON for JavaScript
+$usersJson = json_encode($users);
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -1267,15 +1442,6 @@ if (!isset($_SESSION['user_id'])) {
               <line x1="18" y1="8" x2="6" y2="8" />
               <line x1="21" y1="16" x2="3" y2="16" />
             </svg></span><span class="sb-text">Compare</span></a>
-        <a class="sb-item" href="forecast.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg></span><span class="sb-text">Forecast</span></a>
-        <a class="sb-item" href="compliance.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg></span><span class="sb-text">Compliance</span></a>
         <a class="sb-item" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1406,7 +1572,7 @@ if (!isset($_SESSION['user_id'])) {
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
               </svg></div>
             <div class="slabel">Total Vendors</div>
-            <div class="sval">12</div>
+            <div class="sval"><?php echo $totalUsers; ?></div>
             <div class="ssub">Registered</div>
           </div>
           <div class="card stat-card" style="--accent:var(--green)">
@@ -1416,7 +1582,7 @@ if (!isset($_SESSION['user_id'])) {
                 <polyline points="20 6 9 17 4 12" />
               </svg></div>
             <div class="slabel">Active</div>
-            <div class="sval" style="color:var(--green)">10</div>
+            <div class="sval" style="color:var(--green)"><?php echo $activeUsers; ?></div>
             <div class="ssub">Currently active</div>
           </div>
           <div class="card stat-card" style="--accent:var(--red)">
@@ -1428,7 +1594,7 @@ if (!isset($_SESSION['user_id'])) {
                 <line x1="9" y1="9" x2="15" y2="15" />
               </svg></div>
             <div class="slabel">Inactive</div>
-            <div class="sval" style="color:var(--red)">2</div>
+            <div class="sval" style="color:var(--red)"><?php echo $inactiveUsers; ?></div>
             <div class="ssub">Not active</div>
           </div>
           <div class="card stat-card" style="--accent:var(--yellow)">
@@ -1439,15 +1605,15 @@ if (!isset($_SESSION['user_id'])) {
                 <line x1="12" y1="9" x2="12" y2="13" />
               </svg></div>
             <div class="slabel">High Risk</div>
-            <div class="sval" style="color:var(--yellow)" id="u-hr">—</div>
+            <div class="sval" style="color:var(--yellow)" id="u-hr"><?php echo $highRiskUsers; ?></div>
             <div class="ssub">Rank C or D</div>
           </div>
         </div>
         <div class="card tbl-card">
           <div class="tbl-bar">
-            <h3>All Vendors</h3>
+            <h3>All Users</h3>
             <div class="frow">
-              <input type="text" class="fsel" id="u-search" placeholder="Search vendors…" oninput="renderUTbl()"
+              <input type="text" class="fsel" id="u-search" placeholder="Search users…" oninput="renderUTbl()"
                 style="min-width:180px" />
               <select class="fsel" id="u-rank" onchange="renderUTbl()">
                 <option value="">All Ranks</option>
@@ -1456,14 +1622,14 @@ if (!isset($_SESSION['user_id'])) {
                 <option value="C">C</option>
                 <option value="D">D</option>
               </select>
-              <button class="btn btn-p btn-sm" onclick="showAddVendorModal()">+ Add Vendor</button>
+              <button class="btn btn-p btn-sm" onclick="showAddVendorModal()">+ Add User</button>
             </div>
           </div>
           <div class="tw">
             <table>
               <thead>
                 <tr>
-                  <th>Vendor Name</th>
+                  <th>User Name</th>
                   <th>Email</th>
                   <th>Latest Score</th>
                   <th>Rank</th>
@@ -1496,43 +1662,37 @@ if (!isset($_SESSION['user_id'])) {
   </div>
   <div id="toast-c"></div>
   <script>
-    const MOCK = {
-      vendors: [
-        { id: 1, name: 'TechNova Solutions' }, { id: 2, name: 'CloudSafe Inc' },
-        { id: 3, name: 'Apex Corp' }, { id: 4, name: 'DataGuard LLC' },
-        { id: 5, name: 'NetShield Pro' }, { id: 6, name: 'Vertex Systems' },
-        { id: 7, name: 'IronCore Security' }, { id: 8, name: 'BlueSky Tech' },
-        { id: 9, name: 'CipherNet' }, { id: 10, name: 'Quantum Sec' },
-        { id: 11, name: 'SafeNet LLC' }, { id: 12, name: 'TrustArc Inc' }
-      ],
-      cats: ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security']
-    };
-    MOCK.assessments = Array.from({ length: 60 }, (_, i) => {
-      const s = Math.round(Math.random() * 78 + 20);
-      const r = s >= 80 ? 'A' : s >= 60 ? 'B' : s >= 40 ? 'C' : 'D';
-      const v = MOCK.vendors[i % MOCK.vendors.length];
-      const d = new Date(2024, Math.floor(Math.random() * 14), Math.floor(Math.random() * 28) + 1);
-      return { id: i + 1, vid: v.id, vname: v.name, score: s, rank: r, cat: MOCK.cats[i % 6], date: d.toISOString().split('T')[0] };
-    });
-    MOCK.activity = [
-      { type: 'export', msg: 'Admin exported CSV report', time: '2 min ago' },
-      { type: 'alert', msg: 'Apex Corp dropped to Rank D', time: '15 min ago' },
-      { type: 'refresh', msg: 'Data refreshed manually', time: '32 min ago' },
-      { type: 'flag', msg: 'NetShield Pro flagged for review', time: '1 hr ago' },
-      { type: 'profile', msg: 'Admin profile updated', time: '3 hrs ago' },
-      { type: 'export', msg: 'PDF report downloaded', time: '5 hrs ago' },
-      { type: 'alert', msg: 'Quantum Sec score dropped 12%', time: '8 hrs ago' },
-    ];
+    // Real database data passed from PHP
+    const DB_USERS = <?php echo $usersJson; ?>;
+    
+    // Helper functions for data processing
+    function getRank(score) {
+      if (score === null || score === undefined) return null;
+      return score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
+    }
+    
+    function getScoreColor(score) {
+      if (score === null || score === undefined) return 'var(--muted2)';
+      return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+    }
+    
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
 
     function sc(s) { return s >= 80 ? 'var(--green)' : s >= 60 ? 'var(--yellow)' : s >= 40 ? 'var(--orange)' : 'var(--red)' }
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark' }
     function ax() { return isDark() ? { tick: '#8898b4', grid: 'rgba(59,139,255,.04)', tt: '#0d1421', ttB: 'rgba(255,255,255,.1)', tc: '#dde4f0', bc: '#8898b4' } : { tick: '#64748b', grid: 'rgba(0,0,0,.06)', tt: '#fff', ttB: 'rgba(0,0,0,.1)', tc: '#0f172a', bc: '#475569' } }
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
+
     function riskCounts() {
-      const lat = {};
-      MOCK.assessments.forEach(a => { if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; });
       const c = { A: 0, B: 0, C: 0, D: 0 };
-      Object.values(lat).forEach(a => c[a.rank]++);
+      DB_USERS.forEach(user => {
+        const rank = getRank(user.latest_score);
+        if (rank) c[rank]++;
+      });
       return c;
     }
     function toggleSidebar() {
@@ -1588,48 +1748,99 @@ if (!isset($_SESSION['user_id'])) {
 
     let up = 1, uPS = 8;
     function pageInit() {
-      const c = riskCounts();
-      const hr = (c.C || 0) + (c.D || 0);
-      document.getElementById('u-hr').textContent = hr;
+      // High risk count is already calculated in PHP, but we can recalculate if needed
       renderUTbl();
     }
     function renderUTbl() {
       const s = (document.getElementById('u-search').value || '').toLowerCase();
       const rf = document.getElementById('u-rank').value;
-      const lat = {};
-      MOCK.assessments.forEach(a => { if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; });
-      let d = MOCK.vendors.map(v => ({ ...v, latest: lat[v.id] || null }));
-      if (s) d = d.filter(v => v.name.toLowerCase().includes(s));
-      if (rf) d = d.filter(v => v.latest && v.latest.rank === rf);
+      
+      // Filter users based on search and rank
+      let d = DB_USERS.filter(user => {
+        const matchesSearch = !s || 
+          user.full_name.toLowerCase().includes(s) ||
+          user.store_name.toLowerCase().includes(s) ||
+          user.email.toLowerCase().includes(s) ||
+          user.username.toLowerCase().includes(s);
+        
+        const rank = getRank(user.latest_score);
+        const matchesRank = !rf || rank === rf;
+        
+        return matchesSearch && matchesRank;
+      });
+      
       const tp = Math.ceil(d.length / uPS); if (up > tp) up = 1;
       const sl = d.slice((up - 1) * uPS, up * uPS);
-      document.getElementById('u-tbl').innerHTML = sl.map(v => {
-        const l = v.latest;
-        const active = Math.random() > .15;
+      
+      document.getElementById('u-tbl').innerHTML = sl.map(user => {
+        const score = user.latest_score;
+        const rank = getRank(score);
+        const active = user.is_active;
+        
         return `<tr>
-      <td style="font-weight:600">${v.name}</td>
-      <td style="color:var(--muted2);font-size:.78rem">${v.name.toLowerCase().replace(/\s/g, '')}@vendor.io</td>
-      <td>${l ? `<div class="sbw"><div class="sbb"><div class="sbf" style="width:${l.score}%;background:${sc(l.score)}"></div></div><span class="sbn">${l.score}%</span></div>` : '<span style="color:var(--muted2)">—</span>'}</td>
-      <td>${l ? `<span class="rank r${l.rank}">${l.rank}</span>` : '—'}</td>
-      <td style="font-family:var(--mono);font-size:.72rem;color:var(--muted2)">${MOCK.assessments.filter(a => a.vid === v.id).length}</td>
+      <td style="font-weight:600">${user.full_name || user.store_name}</td>
+      <td style="color:var(--muted2);font-size:.78rem">${user.email}</td>
+      <td>${score !== null ? `<div class="sbw"><div class="sbb"><div class="sbf" style="width:${score}%;background:${getScoreColor(score)}"></div></div><span class="sbn">${score}%</span></div>` : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td>${rank ? `<span class="rank r${rank}">${rank}</span>` : '—'}</td>
+      <td style="font-family:var(--mono);font-size:.72rem;color:var(--muted2)">${user.assessment_count || 0}</td>
       <td><span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem"><span class="sdot ${active ? 'sdot-g' : 'sdot-r'}"></span>${active ? 'Active' : 'Inactive'}</span></td>
-      <td><div style="display:flex;gap:.35rem"><button class="btn btn-s btn-sm" onclick="showToast('Viewing ${v.name}','blue')">View</button><button class="btn btn-d btn-sm" onclick="showToast('Deleted','red')">Delete</button></div></td>
+      <td><div style="display:flex;gap:.35rem"><button class="btn btn-s btn-sm" onclick="showToast('Viewing ${user.full_name}','blue')">View</button><button class="btn btn-d btn-sm" onclick="showToast('Deleted','red')">Delete</button></div></td>
     </tr>`;
       }).join('');
+      
       let ph = ''; for (let i = 1; i <= tp; i++)ph += `<button class="pb ${i === up ? 'active' : ''}" onclick="up=${i};renderUTbl()">${i}</button>`;
       document.getElementById('u-pgn').innerHTML = ph;
     }
     function showAddVendorModal() {
-      document.getElementById('modal-title').textContent = 'Add New Vendor';
+      document.getElementById('modal-title').textContent = 'Add New User';
       document.getElementById('modal-body').innerHTML = `
-    <div class="fg"><label class="fl">Vendor Name</label><input class="fi" type="text" placeholder="e.g. TechNova Solutions"/></div>
-    <div class="fg"><label class="fl">Contact Email</label><input class="fi" type="email" placeholder="vendor@company.io"/></div>
-    <div class="fg"><label class="fl">Industry</label><input class="fi" type="text" placeholder="e.g. Finance, Healthcare"/></div>
-    <div style="display:flex;gap:.65rem;margin-top:1rem">
-      <button class="btn btn-p" style="flex:1;justify-content:center" onclick="showToast('Vendor added','green');closeModal()">Save Vendor</button>
-      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
-    </div>`;
+    <form id="addUserForm" onsubmit="handleAddUser(event)">
+      <div class="fg"><label class="fl">Full Name *</label><input class="fi" type="text" name="full_name" placeholder="e.g. John Doe" required/></div>
+      <div class="fg"><label class="fl">Email *</label><input class="fi" type="email" name="email" placeholder="user@company.io" required/></div>
+      <div class="fg"><label class="fl">Username *</label><input class="fi" type="text" name="username" placeholder="johndoe" required/></div>
+      <div class="fg"><label class="fl">Store Name</label><input class="fi" type="text" name="store_name" placeholder="e.g. TechNova Solutions"/></div>
+      <div class="fg"><label class="fl">Password *</label><input class="fi" type="password" name="password" placeholder="Enter secure password" required/></div>
+      <div class="fg"><label class="fl">Role</label>
+        <select class="fi" name="role">
+          <option value="Seller">Seller</option>
+          <option value="Viewer">Viewer</option>
+          <option value="Admin">Admin</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.65rem;margin-top:1rem">
+        <button type="submit" class="btn btn-p" style="flex:1;justify-content:center">Add User</button>
+        <button type="button" class="btn btn-s" onclick="closeModal()">Cancel</button>
+      </div>
+    </form>`;
       document.getElementById('modal-overlay').classList.remove('hidden');
+    }
+    
+    async function handleAddUser(event) {
+      event.preventDefault();
+      
+      const formData = new FormData(event.target);
+      formData.append('action', 'add_user');
+      
+      try {
+        const response = await fetch('users.php', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast('User added successfully', 'green');
+          closeModal();
+          // Refresh the page to show new data
+          window.location.reload();
+        } else {
+          showToast(result.message || 'Failed to add user', 'red');
+        }
+      } catch (error) {
+        console.error('Error adding user:', error);
+        showToast('Network error occurred', 'red');
+      }
     }
   </script>
 </body>

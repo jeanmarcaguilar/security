@@ -1,5 +1,5 @@
 <?php
-require_once '../config.php';
+require_once '../includes/config.php';
 session_start();
 
 // Check if user is logged in
@@ -7,6 +7,102 @@ if (!isset($_SESSION['user_id'])) {
   header('Location: ../index.html');
   exit();
 }
+
+// Initialize database connection
+$database = new Database();
+$db = $database->getConnection();
+
+// Fetch users and assessment data from database
+$users = [];
+$assessments = [];
+try {
+    // Get all users
+    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get real assessment data with category scores
+    $stmt = $db->prepare("
+        SELECT 
+            a.id,
+            a.vendor_id as vid,
+            u.full_name,
+            u.store_name,
+            a.score,
+            a.rank,
+            a.password_score,
+            a.phishing_score,
+            a.device_score,
+            a.network_score,
+            a.social_engineering_score,
+            a.data_handling_score,
+            a.assessment_date as date
+        FROM assessments a
+        JOIN users u ON a.vendor_id = u.id
+        ORDER BY a.assessment_date DESC
+    ");
+    $stmt->execute();
+    $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Map database categories to display categories
+    $categoryMap = [
+        'password_score' => 'Password Security',
+        'phishing_score' => 'Phishing Awareness', 
+        'device_score' => 'Device Security',
+        'network_score' => 'Network Security',
+        'social_engineering_score' => 'Social Engineering',
+        'data_handling_score' => 'Data Handling'
+    ];
+    
+    // Transform assessment data into the format expected by JavaScript
+    foreach ($assessmentData as $assessment) {
+        // Add the overall assessment record first
+        $assessments[] = [
+            'id' => count($assessments) + 1,
+            'vid' => $assessment['vid'],
+            'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+            'score' => (int)$assessment['score'],
+            'rank' => $assessment['rank'],
+            'cat' => 'Overall Score',
+            'date' => date('Y-m-d', strtotime($assessment['date'])),
+            'assessment_id' => $assessment['id']
+        ];
+        
+        // Then add category-specific records
+        foreach ($categoryMap as $dbField => $categoryName) {
+            if ($assessment[$dbField] !== null && $assessment[$dbField] > 0) {
+                $assessments[] = [
+                    'id' => count($assessments) + 1,
+                    'vid' => $assessment['vid'],
+                    'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+                    'score' => (int)$assessment[$dbField],
+                    'rank' => getRankFromScore($assessment[$dbField]),
+                    'cat' => $categoryName,
+                    'date' => date('Y-m-d', strtotime($assessment['date'])),
+                    'assessment_id' => $assessment['id']
+                ];
+            }
+        }
+    }
+    
+} catch(PDOException $exception) {
+    error_log("Error fetching compare data: " . $exception->getMessage());
+    // Fallback to empty arrays if database fails
+    $users = [];
+    $assessments = [];
+}
+
+// Helper function to determine rank from score
+function getRankFromScore($score) {
+    if ($score >= 80) return 'A';
+    if ($score >= 60) return 'B'; 
+    if ($score >= 40) return 'C';
+    return 'D';
+}
+
+// Convert to JSON for JavaScript
+$usersJson = json_encode($users);
+$assessmentsJson = json_encode($assessments);
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -1268,15 +1364,6 @@ if (!isset($_SESSION['user_id'])) {
               <line x1="18" y1="8" x2="6" y2="8" />
               <line x1="21" y1="16" x2="3" y2="16" />
             </svg></span><span class="sb-text">Compare</span></a>
-        <a class="sb-item" href="forecast.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg></span><span class="sb-text">Forecast</span></a>
-        <a class="sb-item" href="compliance.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg></span><span class="sb-text">Compliance</span></a>
         <a class="sb-item" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1332,9 +1419,9 @@ if (!isset($_SESSION['user_id'])) {
               stroke-linecap="round">
               <path d="M6 4l4 4-4 4" />
             </svg>
-            <span class="tb-title">Compare Vendors</span>
+            <span class="tb-title">Compare Users</span>
           </div>
-          <p class="tb-sub">Side-by-side analysis</p>
+          <p class="tb-sub">Side-by-side user analysis</p>
         </div>
         <div class="tb-right">
           <div class="tb-search-wrap">
@@ -1342,7 +1429,7 @@ if (!isset($_SESSION['user_id'])) {
                 <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.7" />
                 <path d="M15 15l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
               </svg></span>
-            <input type="text" class="tb-search" placeholder="Search vendors, scores…" autocomplete="off" />
+            <input type="text" class="tb-search" placeholder="Search users, scores…" autocomplete="off" />
           </div>
           <span class="tb-date" id="tb-date"></span>
           <div class="tb-divider"></div>
@@ -1394,18 +1481,18 @@ if (!isset($_SESSION['user_id'])) {
       <div class="content">
 
         <div class="sec-hdr">
-          <h2>Compare Vendors</h2>
-          <p>Side-by-side risk analysis across all categories.</p>
+          <h2>Compare Users</h2>
+          <p>Side-by-side user risk analysis across all categories.</p>
         </div>
         <div class="card" style="padding:1.5rem;margin-bottom:1.25rem">
           <div
             style="display:grid;grid-template-columns:1fr auto 1fr;gap:1.25rem;align-items:center;margin-bottom:1.25rem">
-            <div><label class="fl">Vendor A</label><select class="fsel" id="cmp-a" onchange="renderCmp()"
+            <div><label class="fl">User A</label><select class="fsel" id="cmp-a" onchange="renderCmp()"
                 style="width:100%;padding:.52rem .85rem;border-radius:8px"></select></div>
             <div
               style="font-family:var(--display);font-size:1.3rem;letter-spacing:2px;text-align:center;color:var(--muted)">
               VS</div>
-            <div><label class="fl">Vendor B</label><select class="fsel" id="cmp-b" onchange="renderCmp()"
+            <div><label class="fl">User B</label><select class="fsel" id="cmp-b" onchange="renderCmp()"
                 style="width:100%;padding:.52rem .85rem;border-radius:8px"></select></div>
           </div>
           <div id="cmp-result"></div>
@@ -1433,33 +1520,20 @@ if (!isset($_SESSION['user_id'])) {
   </div>
   <div id="toast-c"></div>
   <script>
-    const MOCK = {
-      vendors: [
-        { id: 1, name: 'TechNova Solutions' }, { id: 2, name: 'CloudSafe Inc' },
-        { id: 3, name: 'Apex Corp' }, { id: 4, name: 'DataGuard LLC' },
-        { id: 5, name: 'NetShield Pro' }, { id: 6, name: 'Vertex Systems' },
-        { id: 7, name: 'IronCore Security' }, { id: 8, name: 'BlueSky Tech' },
-        { id: 9, name: 'CipherNet' }, { id: 10, name: 'Quantum Sec' },
-        { id: 11, name: 'SafeNet LLC' }, { id: 12, name: 'TrustArc Inc' }
-      ],
-      cats: ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security']
-    };
-    MOCK.assessments = Array.from({ length: 60 }, (_, i) => {
-      const s = Math.round(Math.random() * 78 + 20);
-      const r = s >= 80 ? 'A' : s >= 60 ? 'B' : s >= 40 ? 'C' : 'D';
-      const v = MOCK.vendors[i % MOCK.vendors.length];
-      const d = new Date(2024, Math.floor(Math.random() * 14), Math.floor(Math.random() * 28) + 1);
-      return { id: i + 1, vid: v.id, vname: v.name, score: s, rank: r, cat: MOCK.cats[i % 6], date: d.toISOString().split('T')[0] };
-    });
-    MOCK.activity = [
-      { type: 'export', msg: 'Admin exported CSV report', time: '2 min ago' },
-      { type: 'alert', msg: 'Apex Corp dropped to Rank D', time: '15 min ago' },
-      { type: 'refresh', msg: 'Data refreshed manually', time: '32 min ago' },
-      { type: 'flag', msg: 'NetShield Pro flagged for review', time: '1 hr ago' },
-      { type: 'profile', msg: 'Admin profile updated', time: '3 hrs ago' },
-      { type: 'export', msg: 'PDF report downloaded', time: '5 hrs ago' },
-      { type: 'alert', msg: 'Quantum Sec score dropped 12%', time: '8 hrs ago' },
-    ];
+    // Real database data passed from PHP
+    const DB_USERS = <?php echo $usersJson; ?>;
+    const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
+    
+    // Helper functions for data processing
+    function getRank(score) {
+      if (score === null || score === undefined) return null;
+      return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
+    }
+    
+    function getScoreColor(score) {
+      if (score === null || score === undefined) return 'var(--red)';
+      return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+    }
 
     function sc(s) { return s >= 80 ? 'var(--green)' : s >= 60 ? 'var(--yellow)' : s >= 40 ? 'var(--orange)' : 'var(--red)' }
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark' }
@@ -1467,7 +1541,9 @@ if (!isset($_SESSION['user_id'])) {
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      MOCK.assessments.forEach(a => { if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; });
+      DB_ASSESSMENTS.forEach(a => { 
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
       return c;
@@ -1526,34 +1602,73 @@ if (!isset($_SESSION['user_id'])) {
     let cmpChart = null;
     function pageInit() {
       const sA = document.getElementById('cmp-a'), sB = document.getElementById('cmp-b');
-      MOCK.vendors.forEach((v, i) => {
-        sA.innerHTML += `<option value="${v.id}">${v.name}</option>`;
-        sB.innerHTML += `<option value="${v.id}" ${i === 1 ? 'selected' : ''}>${v.name}</option>`;
+      
+      // Populate select options with users from DB_USERS
+      DB_USERS.forEach((user, i) => {
+        const userName = user.full_name || user.store_name || user.username;
+        sA.innerHTML += `<option value="${user.id}">${userName}</option>`;
+        sB.innerHTML += `<option value="${user.id}" ${i === 1 ? 'selected' : ''}>${userName}</option>`;
       });
+      
       renderCmp();
     }
-    function getLatest(vid) { return MOCK.assessments.filter(a => a.vid === vid).sort((a, b) => b.date.localeCompare(a.date))[0] || null; }
+    function getOverallScore(vid) {
+      // Get all "Overall Score" assessments for the user
+      const overallAssessments = DB_ASSESSMENTS.filter(a => a.vid === vid && a.cat === 'Overall Score');
+      if (overallAssessments.length === 0) return null;
+      
+      // Find the most recent overall assessment (latest date = most recent)
+      const latestOverallAssessment = overallAssessments.reduce((latest, current) => 
+        current.date > latest.date ? current : latest
+      );
+      
+      return {
+        score: latestOverallAssessment.score,
+        rank: latestOverallAssessment.rank,
+        cat: 'Overall Score',
+        date: latestOverallAssessment.date
+      };
+    }
     function renderCmp() {
       const aId = +document.getElementById('cmp-a').value;
       const bId = +document.getElementById('cmp-b').value;
-      const vA = MOCK.vendors.find(v => v.id === aId);
-      const vB = MOCK.vendors.find(v => v.id === bId);
-      const lA = getLatest(aId), lB = getLatest(bId);
+      
+      // Find users from real data
+      const vA = DB_ASSESSMENTS.find(a => a.vid === aId);
+      const vB = DB_ASSESSMENTS.find(a => a.vid === bId);
+      
+      if (!vA || !vB) {
+        document.getElementById('cmp-result').innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessment data for one or both users.</p>';
+        return;
+      }
+      
+      // Get overall scores for both users
+      const overallA = getOverallScore(aId);
+      const overallB = getOverallScore(bId);
+      
+      if (!overallA || !overallB) {
+        document.getElementById('cmp-result').innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessment data for selected users.</p>';
+        return;
+      }
+      
+      const lA = overallA;
+      const lB = overallB;
       const r = document.getElementById('cmp-result');
-      if (!lA || !lB) { r.innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessment data for one or both vendors.</p>'; return; }
-      const winner = lA.score >= lB.score ? vA.name : vB.name;
+      
+      const winner = lA.score >= lB.score ? vA.vname : vB.vname;
+      
       r.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:1rem;align-items:start">
       <div style="text-align:center;padding:1rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px">
-        <div style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:.65rem">${vA.name}</div>
-        <div style="font-family:var(--display);font-size:2.5rem;font-weight:700;color:${sc(lA.score)}">${lA.score}%</div>
+        <div style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:.65rem">${vA.vname}</div>
+        <div style="font-family:var(--display);font-size:2.5rem;font-weight:700;color:${getScoreColor(lA.score)}">${lA.score}%</div>
         <div style="margin-top:.5rem"><span class="rank r${lA.rank}">${lA.rank}</span></div>
         <div style="font-size:.72rem;color:var(--muted2);margin-top:.4rem">${lA.cat}</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:1.3rem;letter-spacing:2px;color:var(--muted);padding-top:1rem">VS</div>
       <div style="text-align:center;padding:1rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px">
-        <div style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:.65rem">${vB.name}</div>
-        <div style="font-family:var(--display);font-size:2.5rem;font-weight:700;color:${sc(lB.score)}">${lB.score}%</div>
+        <div style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:.65rem">${vB.vname}</div>
+        <div style="font-family:var(--display);font-size:2.5rem;font-weight:700;color:${getScoreColor(lB.score)}">${lB.score}%</div>
         <div style="margin-top:.5rem"><span class="rank r${lB.rank}">${lB.rank}</span></div>
         <div style="font-size:.72rem;color:var(--muted2);margin-top:.4rem">${lB.cat}</div>
       </div>
@@ -1561,24 +1676,109 @@ if (!isset($_SESSION['user_id'])) {
     <div style="margin-top:.85rem;padding:.75rem;background:rgba(59,139,255,.06);border:1px solid rgba(59,139,255,.15);border-radius:8px;font-size:.82rem;text-align:center">
       🏆 <b style="color:var(--blue)">${winner}</b> has the better security posture with a ${Math.abs(lA.score - lB.score)}pt difference.
     </div>`;
-      renderCmpChart(vA.name, vB.name);
+      
+      renderCmpChart(vA.vname, vB.vname);
     }
     function renderCmpChart(nameA, nameB) {
       if (cmpChart) cmpChart.destroy();
       const a = ax();
-      const cats = MOCK.cats;
-      const dA = cats.map(() => Math.round(Math.random() * 60 + 30));
-      const dB = cats.map(() => Math.round(Math.random() * 60 + 30));
+      
+      // Get unique categories from real data
+      const categories = [...new Set(DB_ASSESSMENTS.map(a => a.cat))];
+      
+      // Get category scores for both users
+      const aId = +document.getElementById('cmp-a').value;
+      const bId = +document.getElementById('cmp-b').value;
+      
+      const dA = categories.map(cat => {
+        const assessment = DB_ASSESSMENTS.find(a => a.vid === aId && a.cat === cat);
+        return assessment ? assessment.score : 0;
+      });
+      
+      const dB = categories.map(cat => {
+        const assessment = DB_ASSESSMENTS.find(a => a.vid === bId && a.cat === cat);
+        return assessment ? assessment.score : 0;
+      });
+      
       const ctx = document.getElementById('cmp-chart');
       if (!ctx) return;
-      cmpChart = new Chart(ctx, { type: 'bar', data: { labels: cats, datasets: [{ label: nameA, data: dA, backgroundColor: 'rgba(59,139,255,.5)', borderColor: '#3B8BFF', borderWidth: 2, borderRadius: 4 }, { label: nameB, data: dB, backgroundColor: 'rgba(123,114,240,.5)', borderColor: '#7B72F0', borderWidth: 2, borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { font: { size: 10 }, color: a.tick, padding: 12 } }, tooltip: { backgroundColor: a.tt, borderColor: a.ttB, borderWidth: 1, titleColor: a.tc, bodyColor: a.bc, padding: 10 } }, scales: { y: { min: 0, max: 100, ticks: { color: a.tick, font: { size: 10 }, callback: v => v + '%' }, grid: { color: a.grid } }, x: { ticks: { color: a.tick, font: { size: 10 } }, grid: { display: false } } } } });
+      
+      cmpChart = new Chart(ctx, { 
+        type: 'bar', 
+        data: { 
+          labels: categories, 
+          datasets: [
+            { 
+              label: nameA, 
+              data: dA, 
+              backgroundColor: 'rgba(59,139,255,.5)', 
+              borderColor: '#3B8BFF', 
+              borderWidth: 2, 
+              borderRadius: 4 
+            }, 
+            { 
+              label: nameB, 
+              data: dB, 
+              backgroundColor: 'rgba(123,114,240,.5)', 
+              borderColor: '#7B72F0', 
+              borderWidth: 2, 
+              borderRadius: 4 
+            }
+          ] 
+        }, 
+        options: { 
+          responsive: true, 
+          maintainAspectRatio: false, 
+          plugins: { 
+            legend: { 
+              position: 'top', 
+              labels: { 
+                font: { size: 10 }, 
+                color: a.tick, 
+                padding: 12 
+              } 
+            }, 
+            tooltip: { 
+              backgroundColor: a.tt, 
+              borderColor: a.ttB, 
+              borderWidth: 1, 
+              titleColor: a.tc, 
+              bodyColor: a.bc, 
+              padding: 10 
+            } 
+          }, 
+          scales: { 
+            y: { 
+              min: 0, 
+              max: 100, 
+              ticks: { 
+                color: a.tick, 
+                font: { size: 10 }, 
+                callback: v => v + '%' 
+              }, 
+              grid: { 
+                color: a.grid 
+              } 
+            }, 
+            x: { 
+              ticks: { 
+                color: a.tick, 
+                font: { size: 10 } 
+              }, 
+              grid: { 
+                display: false 
+              } 
+            } 
+          } 
+        } 
+      });
     }
     function onThemeChange() {
       const aId = +document.getElementById('cmp-a').value;
-      const vA = MOCK.vendors.find(v => v.id === aId);
+      const userA = DB_ASSESSMENTS.find(a => a.vid === aId);
       const bId = +document.getElementById('cmp-b').value;
-      const vB = MOCK.vendors.find(v => v.id === bId);
-      if (vA && vB) renderCmpChart(vA.name, vB.name);
+      const userB = DB_ASSESSMENTS.find(a => a.vid === bId);
+      if (userA && userB) renderCmpChart(userA.vname, userB.vname);
     }
   </script>
 </body>
