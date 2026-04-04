@@ -53,27 +53,30 @@ try {
     $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Since we don't have a dedicated assessments table, we'll simulate assessment data
-    // based on user assessment scores and create per-category data
+    // Categories for assessment
     $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
     
     foreach ($users as $u) {
         if ($u['last_assessment_score'] !== null) {
-            // Create assessment records for each category based on user's latest score
             $baseScore = $u['last_assessment_score'];
+            $assessmentDate = $u['last_assessment_date'] ?: date('Y-m-d');
             
-            foreach ($categories as $category) {
-                // Vary scores slightly for different categories
-                $categoryVariation = rand(-15, 15);
-                $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
+            foreach ($categories as $index => $category) {
+                // Deterministic variation based on user ID and category index
+                $seed = $u['id'] * ($index + 1);
+                $variation = ($seed % 31) - 15; // Range: -15 to 15
+                $categoryScore = max(20, min(100, $baseScore + $variation));
                 $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
                 
-                // Create multiple historical assessments for trend analysis
-                $historicalDate = new DateTime($u['last_assessment_date'] ?: date('Y-m-d'));
+                // Create deterministic historical assessments for trend analysis (6 months of data)
                 for ($i = 5; $i >= 0; $i--) {
-                    $date = clone $historicalDate;
+                    $date = new DateTime($assessmentDate);
                     $date->modify("-$i months");
-                    $historicalScore = max(20, min(100, $categoryScore + rand(-10, 10)));
+                    
+                    // Deterministic historical score based on user ID, category index, and month offset
+                    $historySeed = $u['id'] * ($index + 1) * ($i + 1);
+                    $historyVariation = ($historySeed % 21) - 10; // Range: -10 to 10
+                    $historicalScore = max(20, min(100, $categoryScore + $historyVariation));
                     $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
                     
                     $assessments[] = [
@@ -1292,6 +1295,11 @@ $assessmentsJson = json_encode($assessments);
     .pref-r:last-child {
       border-bottom: none
     }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 
@@ -1360,6 +1368,7 @@ $assessmentsJson = json_encode($assessments);
               <line x1="18" y1="8" x2="6" y2="8" />
               <line x1="21" y1="16" x2="3" y2="16" />
             </svg></span><span class="sb-text">Compare</span></a>
+
         <a class="sb-item active" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1648,7 +1657,14 @@ $assessmentsJson = json_encode($assessments);
       const to = document.getElementById('em-to').value || '[recipient]';
       const sub = document.getElementById('em-sub').value;
       const note = document.getElementById('em-note').value;
+      
+      // Find the user's actual data from DB_USERS to get the correct overall score
+      const userData = DB_USERS.find(u => u.id === vid);
       const lat = DB_ASSESSMENTS.filter(a => a.vid === vid).sort((a, b) => b.date.localeCompare(a.date))[0];
+      
+      // Use the user's actual last_assessment_score if available, otherwise fall back to category assessment
+      const displayScore = userData && userData.last_assessment_score !== null ? userData.last_assessment_score : (lat ? lat.score : null);
+      const displayRank = displayScore !== null ? getRank(displayScore) : null;
       
       document.getElementById('em-preview').innerHTML = `
     <div style="font-weight:600;margin-bottom:.4rem">To: <span style="font-weight:400;color:var(--text)">${to}</span></div>
@@ -1656,25 +1672,114 @@ $assessmentsJson = json_encode($assessments);
     <hr style="border:none;border-top:1px solid var(--border);margin:.65rem 0"/>
     <p>Dear ${user ? user.vname : 'User'},</p><br>
     <p>Your latest CyberShield risk assessment results:</p><br>
-    ${lat ? `<p>• Score: <b style="color:${getScoreColor(lat.score)}">${lat.score}%</b></p><p>• Rank: <b>${lat.rank} — ${lat.rank === 'A' ? 'Low Risk' : lat.rank === 'B' ? 'Moderate' : lat.rank === 'C' ? 'High Risk' : 'Critical'}</b></p><p>• Category: <b>${lat.cat}</b></p><p>• Date: <b>${lat.date}</b></p>` :
+    ${displayScore !== null ? `<p>• Score: <b style="color:${getScoreColor(displayScore)}">${displayScore}%</b></p><p>• Rank: <b>${displayRank} — ${displayRank === 'A' ? 'Low Risk' : displayRank === 'B' ? 'Moderate' : displayRank === 'C' ? 'High Risk' : 'Critical'}</b></p><p>• Category: <b>${lat ? lat.cat : 'Overall'}</b></p><p>• Date: <b>${userData ? (userData.last_assessment_date || 'N/A') : (lat ? lat.date : 'N/A')}</b></p>` :
           '<p style="color:var(--muted2)">No assessment data available.</p>'}
     ${note ? `<br><p style="color:var(--muted2);font-style:italic">"${note}"</p>` : ''}
     <br><p>Best regards,<br><b>CyberShield Admin</b></p>`;
     }
-    function sendEmail() {
+    async function sendEmail() {
+      console.log("=== SEND EMAIL START ===");
+      
       const vid = +document.getElementById('em-vendor').value;
+      console.log("User ID:", vid);
       
       // Find user from real data
       const user = DB_ASSESSMENTS.find(a => a.vid === vid);
+      console.log("User found:", user);
       
       const to = document.getElementById('em-to').value;
-      if (!to) { showToast('Please enter a recipient email', 'red'); return; }
-      const now = new Date().toLocaleString();
-      sentLog.unshift({ vendor: user ? user.vname : 'Unknown User', to, time: now });
-      const log = document.getElementById('em-log');
-      log.innerHTML = sentLog.map(l => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.78rem"><div><b>${l.vendor}</b> → <span style="color:var(--muted2)">${l.to}</span></div><span style="color:var(--muted2);font-family:var(--mono);font-size:.68rem">${l.time}</span></div>`).join('');
-      showToast('Report sent to ' + to, 'green');
-      document.getElementById('em-to').value = '';
+      console.log("Recipient email:", to);
+      
+      if (!to) { 
+        console.log("ERROR: No recipient email");
+        showToast('Please enter a recipient email', 'red'); 
+        return; 
+      }
+      
+      // Get email content
+      const sub = document.getElementById('em-sub').value;
+      const note = document.getElementById('em-note').value;
+      console.log("Subject:", sub);
+      console.log("Note:", note);
+      
+      // Show loading state
+      const sendBtn = document.querySelector('button[onclick="sendEmail()"]');
+      console.log("Send button found:", sendBtn);
+      
+      if (!sendBtn) {
+        console.log("ERROR: Send button not found");
+        showToast('Send button not found', 'red');
+        return;
+      }
+      
+      const originalText = sendBtn.innerHTML;
+      sendBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l4 4"/></svg> Sending...';
+      sendBtn.disabled = true;
+      
+      try {
+        const requestData = {
+          to: to,
+          userId: vid,
+          subject: sub,
+          note: note
+        };
+        
+        console.log('=== MAKING API CALL ===');
+        console.log('Request data:', requestData);
+        console.log('API URL: ../api/send_report.php');
+        
+        const response = await fetch('../api/send_report.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData)
+        });
+        
+        console.log('=== API RESPONSE RECEIVED ===');
+        console.log('Response status:', response.status);
+        console.log('Response OK:', response.ok);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+          console.log('ERROR: Response not OK');
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('=== RESPONSE PARSED ===');
+        console.log('Response data:', result);
+        
+        if (result.success) {
+          console.log('=== SUCCESS ===');
+          const now = new Date().toLocaleString();
+          sentLog.unshift({ 
+            vendor: user ? user.vname : 'Unknown User', 
+            to: to, 
+            time: now,
+            status: 'Sent'
+          });
+          const log = document.getElementById('em-log');
+          log.innerHTML = sentLog.map(l => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.78rem"><div><b>${l.vendor}</b> → <span style="color:var(--muted2)">${l.to}</span></div><span style="color:var(--muted2);font-family:var(--mono);font-size:.68rem">${l.time}</span></div>`).join('');
+          showToast('Report successfully sent to ' + to, 'green');
+          document.getElementById('em-to').value = '';
+          console.log('Email sent successfully to:', to);
+        } else {
+          console.log('=== API RETURNED ERROR ===');
+          console.log('Error message:', result.error);
+          showToast('Failed to send report: ' + (result.error || 'Unknown error'), 'red');
+        }
+      } catch (error) {
+        console.log('=== CATCH BLOCK ===');
+        console.error('Error sending email:', error);
+        console.error('Error stack:', error.stack);
+        showToast('Failed to send report. Please try again.', 'red');
+      } finally {
+        console.log('=== FINALLY BLOCK ===');
+        // Restore button state
+        sendBtn.innerHTML = originalText;
+        sendBtn.disabled = false;
+      }
     }
   </script>
 </body>
