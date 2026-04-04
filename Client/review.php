@@ -608,96 +608,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       min-width: 240px;
     }
 
-    .video-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(10px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-
-    .video-modal.active {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .modal-content {
-      background: var(--card-bg);
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      width: 90%;
-      max-width: 900px;
-      max-height: 80vh;
-      overflow: hidden;
-      position: relative;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    }
-
-    .modal-header {
-      padding: 1.2rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .modal-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--text);
-      margin: 0;
-    }
-
-    .modal-close {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: 1px solid var(--border2);
-      background: rgba(255, 255, 255, 0.04);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted2);
-      transition: var(--t);
-    }
-
-    .modal-close:hover {
-      border-color: var(--red);
-      color: var(--red);
-      background: rgba(255, 59, 92, 0.1);
-    }
-
-    .modal-body {
-      padding: 0;
-      position: relative;
-    }
-
-    .video-container {
-      position: relative;
-      padding-bottom: 56.25%; /* 16:9 aspect ratio */
-      height: 0;
-      overflow: hidden;
-    }
-
-    .video-container iframe {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
     @keyframes sl { from { opacity: 0; transform: translateX(20px) } to { opacity: 1; transform: none } }
 
     .ti { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -939,26 +849,6 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
         <div id="videoGrid" class="video-grid"></div>
 
-        <!-- Video Modal -->
-        <div id="videoModal" class="video-modal">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title" id="modalTitle">Video Player</h3>
-              <button class="modal-close" onclick="closeVideoModal()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="video-container" id="videoContainer">
-                <!-- YouTube iframe will be inserted here -->
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="section-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>
           Cyber Threat Glossary — Quick Review
@@ -1095,7 +985,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         const watchUrl = `https://www.youtube.com/watch?v=${v.videoId}`;
 
         return `
-        <div class="video-card" onclick="openVideo('${watchUrl}', '${esc(v.title)}')">
+        <div class="video-card" onclick="openVideo('${watchUrl}')">
           <div class="video-thumb">
             <img class="yt-thumb" src="${thumbSrc}" alt="${esc(v.title)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
             <div class="thumb-fallback-icon" style="display:none">
@@ -1127,99 +1017,11 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
       renderVideos();
     }
 
-    // Test function to verify modal works
-    function testModal() {
-      console.log('Test modal clicked');
-      const testUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; // Test video
-      openVideo(testUrl, 'Test Video - Modal Demo');
+    // Direct YouTube open - guaranteed to work every time!
+    function openVideo(url) {
+      window.open(url, '_blank');
+      showToast('Opening video on YouTube...', 'red');
     }
-
-    // Open video in modal
-    function openVideo(url, title) {
-      console.log('openVideo called with:', url, title);
-      
-      const modal = document.getElementById('videoModal');
-      const modalTitle = document.getElementById('modalTitle');
-      const videoContainer = document.getElementById('videoContainer');
-      
-      console.log('Elements found:', {
-        modal: !!modal,
-        modalTitle: !!modalTitle,
-        videoContainer: !!videoContainer
-      });
-      
-      // Extract video ID from YouTube URL
-      const videoId = extractVideoId(url);
-      console.log('Extracted video ID:', videoId);
-      
-      if (videoId) {
-        // Set modal title
-        modalTitle.textContent = title || 'Video Player';
-        
-        // Create YouTube embed iframe with improved autoplay
-        videoContainer.innerHTML = `
-          <iframe 
-            src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowfullscreen>
-          </iframe>
-        `;
-        
-        // Show modal
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden'; // Prevent background scroll
-        
-        showToast('Loading video...', 'blue');
-        
-        // Unmute after a short delay (browsers often block autoplay with sound)
-        setTimeout(() => {
-          const iframe = videoContainer.querySelector('iframe');
-          if (iframe) {
-            iframe.src = iframe.src.replace('mute=1', 'mute=0');
-          }
-        }, 1000);
-      } else {
-        // Fallback to direct YouTube open if URL parsing fails
-        window.open(url, '_blank');
-        showToast('Opening video on YouTube...', 'red');
-      }
-    }
-    
-    // Close video modal
-    function closeVideoModal() {
-      const modal = document.getElementById('videoModal');
-      const videoContainer = document.getElementById('videoContainer');
-      
-      modal.classList.remove('active');
-      document.body.style.overflow = ''; // Restore background scroll
-      
-      // Clear iframe to stop video playback
-      setTimeout(() => {
-        videoContainer.innerHTML = '';
-      }, 300);
-    }
-    
-    // Extract YouTube video ID from URL
-    function extractVideoId(url) {
-      const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
-      const match = url.match(regex);
-      return match ? match[1] : null;
-    }
-    
-    // Close modal on Escape key
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        closeVideoModal();
-      }
-    });
-    
-    // Close modal on background click
-    document.getElementById('videoModal').addEventListener('click', function(e) {
-      if (e.target === this) {
-        closeVideoModal();
-      }
-    });
 
     function showToast(msg, color = 'blue') {
       const cols = { blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', yellow: 'var(--yellow)' };

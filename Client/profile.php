@@ -617,17 +617,33 @@ async function requestProfileOTP() {
     // Store pending data
     pendingProfileData = { full_name: fullName, email: email, store_name: storeName };
     
-    // For demo purposes, simulate OTP sending like in landingpage.php
-    showToast('OTP sent to your email', 'green');
-    // Reset countdown
-    profileCountdown = 60;
-    startProfileResendTimer();
-    // Clear previous OTP inputs
-    clearOTPInputs('profile');
-    // Show OTP modal
-    document.getElementById('otp-profile-modal').classList.remove('hidden');
-    // Clear any previous error
-    document.getElementById('profile-otp-error').style.display = 'none';
+    try {
+        // Send OTP request to API
+        const response = await fetch('../api/send_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'profile' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('OTP sent to your email', 'green');
+            // Reset countdown
+            profileCountdown = 60;
+            startProfileResendTimer();
+            // Clear previous OTP inputs
+            clearOTPInputs('profile');
+            // Show OTP modal
+            document.getElementById('otp-profile-modal').classList.remove('hidden');
+            // Clear any previous error
+            document.getElementById('profile-otp-error').style.display = 'none';
+        } else {
+            showToast(result.error || 'Failed to send OTP', 'red');
+        }
+    } catch (e) {
+        showToast('Error connecting to server', 'red');
+    }
 }
 
 function startProfileResendTimer() {
@@ -647,10 +663,26 @@ function startProfileResendTimer() {
 }
 
 async function resendProfileOTP() {
-    // For demo purposes, simulate OTP resend like in landingpage.php
-    showToast('OTP resent to your email', 'green');
-    profileCountdown = 60;
-    startProfileResendTimer();
+    try {
+        // Send OTP request to API
+        const response = await fetch('../api/send_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'profile' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('OTP resent to your email', 'green');
+            profileCountdown = 60;
+            startProfileResendTimer();
+        } else {
+            showToast(result.error || 'Failed to resend OTP', 'red');
+        }
+    } catch (e) {
+        showToast('Error connecting to server', 'red');
+    }
 }
 
 async function verifyProfileOTP() {
@@ -665,9 +697,17 @@ async function verifyProfileOTP() {
     errorEl.style.display = 'none';
     
     try {
-        // For demo purposes, accept any 6-digit code like in landingpage.php
-        if (otp.length === 6) {
-            // Update profile directly without actual OTP verification
+        // Verify OTP first
+        const verifyRes = await fetch('../api/verify_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'profile', otp: otp })
+        });
+        
+        const verifyResult = await verifyRes.json();
+        
+        if (verifyResult.success) {
+            // OTP is correct, now update profile
             const updateRes = await fetch('../api/update_profile.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -694,7 +734,7 @@ async function verifyProfileOTP() {
                 errorEl.style.display = 'block';
             }
         } else {
-            errorEl.textContent = 'Please enter a valid 6-digit code';
+            errorEl.textContent = verifyResult.error || 'Invalid OTP';
             errorEl.style.display = 'block';
         }
     } catch (e) {
@@ -719,14 +759,32 @@ async function requestPasswordOTP() {
     if (newPass.length < 6) { errorEl.textContent = 'Password must be at least 6 characters'; errorEl.style.display = 'block'; return; }
     if (newPass === current) { errorEl.textContent = 'New password must be different from current password'; errorEl.style.display = 'block'; return; }
     
-    // For demo purposes, skip current password verification and simulate OTP sending
-    pendingPasswordData = { new_password: newPass };
-    showToast('OTP sent to your email', 'green');
-    passwordCountdown = 60;
-    startPasswordResendTimer();
-    clearOTPInputs('password');
-    document.getElementById('otp-password-modal').classList.remove('hidden');
-    document.getElementById('password-otp-error').style.display = 'none';
+    // Store pending password data
+    pendingPasswordData = { new_password: newPass, current_password: current };
+    
+    try {
+        // Send OTP request to API
+        const response = await fetch('../api/send_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'password' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('OTP sent to your email', 'green');
+            passwordCountdown = 60;
+            startPasswordResendTimer();
+            clearOTPInputs('password');
+            document.getElementById('otp-password-modal').classList.remove('hidden');
+            document.getElementById('password-otp-error').style.display = 'none';
+        } else {
+            showToast(result.error || 'Failed to send OTP', 'red');
+        }
+    } catch (e) {
+        showToast('Error connecting to server', 'red');
+    }
 }
 
 function startPasswordResendTimer() {
@@ -746,10 +804,26 @@ function startPasswordResendTimer() {
 }
 
 async function resendPasswordOTP() {
-    // For demo purposes, simulate OTP resend like in landingpage.php
-    showToast('OTP resent to your email', 'green');
-    passwordCountdown = 60;
-    startPasswordResendTimer();
+    try {
+        // Send OTP request to API
+        const response = await fetch('../api/send_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'password' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('OTP resent to your email', 'green');
+            passwordCountdown = 60;
+            startPasswordResendTimer();
+        } else {
+            showToast(result.error || 'Failed to resend OTP', 'red');
+        }
+    } catch (e) {
+        showToast('Error connecting to server', 'red');
+    }
 }
 
 async function verifyPasswordOTP() {
@@ -764,13 +838,24 @@ async function verifyPasswordOTP() {
     errorEl.style.display = 'none';
     
     try {
-        // For demo purposes, accept any 6-digit code like in landingpage.php
-        if (otp.length === 6) {
-            // Change password directly without actual OTP verification
+        // Verify OTP first
+        const verifyRes = await fetch('../api/verify_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'password', otp: otp })
+        });
+        
+        const verifyResult = await verifyRes.json();
+        
+        if (verifyResult.success) {
+            // OTP is correct, now change password
             const changeRes = await fetch('../api/change_password.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ new_password: pendingPasswordData.new_password })
+                body: JSON.stringify({ 
+                    current_password: pendingPasswordData.current_password,
+                    new_password: pendingPasswordData.new_password 
+                })
             });
             const changeResult = await changeRes.json();
             
@@ -786,7 +871,7 @@ async function verifyPasswordOTP() {
                 errorEl.style.display = 'block';
             }
         } else {
-            errorEl.textContent = 'Please enter a valid 6-digit code';
+            errorEl.textContent = verifyResult.error || 'Invalid OTP';
             errorEl.style.display = 'block';
         }
     } catch (e) {
