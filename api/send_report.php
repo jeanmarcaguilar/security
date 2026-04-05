@@ -1,16 +1,7 @@
 <?php
 session_start();
 require_once '../includes/config.php';
-
-// Load PHPMailer with correct paths
-require_once '../includes/PHPMailer-6.9.1/src/PHPMailer.php';
-require_once '../includes/PHPMailer-6.9.1/src/SMTP.php';
-require_once '../includes/PHPMailer-6.9.1/src/Exception.php';
-
-// Import PHPMailer classes
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
+require_once '../includes/email_config.php';
 
 header('Content-Type: application/json');
 
@@ -104,6 +95,13 @@ try {
 }
 
 function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
+    global $MAIL_USERNAME, $MAIL_PASSWORD;
+    
+    if (empty($MAIL_USERNAME) || empty($MAIL_PASSWORD)) {
+        error_log('[CyberShield] MAIL_USERNAME or MAIL_PASSWORD env var is not set.');
+        return false;
+    }
+
     $mail = new PHPMailer(true);
     
     try {
@@ -113,15 +111,15 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'jeanmarcaguilar829@gmail.com';
-        $mail->Password   = 'ryrizfyhokwsbcfz';
+        $mail->Username   = $MAIL_USERNAME;
+        $mail->Password   = $MAIL_PASSWORD;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         $mail->Port       = 465;
         
         error_log("SMTP settings configured");
         
         // Recipients
-        $mail->setFrom('jeanmarcaguilar829@gmail.com', 'CyberShield Security');
+        $mail->setFrom($MAIL_USERNAME, 'CyberShield Security');
         $mail->addAddress($recipientEmail);
         
         error_log("Recipients set");

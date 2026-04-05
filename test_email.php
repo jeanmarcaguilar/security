@@ -41,7 +41,7 @@ if (class_exists('PHPMailer\PHPMailer\PHPMailer')) {
 // Check environment variables
 echo "<h3>Environment Variables:</h3>";
 $mailUsername = getenv('MAIL_USERNAME') ?: 'jeanmarcaguilar829@gmail.com';
-$mailPassword = getenv('MAIL_PASSWORD') ?: 'hfzhlrghsdniianj';
+$mailPassword = getenv('MAIL_PASSWORD') ?: 'dadlprmmhqatdjda';
 
 echo "<p><strong>MAIL_USERNAME:</strong> " . $mailUsername . "</p>";
 echo "<p><strong>MAIL_PASSWORD:</strong> " . (empty($mailPassword) ? 'NOT SET' : 'SET') . "</p>";
