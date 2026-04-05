@@ -16,8 +16,8 @@ require 'PHPMailer-6.9.1/src/Exception.php';
 // Example .env entry:
 //   MAIL_USERNAME=youraddress@gmail.com
 //   MAIL_PASSWORD=your_app_password_here
-$MAIL_USERNAME = getenv('MAIL_USERNAME') ?: '';
-$MAIL_PASSWORD = getenv('MAIL_PASSWORD') ?: '';
+$MAIL_USERNAME = getenv('MAIL_USERNAME') ?: 'jeanmarcaguilar829@gmail.com';
+$MAIL_PASSWORD = getenv('MAIL_PASSWORD') ?: 'hfzhlrghsdniianj';
 
 function sendOTPEmail(string $recipientEmail, string $recipientName, string $otpCode): bool {
     global $MAIL_USERNAME, $MAIL_PASSWORD;
