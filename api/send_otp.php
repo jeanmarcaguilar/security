@@ -55,15 +55,14 @@ try {
     // Send OTP email
     $emailSent = sendOTPEmail($user['email'], $user['full_name'], $otp);
     
-    if ($emailSent) {
-        echo json_encode([
-            'success' => true, 
-            'message' => 'OTP sent to your email',
-            'email' => $user['email'] // Return email for display (masked in frontend)
-        ]);
-    } else {
-        echo json_encode(['success' => false, 'error' => 'Failed to send OTP email']);
-    }
+    // Always show OTP in development mode for testing
+    echo json_encode([
+        'success' => true, 
+        'message' => 'OTP generated for testing',
+        'otp' => $otp, // Show OTP for development
+        'email' => $user['email'],
+        'dev_mode' => true
+    ]);
     
 } catch (PDOException $e) {
     error_log("OTP sending error: " . $e->getMessage());

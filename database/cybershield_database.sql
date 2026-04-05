@@ -4,10 +4,12 @@
 --   mysql -u root -p < cybershield_complete.sql
 -- ============================================================
 
--- Drop database if exists (CAUTION: This will delete all data)
-DROP DATABASE IF EXISTS cybershield;
-CREATE DATABASE cybershield CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE cybershield;
+-- Use existing database (replace with your actual database name)
+-- Uncomment and modify the line below to use your database name
+-- USE your_existing_database_name;
+
+-- If you have a database already created, use that instead
+-- Otherwise, ask your hosting provider to create the 'cybershield' database for you
 
 -- ============================================================
 -- CORE TABLES
