@@ -2,7 +2,7 @@
 // ============================================================
 // Email Configuration for CyberShield
 // SECURITY: Credentials are loaded from environment variables.
-// Set these in your .env file or server config — NEVER hardcode.
+// Set these in your server config or .env — NEVER commit to git.
 // ============================================================
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -12,38 +12,36 @@ require 'PHPMailer-6.9.1/src/PHPMailer.php';
 require 'PHPMailer-6.9.1/src/SMTP.php';
 require 'PHPMailer-6.9.1/src/Exception.php';
 
-// Load .env if present (install vlucas/phpdotenv via Composer, or define vars in your server config)
-// Example .env entry:
-//   MAIL_USERNAME=youraddress@gmail.com
-//   MAIL_PASSWORD=your_app_password_here
-$MAIL_USERNAME = getenv('MAIL_USERNAME') ?: 'jeanmarcaguilar829@gmail.com';
-$MAIL_PASSWORD = getenv('MAIL_PASSWORD') ?: 'dadlprmmhqatdjda';
+// Using constants (not variables) avoids PHP's global scope issue
+// when this file is included from another file.
+if (!defined('MAIL_USERNAME')) {
+    define('MAIL_USERNAME', getenv('MAIL_USERNAME') ?: 'jeanmarcaguilar829@gmail.com');
+}
+if (!defined('MAIL_PASSWORD')) {
+    define('MAIL_PASSWORD', getenv('MAIL_PASSWORD') ?: 'dadlprmmhqatdjda');
+}
 
 function sendOTPEmail(string $recipientEmail, string $recipientName, string $otpCode): bool {
-    global $MAIL_USERNAME, $MAIL_PASSWORD;
-
-    if (empty($MAIL_USERNAME) || empty($MAIL_PASSWORD)) {
-        error_log('[CyberShield] MAIL_USERNAME or MAIL_PASSWORD env var is not set.');
+    // Constants are always accessible — no 'global' keyword needed
+    if (empty(MAIL_USERNAME) || empty(MAIL_PASSWORD)) {
+        error_log('[CyberShield] MAIL_USERNAME or MAIL_PASSWORD is not set.');
         return false;
     }
 
     $mail = new PHPMailer(true);
 
     try {
-        // Server settings
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = $MAIL_USERNAME;
-        $mail->Password   = $MAIL_PASSWORD;
+        $mail->Username   = MAIL_USERNAME;
+        $mail->Password   = MAIL_PASSWORD;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         $mail->Port       = 465;
 
-        // Recipients
-        $mail->setFrom($MAIL_USERNAME, 'CyberShield Security');
+        $mail->setFrom(MAIL_USERNAME, 'CyberShield Security');
         $mail->addAddress($recipientEmail, $recipientName);
 
-        // Content
         $mail->isHTML(true);
         $mail->Subject = 'CyberShield — Your OTP Verification Code';
 
@@ -53,13 +51,10 @@ function sendOTPEmail(string $recipientEmail, string $recipientName, string $otp
         $mail->Body = '
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#030508;color:#dde4f0;padding:40px;border-radius:12px;">
             <div style="text-align:center;margin-bottom:30px;">
-                <div style="width:60px;height:60px;background:linear-gradient(135deg,#3b8bff,#b061ff);border-radius:15px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:20px;">
-                    🛡️
-                </div>
+                <div style="width:60px;height:60px;background:linear-gradient(135deg,#3b8bff,#b061ff);border-radius:15px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:20px;">&#x1F6E1;&#xFE0F;</div>
                 <h1 style="color:#fff;font-size:28px;margin:0;font-weight:700;">CyberShield</h1>
                 <p style="color:#5c6a84;margin:5px 0 0;font-size:14px;">Two-Factor Authentication</p>
             </div>
-
             <div style="background:rgba(59,139,255,0.1);border:1px solid rgba(59,139,255,0.3);border-radius:12px;padding:30px;margin-bottom:30px;text-align:center;">
                 <h2 style="color:#3b8bff;font-size:18px;margin:0 0 15px;">Your Verification Code</h2>
                 <p style="color:#8898b4;font-size:14px;margin:0 0 16px;">Hi ' . $safeName . ', use the code below to complete your sign-in.</p>
@@ -68,9 +63,8 @@ function sendOTPEmail(string $recipientEmail, string $recipientName, string $otp
                 </div>
                 <p style="color:#8898b4;margin:15px 0 0;font-size:14px;">This code will expire in <strong>5 minutes</strong>.</p>
             </div>
-
             <div style="background:rgba(0,255,148,0.05);border:1px solid rgba(0,255,148,0.2);border-radius:8px;padding:20px;margin-bottom:25px;">
-                <h3 style="color:#00ff94;font-size:16px;margin:0 0 10px;">🔐 Security Notice</h3>
+                <h3 style="color:#00ff94;font-size:16px;margin:0 0 10px;">&#x1F510; Security Notice</h3>
                 <ul style="color:#8898b4;margin:0;padding-left:20px;font-size:14px;line-height:1.6;">
                     <li>Never share this code with anyone</li>
                     <li>CyberShield will never ask for your password via email</li>
@@ -78,11 +72,10 @@ function sendOTPEmail(string $recipientEmail, string $recipientName, string $otp
                     <li>If you did not request this code, please ignore this email</li>
                 </ul>
             </div>
-
             <div style="text-align:center;margin-top:30px;">
                 <p style="color:#5c6a84;font-size:12px;margin:0;">
-                    © 2025 CyberShield · Philippine E-Commerce Security Platform<br>
-                    NPC Compliant · RA 10173 Aligned
+                    &copy; 2025 CyberShield &middot; Philippine E-Commerce Security Platform<br>
+                    NPC Compliant &middot; RA 10173 Aligned
                 </p>
             </div>
         </div>';
@@ -103,7 +96,6 @@ function sendOTPEmail(string $recipientEmail, string $recipientName, string $otp
         return true;
 
     } catch (Exception $e) {
-        // Log the real error server-side; return false so the caller can show a proper user message
         error_log('[CyberShield] Email sending failed: ' . $mail->ErrorInfo);
         return false;
     }
