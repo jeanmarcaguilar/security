@@ -1,338 +1,460 @@
 <?php
+// ============================================================
+// CyberShield — Landing / Auth Page
+// Fixes applied:
+//   1. session_start() moved to top of file
+//   2. OTP brute-force attempt limiting (max 5 per session)
+//   3. Email not leaked in login JSON response
+//   4. BASE_URL constant replaces hardcoded localhost
+//   5. mt_rand() replaced with random_int() in generateOTP (in email_config)
+//   6. Error details not exposed in PDO catch blocks in production
+// ============================================================
+session_start();
+
 require_once 'includes/config.php';
 require_once 'includes/audit_helper.php';
 require_once 'includes/email_config.php';
-// Handle login POST request
+
+// Define base URL once — change this when deploying
+if (!defined('BASE_URL')) {
+    define('BASE_URL', 'http://localhost/security');
+}
+
+// ── Helper: build redirect URL by role ──────────────────────
+function buildRedirectUrl(string $role, string $username): string {
+    if ($role === 'Admin') {
+        return BASE_URL . '/Admin/dashboard.php';
+    }
+    return BASE_URL . '/Client/index.php?role=' . strtolower($role) . '&user=' . urlencode($username);
+}
+
+// ── Helper: mask email for display (user@example.com → u***@example.com) ──
+function maskEmail(string $email): string {
+    [$local, $domain] = explode('@', $email, 2);
+    $masked = substr($local, 0, 1) . str_repeat('*', max(1, strlen($local) - 1));
+    return $masked . '@' . $domain;
+}
+
+// ── Helper: OTP attempt tracking ────────────────────────────
+function incrementOtpAttempts(string $key): int {
+    $_SESSION[$key] = ($_SESSION[$key] ?? 0) + 1;
+    return $_SESSION[$key];
+}
+
+function resetOtpAttempts(string $key): void {
+    unset($_SESSION[$key]);
+}
+
+// ============================================================
+// Handle POST requests
+// ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-session_start();
-if ($_POST['action'] === 'login') {
-$username = sanitizeInput($_POST['username'] ?? '');
-$password = $_POST['password'] ?? '';
-if (empty($username) || empty($password)) {
-echo json_encode(['success' => false, 'message' => 'Username and password are required']);
-exit;
-}
-try {
-$database = new Database();
-$db = $database->getConnection();
-if (!$db) {
-echo json_encode(['success' => false, 'message' => 'Database connection failed - no connection object returned']);
-exit;
-}
-$stmt = $db->prepare("SELECT id, username, password_hash, email, full_name, store_name, role FROM users WHERE username = ? AND is_active = 1");
-$stmt->execute([$username]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
-if ($user && password_verify($password, $user['password_hash'])) {
-    // Generate OTP and send via email
-    $otpCode = generateOTP();
-    $_SESSION['login_otp'] = $otpCode;
-    $_SESSION['login_otp_time'] = time();
-    
-    // Send OTP email
-    $emailSent = sendOTPEmail($user['email'], $user['full_name'], $otpCode);
-    
-    if ($emailSent) {
-        echo json_encode([
-            'success' => true,
-            'require_otp' => true,
-            'user_id' => $user['id'],
-            'username' => $user['username'],
-            'role' => $user['role'],
-            'full_name' => $user['full_name'],
-            'email' => $user['email'],
-            'message' => 'Please enter the 6-digit code sent to your email'
-        ]);
-    } else {
-        echo json_encode([
-            'success' => true,
-            'require_otp' => true,
-            'user_id' => $user['id'],
-            'username' => $user['username'],
-            'role' => $user['role'],
-            'full_name' => $user['full_name'],
-            'message' => 'Please enter the 6-digit code sent to your device (email service unavailable)'
-        ]);
-    }
-} else {
-    echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
-}
-} catch(PDOException $e) {
-echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-} catch(Exception $e) {
-echo json_encode(['success' => false, 'message' => 'General error: ' . $e->getMessage()]);
-}
-exit;
-}
-if ($_POST['action'] === 'verify_otp') {
-$otp = sanitizeInput($_POST['otp'] ?? '');
-$user_id = sanitizeInput($_POST['user_id'] ?? '');
-$username = sanitizeInput($_POST['username'] ?? '');
-$role = sanitizeInput($_POST['role'] ?? '');
-    
-// Validate OTP format
-if (strlen($otp) !== 6 || !ctype_digit($otp)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid OTP format']);
-    exit;
-}
-    
-// Check OTP in session
-if (!isset($_SESSION['login_otp']) || !isset($_SESSION['login_otp_time'])) {
-    echo json_encode(['success' => false, 'message' => 'OTP session expired. Please login again.']);
-    exit;
-}
-    
-// Check OTP expiry (5 minutes)
-if (time() - $_SESSION['login_otp_time'] > 300) {
-    unset($_SESSION['login_otp'], $_SESSION['login_otp_time']);
-    echo json_encode(['success' => false, 'message' => 'OTP expired. Please request a new one.']);
-    exit;
-}
-    
-// Verify OTP
-if ($otp !== $_SESSION['login_otp']) {
-    echo json_encode(['success' => false, 'message' => 'Invalid OTP. Please try again.']);
-    exit;
-}
-    
-// Clear OTP from session
-unset($_SESSION['login_otp'], $_SESSION['login_otp_time']);
-    
-try {
-    $database = new Database();
-    $db = $database->getConnection();
-    $stmt = $db->prepare("SELECT id, username, role, full_name FROM users WHERE id = ? AND username = ?");
-    $stmt->execute([$user_id, $username]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($user) {
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['role'] = $user['role'];
-        $_SESSION['full_name'] = $user['full_name'];
-        $_SESSION['logged_in'] = true;
-        createAuditLog($db, $user['id'], 'login', 'User logged in successfully with 2FA', getClientIP(), getClientUserAgent());
-        $redirect_url = $user['role'] === 'Admin' ?
-        'http://localhost/security/Admin/dashboard.php' :
-        'http://localhost/security/Client/index.php?role=' . strtolower($user['role']) . '&user=' . $user['username'];
-        echo json_encode([
-            'success' => true,
-            'message' => 'OTP verified successfully',
-            'redirect_url' => $redirect_url
-        ]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Invalid user data']);
-    }
-} catch(PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error']);
-}
-exit;
-}
-if ($_POST['action'] === 'resend_otp') {
-    $user_id = sanitizeInput($_POST['user_id'] ?? '');
-    $username = sanitizeInput($_POST['username'] ?? '');
-    $email = sanitizeInput($_POST['email'] ?? '');
-    $mode = sanitizeInput($_POST['mode'] ?? '');
-    
-    try {
-        if ($mode === 'signup') {
-            // For signup, use the pending signup data
-            if (empty($_SESSION['pending_signup'])) {
-                echo json_encode(['success' => false, 'message' => 'Session expired. Please sign up again.']);
-                exit;
-            }
-            $pending = $_SESSION['pending_signup'];
-            $otpCode = generateOTP();
-            $_SESSION['signup_otp'] = $otpCode;
-            $_SESSION['signup_otp_time'] = time();
-            
-            $emailSent = sendOTPEmail($pending['email'], $pending['fullname'], $otpCode);
-            
-            if ($emailSent) {
-                echo json_encode(['success' => true, 'message' => 'New OTP sent to ' . $pending['email']]);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to send email. Please try again.']);
-            }
-        } else {
-            // For login, get user from database
+
+    // ── LOGIN ───────────────────────────────────────────────
+    if ($_POST['action'] === 'login') {
+        $username = sanitizeInput($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if (empty($username) || empty($password)) {
+            echo json_encode(['success' => false, 'message' => 'Username and password are required']);
+            exit;
+        }
+
+        try {
             $database = new Database();
             $db = $database->getConnection();
-            $stmt = $db->prepare("SELECT id, username, email, full_name FROM users WHERE id = ? AND username = ? AND is_active = 1");
-            $stmt->execute([$user_id, $username]);
+            if (!$db) {
+                echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+                exit;
+            }
+
+            $stmt = $db->prepare(
+                "SELECT id, username, password_hash, email, full_name, store_name, role
+                 FROM users WHERE username = ? AND is_active = 1"
+            );
+            $stmt->execute([$username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($user) {
+
+            if ($user && password_verify($password, $user['password_hash'])) {
+                // Reset any previous OTP state
+                unset($_SESSION['login_otp'], $_SESSION['login_otp_time'], $_SESSION['login_otp_attempts']);
+
                 $otpCode = generateOTP();
-                $_SESSION['login_otp'] = $otpCode;
+                $_SESSION['login_otp']      = $otpCode;
                 $_SESSION['login_otp_time'] = time();
-                
+                $_SESSION['login_user_id']  = $user['id'];   // store server-side — not trusted from client
+                $_SESSION['login_username'] = $user['username'];
+                $_SESSION['login_role']     = $user['role'];
+                $_SESSION['login_fullname'] = $user['full_name'];
+
                 $emailSent = sendOTPEmail($user['email'], $user['full_name'], $otpCode);
-                
+
+                // Do NOT send email address back to the client
+                $maskedEmail = maskEmail($user['email']);
+
                 if ($emailSent) {
-                    echo json_encode(['success' => true, 'message' => 'New OTP sent to ' . $user['email']]);
+                    $msg = 'A 6-digit code was sent to ' . $maskedEmail;
+                } else {
+                    $msg = 'Email delivery failed. Please contact support or try again.';
+                    // In development you can temporarily show the OTP:
+                    // $msg = 'DEV ONLY — OTP: ' . $otpCode;
+                }
+
+                echo json_encode([
+                    'success'     => true,
+                    'require_otp' => true,
+                    'email_hint'  => $maskedEmail,   // safe masked hint for the UI
+                    'message'     => $msg,
+                ]);
+            } else {
+                // Generic message — do not reveal whether username or password was wrong
+                echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
+            }
+
+        } catch (PDOException $e) {
+            error_log('[CyberShield] Login DB error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'A database error occurred. Please try again.']);
+        }
+        exit;
+    }
+
+    // ── VERIFY LOGIN OTP ────────────────────────────────────
+    if ($_POST['action'] === 'verify_otp') {
+        $otp = sanitizeInput($_POST['otp'] ?? '');
+
+        if (strlen($otp) !== 6 || !ctype_digit($otp)) {
+            echo json_encode(['success' => false, 'message' => 'Invalid OTP format']);
+            exit;
+        }
+
+        if (!isset($_SESSION['login_otp'], $_SESSION['login_otp_time'])) {
+            echo json_encode(['success' => false, 'message' => 'OTP session expired. Please log in again.']);
+            exit;
+        }
+
+        // Check expiry (5 minutes)
+        if (time() - $_SESSION['login_otp_time'] > 300) {
+            unset($_SESSION['login_otp'], $_SESSION['login_otp_time']);
+            resetOtpAttempts('login_otp_attempts');
+            echo json_encode(['success' => false, 'message' => 'OTP expired. Please log in again.']);
+            exit;
+        }
+
+        // Brute-force guard
+        $attempts = incrementOtpAttempts('login_otp_attempts');
+        if ($attempts > 5) {
+            unset($_SESSION['login_otp'], $_SESSION['login_otp_time'],
+                  $_SESSION['login_user_id'], $_SESSION['login_username'],
+                  $_SESSION['login_role'], $_SESSION['login_fullname']);
+            resetOtpAttempts('login_otp_attempts');
+            echo json_encode(['success' => false, 'message' => 'Too many failed attempts. Please log in again.']);
+            exit;
+        }
+
+        // Use hash_equals to prevent timing attacks
+        if (!hash_equals($_SESSION['login_otp'], $otp)) {
+            $remaining = 5 - $attempts;
+            echo json_encode([
+                'success' => false,
+                'message' => "Invalid OTP. {$remaining} attempt(s) remaining.",
+            ]);
+            exit;
+        }
+
+        // OTP valid — clear OTP state and complete login
+        $userId   = $_SESSION['login_user_id'];
+        $username = $_SESSION['login_username'];
+        $role     = $_SESSION['login_role'];
+        $fullname = $_SESSION['login_fullname'];
+
+        unset($_SESSION['login_otp'], $_SESSION['login_otp_time'],
+              $_SESSION['login_user_id'], $_SESSION['login_username'],
+              $_SESSION['login_role'], $_SESSION['login_fullname']);
+        resetOtpAttempts('login_otp_attempts');
+
+        try {
+            $database = new Database();
+            $db = $database->getConnection();
+
+            // Re-verify user still exists and is active
+            $stmt = $db->prepare("SELECT id, username, role, full_name FROM users WHERE id = ? AND username = ? AND is_active = 1");
+            $stmt->execute([$userId, $username]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                $_SESSION['user_id']    = $user['id'];
+                $_SESSION['username']   = $user['username'];
+                $_SESSION['role']       = $user['role'];
+                $_SESSION['full_name']  = $user['full_name'];
+                $_SESSION['logged_in']  = true;
+
+                createAuditLog($db, $user['id'], 'login', 'User logged in successfully with 2FA', getClientIP(), getClientUserAgent());
+
+                echo json_encode([
+                    'success'      => true,
+                    'message'      => 'OTP verified successfully',
+                    'redirect_url' => buildRedirectUrl($user['role'], $user['username']),
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'User account not found or inactive']);
+            }
+
+        } catch (PDOException $e) {
+            error_log('[CyberShield] Verify OTP DB error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'A database error occurred. Please try again.']);
+        }
+        exit;
+    }
+
+    // ── RESEND OTP ──────────────────────────────────────────
+    if ($_POST['action'] === 'resend_otp') {
+        $mode = sanitizeInput($_POST['mode'] ?? '');
+
+        try {
+            if ($mode === 'signup') {
+                if (empty($_SESSION['pending_signup'])) {
+                    echo json_encode(['success' => false, 'message' => 'Session expired. Please sign up again.']);
+                    exit;
+                }
+                $pending = $_SESSION['pending_signup'];
+                $otpCode = generateOTP();
+                $_SESSION['signup_otp']      = $otpCode;
+                $_SESSION['signup_otp_time'] = time();
+                unset($_SESSION['signup_otp_attempts']);
+
+                $emailSent = sendOTPEmail($pending['email'], $pending['fullname'], $otpCode);
+
+                if ($emailSent) {
+                    echo json_encode(['success' => true, 'message' => 'New OTP sent to ' . maskEmail($pending['email'])]);
                 } else {
                     echo json_encode(['success' => false, 'message' => 'Failed to send email. Please try again.']);
                 }
+
             } else {
-                echo json_encode(['success' => false, 'message' => 'User not found']);
+                // For login — use server-side session data only (don't trust client-sent user_id/username)
+                if (empty($_SESSION['login_user_id'])) {
+                    echo json_encode(['success' => false, 'message' => 'Session expired. Please log in again.']);
+                    exit;
+                }
+
+                $database = new Database();
+                $db = $database->getConnection();
+                $stmt = $db->prepare(
+                    "SELECT id, username, email, full_name FROM users WHERE id = ? AND username = ? AND is_active = 1"
+                );
+                $stmt->execute([$_SESSION['login_user_id'], $_SESSION['login_username']]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($user) {
+                    $otpCode = generateOTP();
+                    $_SESSION['login_otp']          = $otpCode;
+                    $_SESSION['login_otp_time']     = time();
+                    unset($_SESSION['login_otp_attempts']);
+
+                    $emailSent = sendOTPEmail($user['email'], $user['full_name'], $otpCode);
+
+                    if ($emailSent) {
+                        echo json_encode(['success' => true, 'message' => 'New OTP sent to ' . maskEmail($user['email'])]);
+                    } else {
+                        echo json_encode(['success' => false, 'message' => 'Failed to send email. Please try again.']);
+                    }
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'User not found']);
+                }
             }
+
+        } catch (PDOException $e) {
+            error_log('[CyberShield] Resend OTP DB error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Database error. Please try again.']);
+        } catch (Exception $e) {
+            error_log('[CyberShield] Resend OTP error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'An error occurred. Please try again.']);
         }
-    } catch(PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-    } catch(Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        exit;
     }
-    exit;
-}
-if ($_POST['action'] === 'register') {
-$fullname = sanitizeInput($_POST['fullname'] ?? '');
-$email = sanitizeInput($_POST['email'] ?? '');
-$store = sanitizeInput($_POST['store'] ?? '');
-$password = $_POST['password'] ?? '';
-$confirm = $_POST['confirm'] ?? '';
-if (empty($fullname) || empty($email) || empty($store) || empty($password) || empty($confirm)) {
-echo json_encode(['success' => false, 'message' => 'All fields are required']);
-exit;
-}
-if (!validateEmail($email)) {
-echo json_encode(['success' => false, 'message' => 'Valid email address is required']);
-exit;
-}
-if (strlen($password) < 8) {
-echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters long']);
-exit;
-}
-if ($password !== $confirm) {
-echo json_encode(['success' => false, 'message' => 'Passwords do not match']);
-exit;
-}
-try {
-$database = new Database();
-$db = $database->getConnection();
-$stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-$stmt->execute([$email]);
-if ($stmt->fetch()) {
-echo json_encode(['success' => false, 'message' => 'Email address already registered']);
-exit;
-}
-$base_username = explode('@', $email)[0];
-$username = $base_username;
-$counter = 1;
-while (true) {
-$stmt = $db->prepare("SELECT id FROM users WHERE username = ?");
-$stmt->execute([$username]);
-if (!$stmt->fetch()) break;
-$username = $base_username . $counter;
-$counter++;
-}
-$_SESSION['pending_signup'] = [
-'fullname'      => $fullname,
-'email'         => $email,
-'store'         => $store,
-'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-'username'      => $username,
-];
 
-// Generate OTP and send via email for signup
-$otpCode = generateOTP();
-$_SESSION['signup_otp'] = $otpCode;
-$_SESSION['signup_otp_time'] = time();
+    // ── REGISTER ────────────────────────────────────────────
+    if ($_POST['action'] === 'register') {
+        $fullname = sanitizeInput($_POST['fullname'] ?? '');
+        $email    = sanitizeInput($_POST['email'] ?? '');
+        $store    = sanitizeInput($_POST['store'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirm  = $_POST['confirm'] ?? '';
 
-// Send OTP email
-$emailSent = sendOTPEmail($email, $fullname, $otpCode);
+        if (empty($fullname) || empty($email) || empty($store) || empty($password) || empty($confirm)) {
+            echo json_encode(['success' => false, 'message' => 'All fields are required']);
+            exit;
+        }
+        if (!validateEmail($email)) {
+            echo json_encode(['success' => false, 'message' => 'A valid email address is required']);
+            exit;
+        }
+        if (strlen($password) < 8) {
+            echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters long']);
+            exit;
+        }
+        if ($password !== $confirm) {
+            echo json_encode(['success' => false, 'message' => 'Passwords do not match']);
+            exit;
+        }
 
-if ($emailSent) {
-echo json_encode([
-'success'      => true,
-'require_otp'  => true,
-'email'        => $email,
-'message'      => 'OTP sent to ' . $email . '. Please check your inbox.',
-]);
-} else {
-echo json_encode([
-'success'      => true,
-'require_otp'  => true,
-'email'        => $email,
-'message'      => 'Please enter the 6-digit code sent to your device (email service unavailable)',
-]);
-}
-} catch(PDOException $e) {
-echo json_encode(['success' => false, 'message' => 'Registration failed: ' . $e->getMessage()]);
-}
-exit;
-}
-if ($_POST['action'] === 'verify_signup_otp') {
-if (empty($_SESSION['pending_signup'])) {
-echo json_encode(['success' => false, 'message' => 'Session expired. Please sign up again.']);
-exit;
-}
-$otp = sanitizeInput($_POST['otp'] ?? '');
-if (strlen($otp) !== 6 || !ctype_digit($otp)) {
-echo json_encode(['success' => false, 'message' => 'Please enter a valid 6-digit code']);
-exit;
-}
+        try {
+            $database = new Database();
+            $db = $database->getConnection();
 
-// Check OTP in session
-if (!isset($_SESSION['signup_otp']) || !isset($_SESSION['signup_otp_time'])) {
-echo json_encode(['success' => false, 'message' => 'OTP session expired. Please sign up again.']);
-exit;
-}
+            $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            if ($stmt->fetch()) {
+                echo json_encode(['success' => false, 'message' => 'Email address already registered']);
+                exit;
+            }
 
-// Check OTP expiry (5 minutes)
-if (time() - $_SESSION['signup_otp_time'] > 300) {
-unset($_SESSION['signup_otp'], $_SESSION['signup_otp_time']);
-echo json_encode(['success' => false, 'message' => 'OTP expired. Please request a new one.']);
-exit;
-}
+            // Generate unique username from email local part
+            $base_username = preg_replace('/[^a-z0-9_]/', '', strtolower(explode('@', $email)[0]));
+            if (empty($base_username)) $base_username = 'user';
+            $username = $base_username;
+            $counter  = 1;
+            while (true) {
+                $stmt = $db->prepare("SELECT id FROM users WHERE username = ?");
+                $stmt->execute([$username]);
+                if (!$stmt->fetch()) break;
+                $username = $base_username . $counter++;
+            }
 
-// Verify OTP
-if ($otp !== $_SESSION['signup_otp']) {
-echo json_encode(['success' => false, 'message' => 'Invalid OTP. Please try again.']);
-exit;
-}
+            $_SESSION['pending_signup'] = [
+                'fullname'      => $fullname,
+                'email'         => $email,
+                'store'         => $store,
+                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                'username'      => $username,
+            ];
 
-// Clear OTP from session
-unset($_SESSION['signup_otp'], $_SESSION['signup_otp_time']);
+            $otpCode = generateOTP();
+            $_SESSION['signup_otp']      = $otpCode;
+            $_SESSION['signup_otp_time'] = time();
+            unset($_SESSION['signup_otp_attempts']);
 
-$pending = $_SESSION['pending_signup'];
-try {
-$database = new Database();
-$db = $database->getConnection();
-$stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-$stmt->execute([$pending['email']]);
-if ($stmt->fetch()) {
-unset($_SESSION['pending_signup']);
-echo json_encode(['success' => false, 'message' => 'Email address already registered']);
-exit;
-}
-$stmt = $db->prepare("INSERT INTO users (username, password_hash, email, full_name, store_name, role) VALUES (?, ?, ?, ?, ?, 'Seller')");
-$stmt->execute([
-$pending['username'],
-$pending['password_hash'],
-$pending['email'],
-$pending['fullname'],
-$pending['store'],
-]);
-$new_user_id = $db->lastInsertId();
-$_SESSION['user_id']    = $new_user_id;
-$_SESSION['username']   = $pending['username'];
-$_SESSION['role']       = 'Seller';
-$_SESSION['full_name']  = $pending['fullname'];
-$_SESSION['user_full_name']  = $pending['fullname'];
-$_SESSION['user_email']      = $pending['email'];
-$_SESSION['user_store_name'] = $pending['store'];
-$_SESSION['user_role']       = 'Seller';
-$_SESSION['logged_in']  = true;
-unset($_SESSION['pending_signup']);
-$redirect_url = 'http://localhost/security/Client/index.php?role=seller&user=' . $pending['username'];
-echo json_encode([
-'success'      => true,
-'message'      => 'Account verified and created! Redirecting…',
-'redirect_url' => $redirect_url,
-]);
-} catch(PDOException $e) {
-echo json_encode(['success' => false, 'message' => 'Registration failed: ' . $e->getMessage()]);
-}
-exit;
-}
+            $emailSent = sendOTPEmail($email, $fullname, $otpCode);
+
+            if ($emailSent) {
+                $msg = 'OTP sent to ' . maskEmail($email) . '. Please check your inbox.';
+            } else {
+                $msg = 'Email delivery failed. Please try resending or contact support.';
+            }
+
+            echo json_encode([
+                'success'     => true,
+                'require_otp' => true,
+                'email'       => maskEmail($email),   // masked — safe to expose
+                'message'     => $msg,
+            ]);
+
+        } catch (PDOException $e) {
+            error_log('[CyberShield] Register DB error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Registration failed. Please try again.']);
+        }
+        exit;
+    }
+
+    // ── VERIFY SIGNUP OTP ───────────────────────────────────
+    if ($_POST['action'] === 'verify_signup_otp') {
+        if (empty($_SESSION['pending_signup'])) {
+            echo json_encode(['success' => false, 'message' => 'Session expired. Please sign up again.']);
+            exit;
+        }
+
+        $otp = sanitizeInput($_POST['otp'] ?? '');
+        if (strlen($otp) !== 6 || !ctype_digit($otp)) {
+            echo json_encode(['success' => false, 'message' => 'Please enter a valid 6-digit code']);
+            exit;
+        }
+
+        if (!isset($_SESSION['signup_otp'], $_SESSION['signup_otp_time'])) {
+            echo json_encode(['success' => false, 'message' => 'OTP session expired. Please sign up again.']);
+            exit;
+        }
+
+        if (time() - $_SESSION['signup_otp_time'] > 300) {
+            unset($_SESSION['signup_otp'], $_SESSION['signup_otp_time']);
+            resetOtpAttempts('signup_otp_attempts');
+            echo json_encode(['success' => false, 'message' => 'OTP expired. Please request a new one.']);
+            exit;
+        }
+
+        // Brute-force guard
+        $attempts = incrementOtpAttempts('signup_otp_attempts');
+        if ($attempts > 5) {
+            unset($_SESSION['signup_otp'], $_SESSION['signup_otp_time'], $_SESSION['pending_signup']);
+            resetOtpAttempts('signup_otp_attempts');
+            echo json_encode(['success' => false, 'message' => 'Too many failed attempts. Please sign up again.']);
+            exit;
+        }
+
+        if (!hash_equals($_SESSION['signup_otp'], $otp)) {
+            $remaining = 5 - $attempts;
+            echo json_encode([
+                'success' => false,
+                'message' => "Invalid OTP. {$remaining} attempt(s) remaining.",
+            ]);
+            exit;
+        }
+
+        // OTP valid — create user
+        unset($_SESSION['signup_otp'], $_SESSION['signup_otp_time']);
+        resetOtpAttempts('signup_otp_attempts');
+
+        $pending = $_SESSION['pending_signup'];
+
+        try {
+            $database = new Database();
+            $db = $database->getConnection();
+
+            // Double-check email not taken (race condition guard)
+            $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$pending['email']]);
+            if ($stmt->fetch()) {
+                unset($_SESSION['pending_signup']);
+                echo json_encode(['success' => false, 'message' => 'Email address already registered']);
+                exit;
+            }
+
+            $stmt = $db->prepare(
+                "INSERT INTO users (username, password_hash, email, full_name, store_name, role)
+                 VALUES (?, ?, ?, ?, ?, 'Seller')"
+            );
+            $stmt->execute([
+                $pending['username'],
+                $pending['password_hash'],
+                $pending['email'],
+                $pending['fullname'],
+                $pending['store'],
+            ]);
+            $new_user_id = $db->lastInsertId();
+
+            $_SESSION['user_id']         = $new_user_id;
+            $_SESSION['username']        = $pending['username'];
+            $_SESSION['role']            = 'Seller';
+            $_SESSION['full_name']       = $pending['fullname'];
+            $_SESSION['user_full_name']  = $pending['fullname'];
+            $_SESSION['user_email']      = $pending['email'];
+            $_SESSION['user_store_name'] = $pending['store'];
+            $_SESSION['user_role']       = 'Seller';
+            $_SESSION['logged_in']       = true;
+
+            unset($_SESSION['pending_signup']);
+
+            echo json_encode([
+                'success'      => true,
+                'message'      => 'Account verified and created! Redirecting…',
+                'redirect_url' => buildRedirectUrl('Seller', $pending['username']),
+            ]);
+
+        } catch (PDOException $e) {
+            error_log('[CyberShield] Signup verify DB error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Registration failed. Please try again.']);
+        }
+        exit;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -873,6 +995,7 @@ body { flex-direction: column; }
 <div class="orb1"></div>
 <div class="orb2"></div>
 <div class="orb3"></div>
+
 <!-- ═══ LEFT: Hero ═══ -->
 <div class="left">
 <div class="logo">
@@ -930,9 +1053,10 @@ recommendations to protect your store, customers, and data.
 </div>
 <div class="footer-row">
 <div class="footer-txt">© 2025 CyberShield · For Philippine E-Commerce Sellers</div>
-<div class="ph-badge">🇵 PH · NPC Aligned</div>
+<div class="ph-badge">🇵🇭 PH · NPC Aligned</div>
 </div>
 </div>
+
 <!-- ═══ RIGHT: Auth Panel ═══ -->
 <div class="right">
 <div class="form-box">
@@ -943,6 +1067,7 @@ recommendations to protect your store, customers, and data.
 <div class="auth-tab" id="tab-signup" onclick="switchTab('signup')">Sign Up</div>
 </div>
 <div class="alert" id="alert"></div>
+
 <!-- ── SIGN IN FORM ── -->
 <div id="form-signin">
 <div class="form-title">SIGN IN<br>TO PORTAL</div>
@@ -980,6 +1105,7 @@ Sign In &nbsp;<span class="submit-arrow">→</span>
 </button>
 </form>
 </div>
+
 <!-- ── SIGN UP FORM ── -->
 <div id="form-signup" style="display:none;">
 <div class="form-title">CREATE ACCOUNT<br>FOR FREE</div>
@@ -1035,16 +1161,15 @@ Sign In &nbsp;<span class="submit-arrow">→</span>
 <span class="custom-check"></span>
 I agree to the <a href="#" style="color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(59,139,255,0.3);">Terms &amp; Privacy Policy</a>
 </label>
-<!-- ── EMOJI CAPTCHA (fully self-contained, no external images) ── -->
+
+<!-- ── EMOJI CAPTCHA ── -->
 <div class="captcha-wrap" id="captchaWrap">
 <div class="captcha-header">Human Verification</div>
 <div class="captcha-instruction" id="captchaInstruction">
 Select all squares with <strong>🚗 cars</strong>
 </div>
 <div class="captcha-grid-container">
-<div class="captcha-grid" id="captchaGrid">
-<!-- Grid squares will be generated by JavaScript with emojis -->
-</div>
+<div class="captcha-grid" id="captchaGrid"></div>
 </div>
 <div class="captcha-actions">
 <button type="button" class="captcha-refresh-btn-small" onclick="generateCaptcha()" title="New Challenge">↻</button>
@@ -1054,6 +1179,7 @@ Verify Selection
 </div>
 <div class="captcha-status-msg" id="captchaMsg"></div>
 </div>
+
 <button type="submit" class="btn-submit btn-signup-submit" id="btnCreateAccount" disabled>
 Create Account &nbsp;<span class="submit-arrow">→</span>
 </button>
@@ -1065,6 +1191,7 @@ Your data is protected · NPC &amp; RA 10173 Aligned
 </div>
 </div>
 </div>
+
 <!-- ═══ OTP MODAL ═══ -->
 <div class="modal-overlay" id="otpModal">
 <div class="modal-container">
@@ -1072,22 +1199,22 @@ Your data is protected · NPC &amp; RA 10173 Aligned
 <div class="modal-content">
 <div class="modal-icon">🔐</div>
 <h2 class="modal-title">Two-Factor Authentication</h2>
-<p class="modal-subtitle" id="otpSubtitle">Enter the 6-digit code sent to <strong id="otpUserEmail">your device</strong></p>
+<p class="modal-subtitle" id="otpSubtitle">Enter the 6-digit code sent to <strong id="otpEmailHint">your device</strong></p>
 <p class="modal-subtitle" id="otpSignupSubtitle" style="display:none">A verification code was sent to <strong id="otpSignupEmail">your email</strong> to confirm your account</p>
 <div class="otp-input-group">
-<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp1" onkeyup="handleOTPInput(event, 1)" onkeydown="handleOTPBackspace(event, 1)">
-<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp2" onkeyup="handleOTPInput(event, 2)" onkeydown="handleOTPBackspace(event, 2)">
-<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp3" onkeyup="handleOTPInput(event, 3)" onkeydown="handleOTPBackspace(event, 3)">
-<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp4" onkeyup="handleOTPInput(event, 4)" onkeydown="handleOTPBackspace(event, 4)">
-<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp5" onkeyup="handleOTPInput(event, 5)" onkeydown="handleOTPBackspace(event, 5)">
-<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp6" onkeyup="handleOTPInput(event, 6)" onkeydown="handleOTPBackspace(event, 6)">
+<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp1" onkeyup="handleOTPInput(event,1)" onkeydown="handleOTPBackspace(event,1)">
+<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp2" onkeyup="handleOTPInput(event,2)" onkeydown="handleOTPBackspace(event,2)">
+<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp3" onkeyup="handleOTPInput(event,3)" onkeydown="handleOTPBackspace(event,3)">
+<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp4" onkeyup="handleOTPInput(event,4)" onkeydown="handleOTPBackspace(event,4)">
+<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp5" onkeyup="handleOTPInput(event,5)" onkeydown="handleOTPBackspace(event,5)">
+<input type="text" class="otp-digit" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp6" onkeyup="handleOTPInput(event,6)" onkeydown="handleOTPBackspace(event,6)">
 </div>
 <div class="otp-timer" id="otpTimer">
 Code expires in <span id="timerSeconds">05:00</span>
 </div>
 <div class="otp-info">
 <span class="otp-info-icon">ℹ️</span>
-<span>Enter each digit in the boxes above - type continuously</span>
+<span>Enter each digit in the boxes above — type continuously</span>
 </div>
 <div class="otp-actions">
 <button class="otp-btn otp-btn-secondary" onclick="resendOTP()" id="resendBtn">
@@ -1100,33 +1227,32 @@ Verify &nbsp;<span class="submit-arrow">→</span>
 </div>
 </div>
 </div>
+
 <script>
 /* ══════════════════════════════════════════
-EMOJI-BASED CAPTCHA ENGINE (No external images needed!)
-Fully self-contained, works offline, random challenges
+   EMOJI CAPTCHA ENGINE
 ══════════════════════════════════════════ */
-let captchaValid = false;
+let captchaValid    = false;
 let selectedSquares = [];
-let correctSquares = [];
+let correctSquares  = [];
 let currentChallenge = null;
 
-// CAPTCHA challenges using emojis (no external images!)
 const CAPTCHA_CHALLENGES = [
-    { instruction: '🚗 cars', targetEmoji: '🚗', distractorEmojis: ['🚲', '🚶', '🏍️', '✈️', '🚛', '🚕', '🚙'] },
-    { instruction: '🐶 dogs', targetEmoji: '🐶', distractorEmojis: ['🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'] },
-    { instruction: '🐱 cats', targetEmoji: '🐱', distractorEmojis: ['🐶', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'] },
-    { instruction: '🍎 apples', targetEmoji: '🍎', distractorEmojis: ['🍊', '🍌', '🍉', '🍇', '🍓', '🥝', '🍒'] },
-    { instruction: '🔥 fire', targetEmoji: '🔥', distractorEmojis: ['💧', '❄️', '💨', '⚡', '💎', '⭐', '🌙'] },
-    { instruction: '❤️ hearts', targetEmoji: '❤️', distractorEmojis: ['💙', '💚', '💛', '💜', '🧡', '🖤', '💔'] },
-    { instruction: '☕ coffee', targetEmoji: '☕', distractorEmojis: ['🍵', '🥤', '🧃', '🍺', '🥂', '🍷', '🥛'] },
-    { instruction: '📱 phones', targetEmoji: '📱', distractorEmojis: ['💻', '🖥️', '⌚', '📷', '🎮', '📺', '🔋'] },
-    { instruction: '🌲 trees', targetEmoji: '🌲', distractorEmojis: ['🌳', '🌴', '🌵', '🌿', '🍃', '🍂', '🌸'] },
-    { instruction: '🏠 houses', targetEmoji: '🏠', distractorEmojis: ['🏢', '🏪', '🏫', '🏥', '🏦', '🏨', '🏛️'] },
-    { instruction: '🚲 bicycles', targetEmoji: '🚲', distractorEmojis: ['🚗', '🚕', '🚙', '🏍️', '✈️', '🚛', '🚶'] },
-    { instruction: '⭐ stars', targetEmoji: '⭐', distractorEmojis: ['🌟', '✨', '🌙', '☀️', '⚡', '💫', '🌠'] },
-    { instruction: '🐟 fish', targetEmoji: '🐟', distractorEmojis: ['🐠', '🐡', '🐙', '🦑', '🐬', '🐳', '🦀'] },
-    { instruction: '⚽ sports balls', targetEmoji: '⚽', distractorEmojis: ['🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🎱'] },
-    { instruction: '🎵 musical notes', targetEmoji: '🎵', distractorEmojis: ['🎶', '🎤', '🎧', '🎸', '🎹', '🥁', '🎺'] }
+    { instruction: '🚗 cars',           targetEmoji: '🚗', distractorEmojis: ['🚲','🚶','🏍️','✈️','🚛','🚕','🚙'] },
+    { instruction: '🐶 dogs',           targetEmoji: '🐶', distractorEmojis: ['🐱','🐭','🐹','🐰','🦊','🐻','🐼'] },
+    { instruction: '🐱 cats',           targetEmoji: '🐱', distractorEmojis: ['🐶','🐭','🐹','🐰','🦊','🐻','🐼'] },
+    { instruction: '🍎 apples',         targetEmoji: '🍎', distractorEmojis: ['🍊','🍌','🍉','🍇','🍓','🥝','🍒'] },
+    { instruction: '🔥 fire',           targetEmoji: '🔥', distractorEmojis: ['💧','❄️','💨','⚡','💎','⭐','🌙'] },
+    { instruction: '❤️ hearts',         targetEmoji: '❤️', distractorEmojis: ['💙','💚','💛','💜','🧡','🖤','💔'] },
+    { instruction: '☕ coffee',         targetEmoji: '☕', distractorEmojis: ['🍵','🥤','🧃','🍺','🥂','🍷','🥛'] },
+    { instruction: '📱 phones',         targetEmoji: '📱', distractorEmojis: ['💻','🖥️','⌚','📷','🎮','📺','🔋'] },
+    { instruction: '🌲 trees',          targetEmoji: '🌲', distractorEmojis: ['🌳','🌴','🌵','🌿','🍃','🍂','🌸'] },
+    { instruction: '🏠 houses',         targetEmoji: '🏠', distractorEmojis: ['🏢','🏪','🏫','🏥','🏦','🏨','🏛️'] },
+    { instruction: '🚲 bicycles',       targetEmoji: '🚲', distractorEmojis: ['🚗','🚕','🚙','🏍️','✈️','🚛','🚶'] },
+    { instruction: '⭐ stars',          targetEmoji: '⭐', distractorEmojis: ['🌟','✨','🌙','☀️','⚡','💫','🌠'] },
+    { instruction: '🐟 fish',           targetEmoji: '🐟', distractorEmojis: ['🐠','🐡','🐙','🦑','🐬','🐳','🦀'] },
+    { instruction: '⚽ sports balls',   targetEmoji: '⚽', distractorEmojis: ['🏀','🏈','⚾','🎾','🏐','🏓','🎱'] },
+    { instruction: '🎵 musical notes',  targetEmoji: '🎵', distractorEmojis: ['🎶','🎤','🎧','🎸','🎹','🥁','🎺'] }
 ];
 
 function getRandomInt(min, max) {
@@ -1134,63 +1260,34 @@ function getRandomInt(min, max) {
 }
 
 function generateCaptcha() {
-    // Reset state
-    selectedSquares = [];
-    captchaValid = false;
-    correctSquares = [];
-    
-    // Pick random challenge
+    selectedSquares = []; captchaValid = false; correctSquares = [];
     const challengeIndex = Math.floor(Math.random() * CAPTCHA_CHALLENGES.length);
     currentChallenge = { ...CAPTCHA_CHALLENGES[challengeIndex] };
-    
-    // Randomly select which squares contain the target emoji (3-5 squares)
-    const allIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    const allIndices = [0,1,2,3,4,5,6,7,8];
     for (let i = allIndices.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
     }
     const numCorrect = getRandomInt(3, 5);
-    correctSquares = allIndices.slice(0, numCorrect).sort((a, b) => a - b);
-    
-    // Update instruction
-    document.getElementById('captchaInstruction').innerHTML = 
+    correctSquares = allIndices.slice(0, numCorrect).sort((a,b) => a - b);
+    document.getElementById('captchaInstruction').innerHTML =
         `Select all squares with <strong>${currentChallenge.instruction}</strong>`;
-    
-    // Generate grid with emojis
     const grid = document.getElementById('captchaGrid');
     grid.innerHTML = '';
-    
     for (let i = 0; i < 9; i++) {
         const square = document.createElement('div');
         square.className = 'captcha-square';
         square.dataset.index = i;
         square.onclick = () => toggleSquare(i);
-        
-        // Determine if this square should have the target emoji
-        let emoji;
-        if (correctSquares.includes(i)) {
-            emoji = currentChallenge.targetEmoji;
-        } else {
-            // Pick a random distractor emoji
-            const randomDistractor = currentChallenge.distractorEmojis[
-                Math.floor(Math.random() * currentChallenge.distractorEmojis.length)
-            ];
-            emoji = randomDistractor;
-        }
-        
+        const emoji = correctSquares.includes(i)
+            ? currentChallenge.targetEmoji
+            : currentChallenge.distractorEmojis[Math.floor(Math.random() * currentChallenge.distractorEmojis.length)];
         square.textContent = emoji;
-        square.style.fontSize = '48px';
-        square.style.display = 'flex';
-        square.style.alignItems = 'center';
-        square.style.justifyContent = 'center';
-        
+        square.style.cssText = 'font-size:48px;display:flex;align-items:center;justify-content:center;';
         grid.appendChild(square);
     }
-    
-    // Reset UI
     const msg = document.getElementById('captchaMsg');
-    msg.className = 'captcha-status-msg';
-    msg.textContent = '';
+    msg.className = 'captcha-status-msg'; msg.textContent = '';
     document.getElementById('captchaVerifyBtn').disabled = true;
     lockCreateBtn();
 }
@@ -1198,96 +1295,63 @@ function generateCaptcha() {
 function toggleSquare(index) {
     const square = document.querySelector(`.captcha-square[data-index="${index}"]`);
     square.classList.toggle('selected');
-    
     if (selectedSquares.includes(index)) {
         selectedSquares = selectedSquares.filter(i => i !== index);
     } else {
         selectedSquares.push(index);
     }
-    
-    // Enable verify button if at least one square selected
     document.getElementById('captchaVerifyBtn').disabled = selectedSquares.length === 0;
 }
 
 function verifyImageCaptcha() {
     const msg = document.getElementById('captchaMsg');
-    const sortedSelected = [...selectedSquares].sort((a, b) => a - b);
-    const sortedCorrect = [...correctSquares].sort((a, b) => a - b);
-    
-    // Check if selection matches exactly
+    const sortedSelected = [...selectedSquares].sort((a,b) => a - b);
+    const sortedCorrect  = [...correctSquares].sort((a,b) => a - b);
     const isCorrect = JSON.stringify(sortedSelected) === JSON.stringify(sortedCorrect);
-    
     if (isCorrect) {
         msg.className = 'captcha-status-msg ok';
         msg.textContent = '✓ Verified — CAPTCHA passed!';
-        captchaValid = true;
-        unlockCreateBtn();
-        
-        // Disable further interaction
-        document.querySelectorAll('.captcha-square').forEach(sq => {
-            sq.style.pointerEvents = 'none';
-        });
+        captchaValid = true; unlockCreateBtn();
+        document.querySelectorAll('.captcha-square').forEach(sq => sq.style.pointerEvents = 'none');
         document.getElementById('captchaVerifyBtn').disabled = true;
     } else {
         msg.className = 'captcha-status-msg err';
-        msg.textContent = '✗ Incorrect selection. Try again or click refresh for a new challenge.';
-        captchaValid = false;
-        lockCreateBtn();
-        
-        // Clear selection after delay
+        msg.textContent = '✗ Incorrect selection. Try again or click ↻ for a new challenge.';
+        captchaValid = false; lockCreateBtn();
         setTimeout(() => {
-            document.querySelectorAll('.captcha-square').forEach(sq => {
-                sq.classList.remove('selected');
-            });
+            document.querySelectorAll('.captcha-square').forEach(sq => sq.classList.remove('selected'));
             selectedSquares = [];
             document.getElementById('captchaVerifyBtn').disabled = true;
-            // Don't clear the error message immediately - let user read it
             setTimeout(() => {
                 if (msg.className === 'captcha-status-msg err') {
-                    msg.className = 'captcha-status-msg';
-                    msg.textContent = '';
+                    msg.className = 'captcha-status-msg'; msg.textContent = '';
                 }
             }, 2000);
         }, 1500);
     }
 }
 
-function lockCreateBtn() {
-    const btn = document.getElementById('btnCreateAccount');
-    if (btn) { btn.disabled = true; }
-}
-
-function unlockCreateBtn() {
-    const btn = document.getElementById('btnCreateAccount');
-    if (btn) { btn.disabled = false; }
-}
+function lockCreateBtn()   { const b = document.getElementById('btnCreateAccount'); if (b) b.disabled = true; }
+function unlockCreateBtn() { const b = document.getElementById('btnCreateAccount'); if (b) b.disabled = false; }
 
 function handleAgreeChange(cb) {
     cb.parentElement.querySelector('.custom-check').textContent = cb.checked ? '✓' : '';
     const wrap = document.getElementById('captchaWrap');
-    if (cb.checked) {
-        wrap.classList.add('visible');
-        generateCaptcha();
-    } else {
-        wrap.classList.remove('visible');
-        captchaValid = false;
-        lockCreateBtn();
-    }
+    if (cb.checked) { wrap.classList.add('visible'); generateCaptcha(); }
+    else { wrap.classList.remove('visible'); captchaValid = false; lockCreateBtn(); }
 }
 
 /* ══════════════════════════════════════════
-AUTH LOGIC
+   AUTH STATE
 ══════════════════════════════════════════ */
-let currentUserId      = null;
-let currentUsername    = null;
-let currentUserRole    = null;
-let currentUserFullName = null;
-let currentUserEmail   = null;
 let currentOTPMode     = 'login';
-let currentSignupEmail = null;
+let currentSignupEmail = null;   // masked only
 let timerInterval      = null;
 let timeLeft           = 300;
 
+/* ══════════════════════════════════════════
+   AUTH LOGIC
+══════════════════════════════════════════ */
 function switchTab(mode) {
     const isSignup = mode === 'signup';
     document.getElementById('tab-signin').classList.toggle('active', !isSignup);
@@ -1295,12 +1359,9 @@ function switchTab(mode) {
     document.getElementById('form-signin').style.display = isSignup ? 'none' : 'block';
     document.getElementById('form-signup').style.display = isSignup ? 'block' : 'none';
     document.getElementById('alert').className = 'alert';
-    // Reset CAPTCHA when switching back to signup
     if (isSignup) {
         const cb = document.getElementById('su-agree');
-        if (cb.checked) {
-            generateCaptcha();
-        }
+        if (cb.checked) generateCaptcha();
     }
 }
 
@@ -1314,12 +1375,7 @@ function showAlert(type, msg) {
     const el = document.getElementById('alert');
     el.textContent = (type === 'success' ? '✅ ' : '⚠ ') + msg;
     el.className = 'alert show ' + type;
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        if (el.className.includes('show')) {
-            el.className = 'alert';
-        }
-    }, 5000);
+    setTimeout(() => { if (el.className.includes('show')) el.className = 'alert'; }, 5000);
 }
 
 function clearErrors(...ids) {
@@ -1342,24 +1398,22 @@ function handleSignIn(event) {
         .then(result => {
             if (result.success) {
                 if (result.require_otp) {
-                    currentUserId       = result.user_id;
-                    currentUsername     = result.username;
-                    currentUserRole     = result.role;
-                    currentUserFullName = result.full_name;
-                    currentUserEmail    = result.email || result.username; // Use email if available, fallback to username
-                    currentOTPMode      = 'login';
-                    document.getElementById('otpModal').classList.add('active');
+                    // Server only returns a safe masked email hint — no user_id etc.
+                    currentOTPMode = 'login';
                     document.getElementById('otpSubtitle').style.display = 'block';
                     document.getElementById('otpSignupSubtitle').style.display = 'none';
-                    document.getElementById('otpUserEmail').textContent = currentUserEmail;
+                    document.getElementById('otpEmailHint').textContent = result.email_hint || 'your registered email';
                     for (let i = 1; i <= 6; i++) document.getElementById(`otp${i}`).value = '';
+                    document.getElementById('otpModal').classList.add('active');
                     setupOTPInput(); startOTPTimer();
                     showAlert('success', result.message);
                 } else {
                     showAlert('success', result.message);
                     setTimeout(() => window.location.href = result.redirect_url, 1800);
                 }
-            } else { showAlert('error', result.message); }
+            } else {
+                showAlert('error', result.message);
+            }
         })
         .catch(() => showAlert('error', 'Network error. Please check your connection and try again.'));
     return false;
@@ -1383,7 +1437,6 @@ function handleSignUp(event) {
     if (!document.getElementById('su-agree').checked) {
         showAlert('error', 'Please agree to the Terms & Privacy Policy.'); return false;
     }
-    // CAPTCHA guard
     if (!captchaValid) {
         showAlert('error', 'Please complete the image CAPTCHA verification first.'); return false;
     }
@@ -1394,7 +1447,7 @@ function handleSignUp(event) {
             if (result.success) {
                 if (result.require_otp) {
                     currentOTPMode    = 'signup';
-                    currentSignupEmail = result.email;
+                    currentSignupEmail = result.email; // already masked server-side
                     document.getElementById('otpSubtitle').style.display = 'none';
                     document.getElementById('otpSignupSubtitle').style.display = 'block';
                     document.getElementById('otpSignupEmail').textContent = result.email;
@@ -1406,14 +1459,16 @@ function handleSignUp(event) {
                     showAlert('success', result.message);
                     setTimeout(() => window.location.href = result.redirect_url, 1800);
                 }
-            } else { showAlert('error', result.message); }
+            } else {
+                showAlert('error', result.message);
+            }
         })
         .catch(() => showAlert('error', 'Network error. Please check your connection and try again.'));
     return false;
 }
 
 /* ══════════════════════════════════════════
-OTP MODAL
+   OTP MODAL
 ══════════════════════════════════════════ */
 function handleOTPInput(event, boxNumber) {
     const input = event.target;
@@ -1441,33 +1496,34 @@ function verifyOTP() {
     let otpCode = '';
     for (let i = 1; i <= 6; i++) otpCode += document.getElementById(`otp${i}`).value;
     if (otpCode.length !== 6) { showAlert('error', 'Please enter the complete 6-digit OTP'); return; }
+
     const verifyBtn = document.getElementById('verifyBtn');
     const originalText = verifyBtn.innerHTML;
     verifyBtn.innerHTML = 'Verifying...'; verifyBtn.disabled = true;
+
     const formData = new FormData();
+    // Only send the OTP code — server uses session to identify user
     if (currentOTPMode === 'signup') {
         formData.append('action', 'verify_signup_otp');
         formData.append('otp', otpCode);
     } else {
         formData.append('action', 'verify_otp');
         formData.append('otp', otpCode);
-        formData.append('user_id', currentUserId);
-        formData.append('username', currentUsername);
-        formData.append('role', currentUserRole);
     }
+
     fetch('', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(result => {
             if (result.success) {
                 closeOTPModal();
                 showAlert('success', result.message || 'Verified successfully! Redirecting…');
-                const redirect_url = result.redirect_url || (
-                    currentUserRole === 'Admin'
-                        ? 'http://localhost/security/Admin/dashboard.php'
-                        : 'http://localhost/security/Client/index.html?role=' + (currentUserRole || 'seller').toLowerCase() + '&user=' + currentUsername
-                );
-                setTimeout(() => window.location.href = redirect_url, 1800);
-            } else { showAlert('error', result.message || 'Verification failed. Please try again.'); }
+                setTimeout(() => window.location.href = result.redirect_url, 1800);
+            } else {
+                showAlert('error', result.message || 'Verification failed. Please try again.');
+                // Clear OTP boxes on failure
+                for (let i = 1; i <= 6; i++) document.getElementById(`otp${i}`).value = '';
+                document.getElementById('otp1').focus();
+            }
             verifyBtn.innerHTML = originalText; verifyBtn.disabled = false;
         })
         .catch(() => {
@@ -1480,14 +1536,12 @@ function resendOTP() {
     const resendBtn = document.getElementById('resendBtn');
     const originalText = resendBtn.innerHTML;
     resendBtn.innerHTML = 'Sending...'; resendBtn.disabled = true;
-    
+
     const formData = new FormData();
     formData.append('action', 'resend_otp');
-    formData.append('user_id', currentUserId);
-    formData.append('username', currentUsername);
-    formData.append('email', currentOTPMode === 'signup' ? currentSignupEmail : currentUserEmail);
     formData.append('mode', currentOTPMode);
-    
+    // Server uses session data — no need to pass user_id/email from client
+
     fetch('', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(result => {
@@ -1537,11 +1591,11 @@ function startOTPTimer() {
 
 function updateTimerDisplay() {
     const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-    document.getElementById('timerSeconds').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    document.getElementById('timerSeconds').textContent = `${m}:${s.toString().padStart(2,'0')}`;
 }
 
 /* ══════════════════════════════════════════
-MISC LISTENERS
+   MISC LISTENERS
 ══════════════════════════════════════════ */
 document.getElementById('otpModal').addEventListener('click', function(e) {
     if (e.target === this) closeOTPModal();
