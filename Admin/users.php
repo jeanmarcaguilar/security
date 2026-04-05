@@ -1408,6 +1408,11 @@ $usersJson = json_encode($users);
     .pref-r:last-child {
       border-bottom: none
     }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 
@@ -1818,7 +1823,7 @@ $usersJson = json_encode($users);
       <td>${rank ? `<span class="rank r${rank}">${rank}</span>` : '—'}</td>
       <td style="font-family:var(--mono);font-size:.72rem;color:var(--muted2)">${user.assessment_count || 0}</td>
       <td><span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem"><span class="sdot ${active ? 'sdot-g' : 'sdot-r'}"></span>${active ? 'Active' : 'Inactive'}</span></td>
-      <td><div style="display:flex;gap:.35rem"><button class="btn btn-s btn-sm" onclick="showToast('Viewing ${user.full_name}','blue')">View</button><button class="btn btn-d btn-sm" onclick="showToast('Deleted','red')">Delete</button></div></td>
+      <td><div style="display:flex;gap:.35rem"><button class="btn btn-s btn-sm" onclick="viewAssessmentDetails(${user.id}, '${user.full_name.replace(/'/g, "\\'")}')">View</button><button class="btn btn-d btn-sm" onclick="showToast('Deleted','red')">Delete</button></div></td>
     </tr>`;
       }).join('');
       
@@ -1847,6 +1852,150 @@ $usersJson = json_encode($users);
       </div>
     </form>`;
       document.getElementById('modal-overlay').classList.remove('hidden');
+    }
+    
+    async function viewAssessmentDetails(userId, userName) {
+      try {
+        // Show loading state
+        document.getElementById('modal-title').textContent = `Assessment Details - ${userName}`;
+        document.getElementById('modal-body').innerHTML = `
+          <div style="text-align: center; padding: 2rem;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 3px solid var(--border2); border-top: 3px solid var(--blue); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 1rem; color: var(--muted2);">Loading assessment data...</p>
+          </div>
+        `;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+        
+        // Fetch assessment details
+        const response = await fetch(`../api/get_assessment_details.php?user_id=${userId}`);
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+        
+        // Display assessment details
+        displayAssessmentDetails(result);
+        
+      } catch (error) {
+        console.error('Error fetching assessment details:', error);
+        document.getElementById('modal-body').innerHTML = `
+          <div style="text-align: center; padding: 2rem;">
+            <div style="color: var(--red); margin-bottom: 1rem;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+            </div>
+            <h3 style="color: var(--red); margin-bottom: 0.5rem;">Error Loading Data</h3>
+            <p style="color: var(--muted2);">${error.message}</p>
+            <button class="btn btn-s" onclick="closeModal()" style="margin-top: 1rem;">Close</button>
+          </div>
+        `;
+      }
+    }
+    
+    function displayAssessmentDetails(data) {
+      const { user, assessment } = data;
+      const categoryColors = {
+        'password': 'var(--blue)',
+        'phishing': 'var(--red)', 
+        'device': 'var(--green)',
+        'network': 'var(--yellow)',
+        'social_engineering': 'var(--orange)',
+        'data_handling': 'var(--purple)'
+      };
+      
+      const categoryIcons = {
+        'password': '🔐',
+        'phishing': '🎣',
+        'device': '💻',
+        'network': '🌐',
+        'social_engineering': '👥',
+        'data_handling': '📊'
+      };
+      
+      const categoryLabels = {
+        'password': 'Password Security',
+        'phishing': 'Phishing Awareness',
+        'device': 'Device Security',
+        'network': 'Network Security',
+        'social_engineering': 'Social Engineering',
+        'data_handling': 'Data Handling'
+      };
+      
+      let categoryScoresHtml = assessment.category_scores.map(category => {
+        const color = categoryColors[category.category] || 'var(--muted2)';
+        const icon = categoryIcons[category.category] || '📋';
+        const label = categoryLabels[category.category] || category.category;
+        
+        return `
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.2rem;">${icon}</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.9rem;">${label}</div>
+                  <div style="font-size: 0.75rem; color: var(--muted2);">${category.correct_answers}/${category.total_questions} correct</div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 1.25rem; font-weight: 700; color: ${color};">${category.category_score}%</div>
+                <div style="font-size: 0.7rem; color: var(--muted2);">Score</div>
+              </div>
+            </div>
+            <div style="background: var(--border2); border-radius: 6px; height: 6px; overflow: hidden;">
+              <div style="height: 100%; width: ${category.category_score}%; background: ${color}; transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      const overallScoreColor = assessment.overall_score >= 80 ? 'var(--green)' : 
+                              assessment.overall_score >= 60 ? 'var(--yellow)' : 
+                              assessment.overall_score >= 40 ? 'var(--orange)' : 'var(--red)';
+      
+      const rank = getRank(assessment.overall_score);
+      const rankColor = rank === 'A' ? 'var(--green)' : 
+                       rank === 'B' ? 'var(--yellow)' : 
+                       rank === 'C' ? 'var(--orange)' : 'var(--red)';
+      
+      document.getElementById('modal-title').textContent = `Assessment Details - ${user.full_name}`;
+      document.getElementById('modal-body').innerHTML = `
+        <div style="margin-bottom: 1.5rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem;">
+              <div style="font-size: 0.75rem; color: var(--muted2); margin-bottom: 0.25rem;">User Information</div>
+              <div style="font-weight: 600; margin-bottom: 0.25rem;">${user.full_name}</div>
+              <div style="font-size: 0.85rem; color: var(--muted2);">${user.email}</div>
+              ${user.store_name ? `<div style="font-size: 0.85rem; color: var(--muted2);">${user.store_name}</div>` : ''}
+            </div>
+            <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; text-align: center;">
+              <div style="font-size: 0.75rem; color: var(--muted2); margin-bottom: 0.25rem;">Overall Score</div>
+              <div style="font-size: 2rem; font-weight: 700; color: ${overallScoreColor}; margin-bottom: 0.25rem;">${assessment.overall_score}%</div>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                <span class="rank r${rank}" style="margin: 0;">${rank}</span>
+                <span style="font-size: 0.75rem; color: var(--muted2);">Rank</span>
+              </div>
+            </div>
+          </div>
+          
+          <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+            <div style="font-size: 0.75rem; color: var(--muted2); margin-bottom: 0.5rem;">Assessment Date</div>
+            <div style="font-weight: 600;">${formatDate(assessment.assessment_date)}</div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+          <h3 style="font-family: var(--display); font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text);">Category Breakdown</h3>
+          ${categoryScoresHtml}
+        </div>
+        
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+          <button class="btn btn-s" onclick="closeModal()">Close</button>
+        </div>
+      `;
     }
     
     async function handleAddUser(event) {

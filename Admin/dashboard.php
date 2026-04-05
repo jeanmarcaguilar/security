@@ -63,6 +63,26 @@ try {
     $stmt->execute();
     $allAssessments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Get category scores for each assessment
+    $assessmentCategories = [];
+    foreach ($allAssessments as $assessment) {
+        $stmt = $db->prepare("
+            SELECT 
+                category,
+                COUNT(*) as total_questions,
+                SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct_answers,
+                ROUND((SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)), 2) as category_score
+            FROM assessment_answers 
+            WHERE assessment_id = :assessment_id 
+            GROUP BY category 
+            ORDER BY category
+        ");
+        $stmt->bindParam(':assessment_id', $assessment['id']);
+        $stmt->execute();
+        $categoryScores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $assessmentCategories[$assessment['id']] = $categoryScores;
+    }
+    
     // Transform assessment data to match expected format - use overall scores
     foreach ($allAssessments as $assessment) {
         $assessments[] = [
@@ -72,7 +92,8 @@ try {
             'score' => $assessment['score'],
             'rank' => ($assessment['score'] >= 80) ? 'A' : (($assessment['score'] >= 60) ? 'B' : (($assessment['score'] >= 40) ? 'C' : 'D')),
             'cat' => 'Overall Assessment',
-            'date' => date('Y-m-d', strtotime($assessment['assessment_date']))
+            'date' => date('Y-m-d', strtotime($assessment['assessment_date'])),
+            'categories' => $assessmentCategories[$assessment['id']] ?? []
         ];
     }
     
@@ -139,10 +160,11 @@ try {
         $auditLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // FIXED: Daily logins for last 7 days - NO DUPLICATE DATES
-        // Generate proper date range for March 28 to April 3
+        // Generate proper date range for last 7 days
         $dailyLogins = [];
-        $startDate = new DateTime('2026-03-28');
-        $endDate = new DateTime('2026-04-03');
+        $endDate = new DateTime();
+        $startDate = clone $endDate;
+        $startDate->modify('-6 days'); // Last 7 days including today
         $endDate->modify('+1 day');
         $interval = new DateInterval('P1D');
         $dateRange = new DatePeriod($startDate, $interval, $endDate);
@@ -153,10 +175,12 @@ try {
             SELECT DATE(created_at) as login_date, COUNT(*) as login_count
             FROM audit_logs
             WHERE action = 'login' 
-              AND created_at >= '2026-03-28' 
-              AND created_at <= '2026-04-03 23:59:59'
+              AND created_at >= :start_date 
+              AND created_at <= :end_date
             GROUP BY DATE(created_at)
         ");
+        $stmt->bindParam(':start_date', $startDate->format('Y-m-d'));
+        $stmt->bindParam(':end_date', $endDate->format('Y-m-d 23:59:59'));
         $stmt->execute();
         $realLoginsResult = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($realLoginsResult as $row) {
@@ -174,10 +198,11 @@ try {
         }
         
     } else {
-        // If audit_logs table doesn't exist, generate demo data for March 28 - April 3
+        // If audit_logs table doesn't exist, generate demo data for last 7 days
         $dailyLogins = [];
-        $startDate = new DateTime('2026-03-28');
-        $endDate = new DateTime('2026-04-03');
+        $endDate = new DateTime();
+        $startDate = clone $endDate;
+        $startDate->modify('-6 days'); // Last 7 days including today
         $endDate->modify('+1 day');
         $interval = new DateInterval('P1D');
         $dateRange = new DatePeriod($startDate, $interval, $endDate);
@@ -1698,7 +1723,7 @@ $assessmentsJson = json_encode($assessments);
             <div class="cw sm"><canvas id="pie-chart"></canvas></div>
           </div>
           <div class="card chart-card">
-            <h3>Daily Logins — Last 7 Days (Mar 28 - Apr 3)</h3>
+            <h3>Daily Logins — Last 7 Days (<?php echo $startDate->format('M j'); ?> - <?php echo (clone $endDate)->modify('-1 day')->format('M j'); ?>)</h3>
             <div class="cw sm"><canvas id="login-bar-chart"></canvas></div>
             <div style="margin-top:0.75rem;text-align:center">
               <button class="btn btn-s btn-sm" onclick="showAuditLogModal()">📋 View Audit Log</button>
@@ -1994,13 +2019,52 @@ $assessmentsJson = json_encode($assessments);
     function openModal(id) {
       const a = DB_ASSESSMENTS.find(x => x.id === id);
       if (!a) return;
-      document.getElementById('modal-title').textContent = a.vname;
+      
+      document.getElementById('modal-title').textContent = a.vname + ' - Assessment Details';
+      
+      // Build category scores HTML
+      let categoriesHtml = '';
+      if (a.categories && a.categories.length > 0) {
+        categoriesHtml = a.categories.map(cat => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:.5rem">
+            <div>
+              <div style="font-weight:600;font-size:.85rem;margin-bottom:.2rem">${cat.category.charAt(0).toUpperCase() + cat.category.slice(1).replace(/_/g, ' ')}</div>
+              <div style="font-family:var(--mono);font-size:.7rem;color:var(--muted2)">${cat.correct_answers}/${cat.total_questions} correct</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--display);font-size:1.1rem;font-weight:700;color:${sc(cat.category_score)}">${cat.category_score}%</div>
+              <div style="margin-top:.2rem"><span class="rank r${getRank(cat.category_score)}">${getRank(cat.category_score)}</span></div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        categoriesHtml = '<div style="text-align:center;padding:2rem;color:var(--muted2)">No category data available</div>';
+      }
+      
       document.getElementById('modal-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1rem">
-      <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px"><div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Score</div><div style="font-family:var(--display);font-size:1.5rem;font-weight:700;color:${sc(a.score)}">${a.score}%</div></div>
-      <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px"><div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Rank</div><div style="margin-top:.4rem"><span class="rank r${a.rank}">${a.rank}</span></div></div>
-    </div>
-    <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;font-size:.8rem;color:var(--muted2)">Category: <b style="color:var(--text)">${a.cat}</b> &nbsp;|&nbsp; Date: <b style="color:var(--text)">${a.date}</b>${a.rank === 'D' ? '<br><br><span style="color:var(--red);font-weight:600">⚠ Critical — immediate action required.</span>' : ''}</div>`;
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1rem">
+          <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+            <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Overall Score</div>
+            <div style="font-family:var(--display);font-size:1.5rem;font-weight:700;color:${sc(a.score)}">${a.score}%</div>
+          </div>
+          <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+            <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Overall Rank</div>
+            <div style="margin-top:.4rem"><span class="rank r${a.rank}">${a.rank}</span></div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom:1rem">
+          <h4 style="font-family:var(--mono);font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem">Category Breakdown</h4>
+          ${categoriesHtml}
+        </div>
+        
+        <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;font-size:.8rem;color:var(--muted2)">
+          <div style="margin-bottom:.3rem">Assessment Date: <b style="color:var(--text)">${a.date}</b></div>
+          <div>Assessment ID: <b style="color:var(--text)">#${a.id}</b></div>
+          ${a.rank === 'D' ? '<br><div style="color:var(--red);font-weight:600">⚠ Critical Risk — immediate action required.</div>' : ''}
+        </div>
+      `;
+      
       document.getElementById('modal-overlay').classList.remove('hidden');
     }
     function renderCharts() {

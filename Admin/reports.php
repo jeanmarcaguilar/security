@@ -1756,35 +1756,107 @@ $assessmentsJson = json_encode($assessments);
     
     function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
     
-    function viewDetails(assessment) {
-      document.getElementById('modal-title').textContent = `${assessment.vname} - Assessment Details`;
-      document.getElementById('modal-body').innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1rem">
-          <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
-            <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted)">Score</div>
-            <div style="font-family:var(--display);font-size:1.5rem;font-weight:700;color:${getScoreColor(assessment.score)}">${assessment.score}%</div>
+    async function viewDetails(assessment) {
+      try {
+        // Fetch detailed assessment data including category scores
+        const response = await fetch(`../api/get_assessment_details.php?user_id=${assessment.vid}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+          showToast('Failed to load assessment details', 'red');
+          return;
+        }
+        
+        const categoryScores = data.assessment.category_scores;
+        const categoryMap = {
+          'password': 'Password Security',
+          'phishing': 'Phishing Awareness',
+          'device': 'Device Security',
+          'network': 'Network Security',
+          'social_engineering': 'Social Engineering',
+          'data_handling': 'Data Handling'
+        };
+        
+        let categoryScoresHtml = '';
+        if (categoryScores && categoryScores.length > 0) {
+          categoryScoresHtml = categoryScores.map(cat => {
+            const categoryName = categoryMap[cat.category] || cat.category;
+            const scoreColor = getScoreColor(cat.category_score);
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)">
+                <span style="font-size:.82rem">${categoryName}</span>
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <div style="width:60px;height:4px;background:var(--border2);border-radius:2px">
+                    <div style="width:${cat.category_score}%;height:100%;background:${scoreColor};border-radius:2px"></div>
+                  </div>
+                  <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted2);min-width:35px;text-align:right">${cat.category_score}%</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          // Fallback to individual score columns from assessment table if category scores not available
+          const fallbackCategories = [
+            { name: 'Password Security', score: assessment.password_score || 0 },
+            { name: 'Phishing Awareness', score: assessment.phishing_score || 0 },
+            { name: 'Device Security', score: assessment.device_score || 0 },
+            { name: 'Network Security', score: assessment.network_score || 0 },
+            { name: 'Social Engineering', score: assessment.social_engineering_score || 0 },
+            { name: 'Data Handling', score: assessment.data_handling_score || 0 }
+          ];
+          
+          categoryScoresHtml = fallbackCategories.map(cat => {
+            const scoreColor = getScoreColor(cat.score);
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)">
+                <span style="font-size:.82rem">${cat.name}</span>
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <div style="width:60px;height:4px;background:var(--border2);border-radius:2px">
+                    <div style="width:${cat.score}%;height:100%;background:${scoreColor};border-radius:2px"></div>
+                  </div>
+                  <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted2);min-width:35px;text-align:right">${cat.score}%</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+        
+        document.getElementById('modal-title').textContent = `${assessment.vname} - Assessment Details`;
+        document.getElementById('modal-body').innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1rem">
+            <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+              <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted)">Overall Score</div>
+              <div style="font-family:var(--display);font-size:1.5rem;font-weight:700;color:${getScoreColor(assessment.score)}">${assessment.score}%</div>
+            </div>
+            <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+              <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted)">Rank</div>
+              <div style="margin-top:.4rem"><span class="rank r${assessment.rank}">${assessment.rank}</span> - ${getRankLabel(assessment.rank)}</div>
+            </div>
           </div>
-          <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
-            <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted)">Rank</div>
-            <div style="margin-top:.4rem"><span class="rank r${assessment.rank}">${assessment.rank}</span> - ${getRankLabel(assessment.rank)}</div>
+          <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;margin-bottom:1rem">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+              <div><span style="color:var(--muted)">Vendor:</span> <b>${assessment.vname}</b></div>
+              <div><span style="color:var(--muted)">Category:</span> <b>${assessment.cat}</b></div>
+              <div><span style="color:var(--muted)">Assessment Date:</span> <b>${assessment.date}</b></div>
+              <div><span style="color:var(--muted)">Assessment ID:</span> <b>#${assessment.id}</b></div>
+            </div>
           </div>
-        </div>
-        <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;margin-bottom:1rem">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
-            <div><span style="color:var(--muted)">Vendor:</span> <b>${assessment.vname}</b></div>
-            <div><span style="color:var(--muted)">Category:</span> <b>${assessment.cat}</b></div>
-            <div><span style="color:var(--muted)">Assessment Date:</span> <b>${assessment.date}</b></div>
-            <div><span style="color:var(--muted)">Assessment ID:</span> <b>#${assessment.id}</b></div>
+          <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;margin-bottom:1rem">
+            <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted);margin-bottom:.75rem">Category Breakdown</div>
+            ${categoryScoresHtml}
           </div>
-        </div>
-        <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
-          <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted);margin-bottom:.5rem">Recommendations</div>
-          ${assessment.score >= 80 ? '<span style="color:var(--green)">✓ Excellent security posture. Maintain current practices and continue monitoring.</span>' : 
-            assessment.score >= 60 ? '<span style="color:var(--yellow)">⚠ Moderate risk. Review and improve security controls in this category.</span>' :
-            '<span style="color:var(--red)">✗ Critical risk. Immediate action required. Schedule follow-up assessment and implement security measures.</span>'}
-        </div>
-      `;
-      document.getElementById('modal-overlay').classList.remove('hidden');
+          <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+            <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted);margin-bottom:.5rem">Recommendations</div>
+            ${assessment.score >= 80 ? '<span style="color:var(--green)">✓ Excellent security posture. Maintain current practices and continue monitoring.</span>' : 
+              assessment.score >= 60 ? '<span style="color:var(--yellow)">⚠ Moderate risk. Review and improve security controls in this category.</span>' :
+              '<span style="color:var(--red)">✗ Critical risk. Immediate action required. Schedule follow-up assessment and implement security measures.</span>'}
+          </div>
+        `;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+      } catch (error) {
+        console.error('Error loading assessment details:', error);
+        showToast('Error loading assessment details', 'red');
+      }
     }
     
     function exportData() {
