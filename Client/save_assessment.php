@@ -68,39 +68,90 @@ $answers      = json_decode($answers_json, true) ?: [];
 try {
     $pdo->beginTransaction();
 
-    // ── 1. Insert assessment ──────────────────────────────────────────────────
-    $ins = $pdo->prepare("
-        INSERT INTO assessments (
-            vendor_id, score, rank,
-            password_score, phishing_score, device_score, network_score,
-            social_engineering_score, data_handling_score,
-            time_spent, questions_answered, total_questions,
-            assessment_date, assessment_token
-        ) VALUES (
-            :uid, :score, :rank,
-            :pw, :ph, :dev, :net,
-            :se, :dh,
-            :ts, :qa, :tq,
-            :adate, :token
-        )
-    ");
-    $ins->execute([
-        ':uid'   => $user_id,
-        ':score' => $score,
-        ':rank'  => $rank,
-        ':pw'    => $password_score,
-        ':ph'    => $phishing_score,
-        ':dev'   => $device_score,
-        ':net'   => $network_score,
-        ':se'    => $social_engineering_score,
-        ':dh'    => $data_handling_score,
-        ':ts'    => $time_spent,
-        ':qa'    => $questions_answered,
-        ':tq'    => $total_questions,
-        ':adate' => $assessment_date,
-        ':token' => $submitted_token,
-    ]);
-    $assessment_id = $pdo->lastInsertId();
+    // ── 1. Check if assessment exists for this vendor and update or insert ──────────────────────────────────────────────────
+    $existing = $pdo->prepare("SELECT id FROM assessments WHERE vendor_id = :uid LIMIT 1");
+    $existing->execute([':uid' => $user_id]);
+    $existing_assessment = $existing->fetch();
+    
+    if ($existing_assessment) {
+        // Update existing assessment
+        $assessment_id = $existing_assessment['id'];
+        $upd = $pdo->prepare("
+            UPDATE assessments SET
+                score = :score,
+                rank = :rank,
+                password_score = :pw,
+                phishing_score = :ph,
+                device_score = :dev,
+                network_score = :net,
+                social_engineering_score = :se,
+                data_handling_score = :dh,
+                time_spent = :ts,
+                questions_answered = :qa,
+                total_questions = :tq,
+                assessment_date = :adate,
+                assessment_token = :token,
+                session_id = :session_id,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :aid
+        ");
+        $upd->execute([
+            ':score' => $score,
+            ':rank'  => $rank,
+            ':pw'    => $password_score,
+            ':ph'    => $phishing_score,
+            ':dev'   => $device_score,
+            ':net'   => $network_score,
+            ':se'    => $social_engineering_score,
+            ':dh'    => $data_handling_score,
+            ':ts'    => $time_spent,
+            ':qa'    => $questions_answered,
+            ':tq'    => $total_questions,
+            ':adate' => $assessment_date,
+            ':token' => $submitted_token,
+            ':session_id' => $assessmentSessionId ?? null,
+            ':aid'   => $assessment_id
+        ]);
+        
+        // Delete old answers to replace with new ones
+        $del_answers = $pdo->prepare("DELETE FROM assessment_answers WHERE assessment_id = :aid");
+        $del_answers->execute([':aid' => $assessment_id]);
+    } else {
+        // Insert new assessment
+        $ins = $pdo->prepare("
+            INSERT INTO assessments (
+                vendor_id, score, rank,
+                password_score, phishing_score, device_score, network_score,
+                social_engineering_score, data_handling_score,
+                time_spent, questions_answered, total_questions,
+                assessment_date, assessment_token, session_id
+            ) VALUES (
+                :uid, :score, :rank,
+                :pw, :ph, :dev, :net,
+                :se, :dh,
+                :ts, :qa, :tq,
+                :adate, :token, :session_id
+            )
+        ");
+        $ins->execute([
+            ':uid'   => $user_id,
+            ':score' => $score,
+            ':rank'  => $rank,
+            ':pw'    => $password_score,
+            ':ph'    => $phishing_score,
+            ':dev'   => $device_score,
+            ':net'   => $network_score,
+            ':se'    => $social_engineering_score,
+            ':dh'    => $data_handling_score,
+            ':ts'    => $time_spent,
+            ':qa'    => $questions_answered,
+            ':tq'    => $total_questions,
+            ':adate' => $assessment_date,
+            ':token' => $submitted_token,
+            ':session_id' => $assessmentSessionId ?? null
+        ]);
+        $assessment_id = $pdo->lastInsertId();
+    }
 
     // ── 2. Save per-question answers (for AI missed-question analysis) ────────
     if (!empty($answers)) {
@@ -124,14 +175,24 @@ try {
     }
 
     // ── 3. Update user summary stats ─────────────────────────────────────────
-    // Use INSERT … ON DUPLICATE KEY so it works even if column doesn't exist
-    $pdo->prepare("
-        UPDATE users
-        SET last_assessment_score = :score,
-            last_assessment_date  = :adate,
-            total_assessments     = COALESCE(total_assessments, 0) + 1
-        WHERE id = :uid
-    ")->execute([':score' => $score, ':adate' => $assessment_date, ':uid' => $user_id]);
+    if ($existing_assessment) {
+        // Just update the score and date for existing assessment
+        $pdo->prepare("
+            UPDATE users
+            SET last_assessment_score = :score,
+                last_assessment_date  = :adate
+            WHERE id = :uid
+        ")->execute([':score' => $score, ':adate' => $assessment_date, ':uid' => $user_id]);
+    } else {
+        // Increment total_assessments only for new assessments
+        $pdo->prepare("
+            UPDATE users
+            SET last_assessment_score = :score,
+                last_assessment_date  = :adate,
+                total_assessments     = COALESCE(total_assessments, 0) + 1
+            WHERE id = :uid
+        ")->execute([':score' => $score, ':adate' => $assessment_date, ':uid' => $user_id]);
+    }
 
     // ── 4. Activity log (graceful — skip if table missing) ───────────────────
     try {
