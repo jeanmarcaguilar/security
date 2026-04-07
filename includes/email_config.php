@@ -43,7 +43,7 @@ function sendOTPEmail(string $recipientEmail, string $recipientName, string $otp
         $mail->addAddress($recipientEmail, $recipientName);
 
         $mail->isHTML(true);
-        $mail->Subject = 'CyberShield — Your OTP Verification Code';
+        $mail->Subject = 'CyberShield  Your OTP Verification Code';
 
         $safeOtp  = htmlspecialchars($otpCode, ENT_QUOTES, 'UTF-8');
         $safeName = htmlspecialchars($recipientName, ENT_QUOTES, 'UTF-8');

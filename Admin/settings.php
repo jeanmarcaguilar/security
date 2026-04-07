@@ -1378,6 +1378,15 @@ if (!$user) {
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <path d="M10 19l-2 2v-3"/>
+              <path d="M14 19l2 2v-3"/>
+            </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
         <a class="sb-item" href="compare.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"

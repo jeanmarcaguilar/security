@@ -1716,6 +1716,10 @@ error_log("Final video count: " . count($recommendedVideos));
                 <span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M8 6l4-4 4 4"/><path d="M12 2v13"/><path d="M20 21H4"/><path d="M17 12h3v9"/><path d="M4 12h3v9"/></svg></span>
                 <span class="sb-text">Review</span>
             </a>
+            <a class="sb-item" href="certificates.php">
+                <span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+                <span class="sb-text">Certificates</span>
+            </a>
             <div class="sb-divider"></div>
             <div class="sb-label">Account</div>
             <a class="sb-item" href="profile.php">

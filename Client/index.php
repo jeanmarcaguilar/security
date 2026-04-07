@@ -1486,6 +1486,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               <path d="M17 12h3v9" />
               <path d="M4 12h3v9" />
             </svg></span><span class="sb-text">Review</span></a>
+        <a class="sb-item" href="certificates.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="6" />
+              <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
+            </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Account</div>
         <a class="sb-item" href="profile.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
@@ -1674,6 +1679,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               echo '--';
             ?></div>
           </div>
+        </div>
+
+        <!-- Certificates Quick Action Banner -->
+        <div class="card" style="margin-bottom:0.75rem;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border-left:3px solid var(--yellow);background:linear-gradient(90deg,rgba(245,183,49,.07) 0%,transparent 100%)">
+          <div style="display:flex;align-items:center;gap:.85rem">
+            <div style="width:36px;height:36px;border-radius:9px;background:rgba(245,183,49,.14);color:var(--yellow);display:grid;place-items:center;flex-shrink:0">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="6"/>
+                <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+              </svg>
+            </div>
+            <div>
+              <div style="font-size:.87rem;font-weight:600;color:var(--text)">Your Certificates</div>
+              <div style="font-size:.73rem;color:var(--muted2);margin-top:.1rem">View and download your earned cybersecurity achievement certificates.</div>
+            </div>
+          </div>
+          <a href="certificates.php" class="btn btn-p btn-sm" style="white-space:nowrap;flex-shrink:0;background:var(--yellow);border-color:var(--yellow);color:#0a0a0a;font-weight:700">
+            View Certificates
+          </a>
         </div>
 
         <div class="sec-hdr">
@@ -2197,5 +2221,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
     }
   </script>
 </body>
-
 </html>

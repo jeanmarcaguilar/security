@@ -1518,6 +1518,12 @@ $assessmentsJson = json_encode($assessments);
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M9 15l2 2 4-4"/>
+            </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
         <a class="sb-item" href="compare.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
@@ -1796,6 +1802,7 @@ $assessmentsJson = json_encode($assessments);
                   <th>Category</th>
                   <th>Date</th>
                   <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody id="tbl-body"></tbody>
@@ -2012,6 +2019,7 @@ $assessmentsJson = json_encode($assessments);
       <td style="color:var(--muted2);font-size:.78rem">Overall Assessment</td>
       <td style="color:var(--muted2);font-family:var(--mono);font-size:.72rem">${a.date}</td>
       <td><button class="btn btn-s btn-sm" onclick="event.stopPropagation();openModal(${a.id})">View</button></td>
+      <td><a class="btn btn-sm" href="send_certificate.php" style="background:rgba(16,217,130,.1);color:var(--green);border:1px solid rgba(16,217,130,.2);text-decoration:none;display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .7rem;border-radius:8px;font-size:.72rem;font-weight:600;transition:var(--t)" title="Send Certificate" onclick="event.stopPropagation()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Cert</a></td>
     </tr>`).join('');
       let ph = ''; for (let i = 1; i <= tp; i++)ph += `<button class="pb ${i === pg ? 'active' : ''}" onclick="pg=${i};renderTbl()">${i}</button>`;
       document.getElementById('pgn').innerHTML = ph;

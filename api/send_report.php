@@ -1,5 +1,10 @@
 <?php
 session_start();
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
+
 require_once '../includes/config.php';
 require_once '../includes/email_config.php';
 
@@ -95,10 +100,9 @@ try {
 }
 
 function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
-    global $MAIL_USERNAME, $MAIL_PASSWORD;
-    
-    if (empty($MAIL_USERNAME) || empty($MAIL_PASSWORD)) {
-        error_log('[CyberShield] MAIL_USERNAME or MAIL_PASSWORD env var is not set.');
+    // Constants are always accessible - no 'global' keyword needed
+    if (empty(MAIL_USERNAME) || empty(MAIL_PASSWORD)) {
+        error_log('[CyberShield] MAIL_USERNAME or MAIL_PASSWORD constant is not set.');
         return false;
     }
 
@@ -111,15 +115,15 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = $MAIL_USERNAME;
-        $mail->Password   = $MAIL_PASSWORD;
+        $mail->Username   = MAIL_USERNAME;
+        $mail->Password   = MAIL_PASSWORD;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         $mail->Port       = 465;
         
         error_log("SMTP settings configured");
         
         // Recipients
-        $mail->setFrom($MAIL_USERNAME, 'CyberShield Security');
+        $mail->setFrom(MAIL_USERNAME, 'CyberShield Security');
         $mail->addAddress($recipientEmail);
         
         error_log("Recipients set");
