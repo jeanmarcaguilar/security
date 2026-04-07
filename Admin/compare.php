@@ -14,29 +14,29 @@ $db = $database->getConnection();
 
 // Get current admin user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -48,13 +48,13 @@ if (!$user) {
 $users = [];
 $assessments = [];
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get real assessment data with category scores
-    $stmt = $db->prepare("
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Get real assessment data with category scores
+  $stmt = $db->prepare("
         SELECT 
             a.id,
             a.vendor_id as vid,
@@ -73,63 +73,67 @@ try {
         JOIN users u ON a.vendor_id = u.id
         ORDER BY a.assessment_date DESC
     ");
-    $stmt->execute();
-    $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Map database categories to display categories
-    $categoryMap = [
-        'password_score' => 'Password Security',
-        'phishing_score' => 'Phishing Awareness', 
-        'device_score' => 'Device Security',
-        'network_score' => 'Network Security',
-        'social_engineering_score' => 'Social Engineering',
-        'data_handling_score' => 'Data Handling'
+  $stmt->execute();
+  $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Map database categories to display categories
+  $categoryMap = [
+    'password_score' => 'Password Security',
+    'phishing_score' => 'Phishing Awareness',
+    'device_score' => 'Device Security',
+    'network_score' => 'Network Security',
+    'social_engineering_score' => 'Social Engineering',
+    'data_handling_score' => 'Data Handling'
+  ];
+
+  // Transform assessment data into the format expected by JavaScript
+  foreach ($assessmentData as $assessment) {
+    // Add the overall assessment record first
+    $assessments[] = [
+      'id' => count($assessments) + 1,
+      'vid' => $assessment['vid'],
+      'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+      'score' => (int) $assessment['score'],
+      'rank' => $assessment['rank'],
+      'cat' => 'Overall Score',
+      'date' => date('Y-m-d', strtotime($assessment['date'])),
+      'assessment_id' => $assessment['id']
     ];
-    
-    // Transform assessment data into the format expected by JavaScript
-    foreach ($assessmentData as $assessment) {
-        // Add the overall assessment record first
+
+    // Then add category-specific records
+    foreach ($categoryMap as $dbField => $categoryName) {
+      if ($assessment[$dbField] !== null && $assessment[$dbField] > 0) {
         $assessments[] = [
-            'id' => count($assessments) + 1,
-            'vid' => $assessment['vid'],
-            'vname' => $assessment['full_name'] ?: $assessment['store_name'],
-            'score' => (int)$assessment['score'],
-            'rank' => $assessment['rank'],
-            'cat' => 'Overall Score',
-            'date' => date('Y-m-d', strtotime($assessment['date'])),
-            'assessment_id' => $assessment['id']
+          'id' => count($assessments) + 1,
+          'vid' => $assessment['vid'],
+          'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+          'score' => (int) $assessment[$dbField],
+          'rank' => getRankFromScore($assessment[$dbField]),
+          'cat' => $categoryName,
+          'date' => date('Y-m-d', strtotime($assessment['date'])),
+          'assessment_id' => $assessment['id']
         ];
-        
-        // Then add category-specific records
-        foreach ($categoryMap as $dbField => $categoryName) {
-            if ($assessment[$dbField] !== null && $assessment[$dbField] > 0) {
-                $assessments[] = [
-                    'id' => count($assessments) + 1,
-                    'vid' => $assessment['vid'],
-                    'vname' => $assessment['full_name'] ?: $assessment['store_name'],
-                    'score' => (int)$assessment[$dbField],
-                    'rank' => getRankFromScore($assessment[$dbField]),
-                    'cat' => $categoryName,
-                    'date' => date('Y-m-d', strtotime($assessment['date'])),
-                    'assessment_id' => $assessment['id']
-                ];
-            }
-        }
+      }
     }
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching compare data: " . $exception->getMessage());
-    // Fallback to empty arrays if database fails
-    $users = [];
-    $assessments = [];
+  }
+
+} catch (PDOException $exception) {
+  error_log("Error fetching compare data: " . $exception->getMessage());
+  // Fallback to empty arrays if database fails
+  $users = [];
+  $assessments = [];
 }
 
 // Helper function to determine rank from score
-function getRankFromScore($score) {
-    if ($score >= 80) return 'A';
-    if ($score >= 60) return 'B'; 
-    if ($score >= 40) return 'C';
-    return 'D';
+function getRankFromScore($score)
+{
+  if ($score >= 80)
+    return 'A';
+  if ($score >= 60)
+    return 'B';
+  if ($score >= 40)
+    return 'C';
+  return 'D';
 }
 
 // Convert to JSON for JavaScript
@@ -1388,14 +1392,15 @@ $assessmentsJson = json_encode($assessments);
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <path d="M10 19l-2 2v-3"/>
-              <path d="M14 19l2 2v-3"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <path d="M10 19l-2 2v-3" />
+              <path d="M14 19l2 2v-3" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1436,7 +1441,8 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1510,7 +1516,9 @@ $assessmentsJson = json_encode($assessments);
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1564,13 +1572,13 @@ $assessmentsJson = json_encode($assessments);
     // Real database data passed from PHP
     const DB_USERS = <?php echo $usersJson; ?>;
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
-    
+
     // Helper functions for data processing
     function getRank(score) {
       if (score === null || score === undefined) return null;
       return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
     }
-    
+
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--red)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
@@ -1582,8 +1590,8 @@ $assessmentsJson = json_encode($assessments);
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      DB_ASSESSMENTS.forEach(a => { 
-        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      DB_ASSESSMENTS.forEach(a => {
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a;
       });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
@@ -1643,26 +1651,26 @@ $assessmentsJson = json_encode($assessments);
     let cmpChart = null;
     function pageInit() {
       const sA = document.getElementById('cmp-a'), sB = document.getElementById('cmp-b');
-      
+
       // Populate select options with users from DB_USERS
       DB_USERS.forEach((user, i) => {
         const userName = user.full_name || user.store_name || user.username;
         sA.innerHTML += `<option value="${user.id}">${userName}</option>`;
         sB.innerHTML += `<option value="${user.id}" ${i === 1 ? 'selected' : ''}>${userName}</option>`;
       });
-      
+
       renderCmp();
     }
     function getOverallScore(vid) {
       // Get all "Overall Score" assessments for the user
       const overallAssessments = DB_ASSESSMENTS.filter(a => a.vid === vid && a.cat === 'Overall Score');
       if (overallAssessments.length === 0) return null;
-      
+
       // Find the most recent overall assessment (latest date = most recent)
-      const latestOverallAssessment = overallAssessments.reduce((latest, current) => 
+      const latestOverallAssessment = overallAssessments.reduce((latest, current) =>
         current.date > latest.date ? current : latest
       );
-      
+
       return {
         score: latestOverallAssessment.score,
         rank: latestOverallAssessment.rank,
@@ -1673,31 +1681,31 @@ $assessmentsJson = json_encode($assessments);
     function renderCmp() {
       const aId = +document.getElementById('cmp-a').value;
       const bId = +document.getElementById('cmp-b').value;
-      
+
       // Find users from real data
       const vA = DB_ASSESSMENTS.find(a => a.vid === aId);
       const vB = DB_ASSESSMENTS.find(a => a.vid === bId);
-      
+
       if (!vA || !vB) {
         document.getElementById('cmp-result').innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessment data for one or both users.</p>';
         return;
       }
-      
+
       // Get overall scores for both users
       const overallA = getOverallScore(aId);
       const overallB = getOverallScore(bId);
-      
+
       if (!overallA || !overallB) {
         document.getElementById('cmp-result').innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessment data for selected users.</p>';
         return;
       }
-      
+
       const lA = overallA;
       const lB = overallB;
       const r = document.getElementById('cmp-result');
-      
+
       const winner = lA.score >= lB.score ? vA.vname : vB.vname;
-      
+
       r.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:1rem;align-items:start">
       <div style="text-align:center;padding:1rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px">
@@ -1717,101 +1725,101 @@ $assessmentsJson = json_encode($assessments);
     <div style="margin-top:.85rem;padding:.75rem;background:rgba(59,139,255,.06);border:1px solid rgba(59,139,255,.15);border-radius:8px;font-size:.82rem;text-align:center">
       🏆 <b style="color:var(--blue)">${winner}</b> has the better security posture with a ${Math.abs(lA.score - lB.score)}pt difference.
     </div>`;
-      
+
       renderCmpChart(vA.vname, vB.vname);
     }
     function renderCmpChart(nameA, nameB) {
       if (cmpChart) cmpChart.destroy();
       const a = ax();
-      
+
       // Get unique categories from real data
       const categories = [...new Set(DB_ASSESSMENTS.map(a => a.cat))];
-      
+
       // Get category scores for both users
       const aId = +document.getElementById('cmp-a').value;
       const bId = +document.getElementById('cmp-b').value;
-      
+
       const dA = categories.map(cat => {
         const assessment = DB_ASSESSMENTS.find(a => a.vid === aId && a.cat === cat);
         return assessment ? assessment.score : 0;
       });
-      
+
       const dB = categories.map(cat => {
         const assessment = DB_ASSESSMENTS.find(a => a.vid === bId && a.cat === cat);
         return assessment ? assessment.score : 0;
       });
-      
+
       const ctx = document.getElementById('cmp-chart');
       if (!ctx) return;
-      
-      cmpChart = new Chart(ctx, { 
-        type: 'bar', 
-        data: { 
-          labels: categories, 
+
+      cmpChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: categories,
           datasets: [
-            { 
-              label: nameA, 
-              data: dA, 
-              backgroundColor: 'rgba(59,139,255,.5)', 
-              borderColor: '#3B8BFF', 
-              borderWidth: 2, 
-              borderRadius: 4 
-            }, 
-            { 
-              label: nameB, 
-              data: dB, 
-              backgroundColor: 'rgba(123,114,240,.5)', 
-              borderColor: '#7B72F0', 
-              borderWidth: 2, 
-              borderRadius: 4 
+            {
+              label: nameA,
+              data: dA,
+              backgroundColor: 'rgba(59,139,255,.5)',
+              borderColor: '#3B8BFF',
+              borderWidth: 2,
+              borderRadius: 4
+            },
+            {
+              label: nameB,
+              data: dB,
+              backgroundColor: 'rgba(123,114,240,.5)',
+              borderColor: '#7B72F0',
+              borderWidth: 2,
+              borderRadius: 4
             }
-          ] 
-        }, 
-        options: { 
-          responsive: true, 
-          maintainAspectRatio: false, 
-          plugins: { 
-            legend: { 
-              position: 'top', 
-              labels: { 
-                font: { size: 10 }, 
-                color: a.tick, 
-                padding: 12 
-              } 
-            }, 
-            tooltip: { 
-              backgroundColor: a.tt, 
-              borderColor: a.ttB, 
-              borderWidth: 1, 
-              titleColor: a.tc, 
-              bodyColor: a.bc, 
-              padding: 10 
-            } 
-          }, 
-          scales: { 
-            y: { 
-              min: 0, 
-              max: 100, 
-              ticks: { 
-                color: a.tick, 
-                font: { size: 10 }, 
-                callback: v => v + '%' 
-              }, 
-              grid: { 
-                color: a.grid 
-              } 
-            }, 
-            x: { 
-              ticks: { 
-                color: a.tick, 
-                font: { size: 10 } 
-              }, 
-              grid: { 
-                display: false 
-              } 
-            } 
-          } 
-        } 
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                font: { size: 10 },
+                color: a.tick,
+                padding: 12
+              }
+            },
+            tooltip: {
+              backgroundColor: a.tt,
+              borderColor: a.ttB,
+              borderWidth: 1,
+              titleColor: a.tc,
+              bodyColor: a.bc,
+              padding: 10
+            }
+          },
+          scales: {
+            y: {
+              min: 0,
+              max: 100,
+              ticks: {
+                color: a.tick,
+                font: { size: 10 },
+                callback: v => v + '%'
+              },
+              grid: {
+                color: a.grid
+              }
+            },
+            x: {
+              ticks: {
+                color: a.tick,
+                font: { size: 10 }
+              },
+              grid: {
+                display: false
+              }
+            }
+          }
+        }
       });
     }
     function onThemeChange() {

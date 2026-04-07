@@ -51,7 +51,7 @@ try {
         WHERE assessment_id = :assessment_id 
         GROUP BY category 
         ORDER BY category";
-    
+
     $stmt = $db->prepare($categoryQuery);
     $stmt->bindParam(':assessment_id', $assessmentId);
     $stmt->execute();
@@ -70,7 +70,7 @@ try {
         'user' => $user,
         'assessment' => [
             'id' => $latestAssessment['id'],
-            'overall_score' => (int)$latestAssessment['score'],
+            'overall_score' => (int) $latestAssessment['score'],
             'assessment_date' => $latestAssessment['assessment_date'],
             'category_scores' => $categoryScores
         ]

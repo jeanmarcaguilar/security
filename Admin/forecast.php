@@ -16,56 +16,56 @@ $db = $database->getConnection();
 $users = [];
 $assessments = [];
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Categories for assessment
-    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
-    
-    foreach ($users as $user) {
-        if ($user['last_assessment_score'] !== null) {
-            $baseScore = $user['last_assessment_score'];
-            $assessmentDate = $user['last_assessment_date'] ?: date('Y-m-d');
-            
-            foreach ($categories as $index => $category) {
-                // Deterministic variation based on user ID and category index
-                $seed = $user['id'] * ($index + 1);
-                $variation = ($seed % 31) - 15; // Range: -15 to 15
-                $categoryScore = max(20, min(100, $baseScore + $variation));
-                $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
-                
-                // Create deterministic historical assessments for trend analysis (6 months of data)
-                for ($i = 5; $i >= 0; $i--) {
-                    $date = new DateTime($assessmentDate);
-                    $date->modify("-$i months");
-                    
-                    // Deterministic historical score based on user ID, category index, and month offset
-                    $historySeed = $user['id'] * ($index + 1) * ($i + 1);
-                    $historyVariation = ($historySeed % 21) - 10; // Range: -10 to 10
-                    $historicalScore = max(20, min(100, $categoryScore + $historyVariation));
-                    $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
-                    
-                    $assessments[] = [
-                        'id' => count($assessments) + 1,
-                        'vid' => $user['id'],
-                        'vname' => $user['full_name'] ?: $user['store_name'],
-                        'score' => $historicalScore,
-                        'rank' => $historicalRank,
-                        'cat' => $category,
-                        'date' => $date->format('Y-m-d')
-                    ];
-                }
-            }
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Categories for assessment
+  $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+
+  foreach ($users as $user) {
+    if ($user['last_assessment_score'] !== null) {
+      $baseScore = $user['last_assessment_score'];
+      $assessmentDate = $user['last_assessment_date'] ?: date('Y-m-d');
+
+      foreach ($categories as $index => $category) {
+        // Deterministic variation based on user ID and category index
+        $seed = $user['id'] * ($index + 1);
+        $variation = ($seed % 31) - 15; // Range: -15 to 15
+        $categoryScore = max(20, min(100, $baseScore + $variation));
+        $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+
+        // Create deterministic historical assessments for trend analysis (6 months of data)
+        for ($i = 5; $i >= 0; $i--) {
+          $date = new DateTime($assessmentDate);
+          $date->modify("-$i months");
+
+          // Deterministic historical score based on user ID, category index, and month offset
+          $historySeed = $user['id'] * ($index + 1) * ($i + 1);
+          $historyVariation = ($historySeed % 21) - 10; // Range: -10 to 10
+          $historicalScore = max(20, min(100, $categoryScore + $historyVariation));
+          $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
+
+          $assessments[] = [
+            'id' => count($assessments) + 1,
+            'vid' => $user['id'],
+            'vname' => $user['full_name'] ?: $user['store_name'],
+            'score' => $historicalScore,
+            'rank' => $historicalRank,
+            'cat' => $category,
+            'date' => $date->format('Y-m-d')
+          ];
         }
+      }
     }
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching forecast data: " . $exception->getMessage());
-    // Fallback to empty arrays if database fails
-    $users = [];
-    $assessments = [];
+  }
+
+} catch (PDOException $exception) {
+  error_log("Error fetching forecast data: " . $exception->getMessage());
+  // Fallback to empty arrays if database fails
+  $users = [];
+  $assessments = [];
 }
 
 // Convert to JSON for JavaScript
@@ -1505,13 +1505,13 @@ $assessmentsJson = json_encode($assessments);
     // Real database data passed from PHP
     const DB_USERS = <?php echo $usersJson; ?>;
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
-    
+
     // Helper functions for data processing
     function getRank(score) {
       if (score === null || score === undefined) return null;
       return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
     }
-    
+
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--red)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
@@ -1523,8 +1523,8 @@ $assessmentsJson = json_encode($assessments);
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      DB_ASSESSMENTS.forEach(a => { 
-        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      DB_ASSESSMENTS.forEach(a => {
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a;
       });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
@@ -1581,7 +1581,7 @@ $assessmentsJson = json_encode($assessments);
       // Get unique users from real data
       const uniqueUsers = [];
       const seenUsers = new Set();
-      
+
       DB_ASSESSMENTS.forEach(assessment => {
         if (!seenUsers.has(assessment.vid)) {
           seenUsers.add(assessment.vid);
@@ -1591,13 +1591,13 @@ $assessmentsJson = json_encode($assessments);
           });
         }
       });
-      
+
       // For each user, get their assessments grouped by category and find the latest per category
       // Then calculate the forecast based on the most recent data points
       fcData = uniqueUsers.map(user => {
         // Get all assessments for this user
         const userAssessments = DB_ASSESSMENTS.filter(a => a.vid === user.id);
-        
+
         // Group by category and get the most recent score per category
         const categoryLatest = {};
         userAssessments.forEach(assessment => {
@@ -1605,14 +1605,14 @@ $assessmentsJson = json_encode($assessments);
             categoryLatest[assessment.cat] = assessment;
           }
         });
-        
+
         // Calculate average score across all categories for current state
         const categories = Object.keys(categoryLatest);
         const currentScores = categories.map(cat => categoryLatest[cat].score);
-        const cur = currentScores.length > 0 
+        const cur = currentScores.length > 0
           ? Math.round(currentScores.reduce((a, b) => a + b, 0) / currentScores.length)
           : 50;
-        
+
         // For historical trend, get previous month's data per category
         const previousScores = [];
         categories.forEach(cat => {
@@ -1621,19 +1621,19 @@ $assessmentsJson = json_encode($assessments);
             previousScores.push(catAssessments[1].score);
           }
         });
-        
+
         const prev = previousScores.length > 0
           ? Math.round(previousScores.reduce((a, b) => a + b, 0) / previousScores.length)
           : cur;
-        
+
         // Calculate predicted score based on trend
         const pred = Math.max(0, Math.min(100, Math.round(cur + (cur - prev) * 0.6)));
         const trend = pred > cur ? 'up' : pred < cur ? 'down' : 'flat';
         const rank = pred >= 80 ? 'A' : pred >= 60 ? 'B' : pred >= 40 ? 'C' : 'D';
-        
+
         return { ...user, cur, prev, pred, trend, rank };
       });
-      
+
       renderFc('all');
     }
     function filterFc(f, btn) {

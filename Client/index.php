@@ -1618,7 +1618,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
             <div class="slabel">Latest Score</div>
             <div class="sval" id="sv-score"><?php echo $stats['latest_score'] ?? '--'; ?></div>
             <div class="ssub">
-              <?php echo $stats['latest_rank'] ? 'Rank ' . $stats['latest_rank'] : 'No assessments yet'; ?></div>
+              <?php echo $stats['latest_rank'] ? 'Rank ' . $stats['latest_rank'] : 'No assessments yet'; ?>
+            </div>
           </div>
           <div class="card stat-card" style="--accent:var(--teal)">
             <div class="si" style="background:rgba(0,212,170,.12);color:var(--teal)"><svg width="15" height="15"
@@ -1682,20 +1683,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
         </div>
 
         <!-- Certificates Quick Action Banner -->
-        <div class="card" style="margin-bottom:0.75rem;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border-left:3px solid var(--yellow);background:linear-gradient(90deg,rgba(245,183,49,.07) 0%,transparent 100%)">
+        <div class="card"
+          style="margin-bottom:0.75rem;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border-left:3px solid var(--yellow);background:linear-gradient(90deg,rgba(245,183,49,.07) 0%,transparent 100%)">
           <div style="display:flex;align-items:center;gap:.85rem">
-            <div style="width:36px;height:36px;border-radius:9px;background:rgba(245,183,49,.14);color:var(--yellow);display:grid;place-items:center;flex-shrink:0">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="6"/>
-                <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+            <div
+              style="width:36px;height:36px;border-radius:9px;background:rgba(245,183,49,.14);color:var(--yellow);display:grid;place-items:center;flex-shrink:0">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="6" />
+                <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
               </svg>
             </div>
             <div>
               <div style="font-size:.87rem;font-weight:600;color:var(--text)">Your Certificates</div>
-              <div style="font-size:.73rem;color:var(--muted2);margin-top:.1rem">View and download your earned cybersecurity achievement certificates.</div>
+              <div style="font-size:.73rem;color:var(--muted2);margin-top:.1rem">View and download your earned
+                cybersecurity achievement certificates.</div>
             </div>
           </div>
-          <a href="certificates.php" class="btn btn-p btn-sm" style="white-space:nowrap;flex-shrink:0;background:var(--yellow);border-color:var(--yellow);color:#0a0a0a;font-weight:700">
+          <a href="certificates.php" class="btn btn-p btn-sm"
+            style="white-space:nowrap;flex-shrink:0;background:var(--yellow);border-color:var(--yellow);color:#0a0a0a;font-weight:700">
             View Certificates
           </a>
         </div>
@@ -1709,7 +1715,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
           <h2>Security Analytics</h2>
           <p>Your cybersecurity performance trends and detailed insights.</p>
         </div>
-        
+
         <!-- Analytics Charts Grid -->
         <div class="charts-grid" style="grid-template-columns: 1fr 1fr; gap: 0.75rem;">
           <!-- Score Progress Chart -->
@@ -1719,7 +1725,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               <canvas id="scoreProgressChart"></canvas>
             </div>
           </div>
-          
+
           <!-- Category Performance Chart -->
           <div class="card chart-card" style="padding: 0.75rem;">
             <h3 style="font-size: 0.6rem; margin-bottom: 0.5rem;">Security Categories</h3>
@@ -1727,7 +1733,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               <canvas id="categoryChart"></canvas>
             </div>
           </div>
-          
+
           <!-- Performance Timeline -->
           <div class="card chart-card" style="padding: 0.75rem;">
             <h3 style="font-size: 0.6rem; margin-bottom: 0.5rem;">Performance Timeline</h3>
@@ -1749,14 +1755,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
         <div class="stats-row" style="gap: 0.5rem;">
           <div class="card stat-card" style="--accent:var(--orange); padding: 0.75rem;">
             <div class="si" style="background:rgba(255,140,66,.12);color:var(--orange); width: 24px; height: 24px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
               </svg>
             </div>
             <div class="slabel">Avg Response</div>
             <div class="sval" style="font-size: 1.4rem;" id="avg-time">
-              <?php 
+              <?php
               if (!empty($history)) {
                 $total_time = array_sum(array_column($history, 'time_spent'));
                 $avg_time = round($total_time / count($history) / 60, 1);
@@ -1768,24 +1775,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
             </div>
             <div class="ssub">Time per assessment</div>
           </div>
-          
+
           <div class="card stat-card" style="--accent:var(--teal); padding: 0.75rem;">
             <div class="si" style="background:rgba(0,212,170,.12);color:var(--teal); width: 24px; height: 24px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             </div>
             <div class="slabel">Peak Score</div>
-            <div class="sval" style="font-size: 1.4rem;" id="peak-score"><?php echo $stats['best_score'] ?? '--'; ?></div>
+            <div class="sval" style="font-size: 1.4rem;" id="peak-score"><?php echo $stats['best_score'] ?? '--'; ?>
+            </div>
             <div class="ssub">Best performance</div>
           </div>
 
           <div class="card stat-card" style="--accent:var(--red); padding: 0.75rem;">
             <div class="si" style="background:rgba(255,59,92,.12);color:var(--red); width: 24px; height: 24px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 9v4"/>
-                <path d="M12 17h.01"/>
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               </svg>
             </div>
             <div class="slabel">Top Weakness</div>
@@ -1961,7 +1971,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
       const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
       const textColor = isDarkTheme ? '#dde4f0' : '#0f172a';
       const gridColor = isDarkTheme ? 'rgba(59, 139, 255, 0.08)' : 'rgba(59, 139, 255, 0.12)';
-      
+
       Chart.defaults.color = textColor;
       Chart.defaults.borderColor = gridColor;
 
@@ -1971,10 +1981,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
         new Chart(scoreCtx, {
           type: 'line',
           data: {
-            labels: <?php echo json_encode(array_map(function($a) { return date('M j', strtotime($a['created_at'])); }, array_slice($history, 0, 10))); ?>,
+            labels: <?php echo json_encode(array_map(function ($a) {
+              return date('M j', strtotime($a['created_at'])); }, array_slice($history, 0, 10))); ?>,
             datasets: [{
               label: 'Score Progress',
-              data: <?php echo json_encode(array_map(function($a) { return $a['score']; }, array_slice($history, 0, 10))); ?>,
+              data: <?php echo json_encode(array_map(function ($a) {
+                return $a['score']; }, array_slice($history, 0, 10))); ?>,
               borderColor: getComputedStyle(document.documentElement).getPropertyValue('--blue'),
               backgroundColor: 'rgba(59, 139, 255, 0.1)',
               borderWidth: 3,
@@ -2001,7 +2013,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
                 padding: 12,
                 displayColors: false,
                 callbacks: {
-                  label: function(context) {
+                  label: function (context) {
                     return `Score: ${context.parsed.y}%`;
                   }
                 }
@@ -2035,7 +2047,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
           latestAssessment.social_engineering_score || 0,
           latestAssessment.data_handling_score || 0
         ];
-        
+
         new Chart(categoryCtx, {
           type: 'pie',
           data: {
@@ -2067,9 +2079,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
             plugins: {
               legend: {
                 position: 'right',
-                labels: { 
-                  color: textColor, 
-                  padding: 15, 
+                labels: {
+                  color: textColor,
+                  padding: 15,
                   font: { size: 11 },
                   usePointStyle: true,
                   pointStyle: 'circle'
@@ -2077,7 +2089,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               },
               tooltip: {
                 callbacks: {
-                  label: function(context) {
+                  label: function (context) {
                     return `${context.label}: ${context.parsed}%`;
                   }
                 }
@@ -2093,18 +2105,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
         new Chart(timelineCtx, {
           type: 'bar',
           data: {
-            labels: <?php echo json_encode(array_map(function($a) { return date('M j', strtotime($a['created_at'])); }, array_slice($history, 0, 8))); ?>,
+            labels: <?php echo json_encode(array_map(function ($a) {
+              return date('M j', strtotime($a['created_at'])); }, array_slice($history, 0, 8))); ?>,
             datasets: [{
               label: 'Assessment Score',
-              data: <?php echo json_encode(array_map(function($a) { return $a['score']; }, array_slice($history, 0, 8))); ?>,
-              backgroundColor: function(context) {
+              data: <?php echo json_encode(array_map(function ($a) {
+                return $a['score']; }, array_slice($history, 0, 8))); ?>,
+              backgroundColor: function (context) {
                 const value = context.parsed.y;
                 if (value >= 80) return 'rgba(16, 217, 130, 0.8)';
                 if (value >= 60) return 'rgba(245, 183, 49, 0.8)';
                 if (value >= 40) return 'rgba(255, 140, 66, 0.8)';
                 return 'rgba(255, 59, 92, 0.8)';
               },
-              borderColor: function(context) {
+              borderColor: function (context) {
                 const value = context.parsed.y;
                 if (value >= 80) return 'rgba(16, 217, 130, 1)';
                 if (value >= 60) return 'rgba(245, 183, 49, 1)';
@@ -2123,7 +2137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
               legend: { display: false },
               tooltip: {
                 callbacks: {
-                  label: function(context) {
+                  label: function (context) {
                     return `Score: ${context.parsed.y}%`;
                   }
                 }
@@ -2221,4 +2235,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action'])) {
     }
   </script>
 </body>
+
 </html>

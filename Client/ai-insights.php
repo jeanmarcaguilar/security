@@ -1,8 +1,8 @@
 <?php
 /**
-* ai-insights.php — Secure server-side proxy for Anthropic API
-* Called via fetch() from result.php frontend JS.
-*/
+ * ai-insights.php — Secure server-side proxy for Anthropic API
+ * Called via fetch() from result.php frontend JS.
+ */
 session_start();
 require_once '../includes/config.php';
 header('Content-Type: application/json');
@@ -38,46 +38,50 @@ if (!$apiKey) {
 }
 
 // ── Sanitise inputs ───────────────────────────────────────────────────────────
-$score    = intval($body['score']   ?? 0);
-$rank     = substr(preg_replace('/[^A-Da-d]/', '', $body['rank'] ?? 'D'), 0, 1) ?: 'D';
+$score = intval($body['score'] ?? 0);
+$rank = substr(preg_replace('/[^A-Da-d]/', '', $body['rank'] ?? 'D'), 0, 1) ?: 'D';
 $catScores = [];
-$allowedCats = ['password','phishing','device','network','social_engineering','data_handling'];
+$allowedCats = ['password', 'phishing', 'device', 'network', 'social_engineering', 'data_handling'];
 foreach ($allowedCats as $cat) {
     $catScores[$cat] = intval($body['categoryScores'][$cat] ?? 0);
 }
 $questionsAnswered = intval($body['questionsAnswered'] ?? 0);
-$totalQuestions    = intval($body['totalQuestions']    ?? 20);
-$timeSpent         = intval($body['timeSpent']         ?? 0);
+$totalQuestions = intval($body['totalQuestions'] ?? 20);
+$timeSpent = intval($body['timeSpent'] ?? 0);
 
 // Sanitise missed questions — cap at 15 to keep prompt size reasonable
 $rawMissed = $body['incorrectAnswers'] ?? [];
 $missed = [];
 foreach (array_slice($rawMissed, 0, 15) as $item) {
     $missed[] = [
-        'question'       => substr(strip_tags($item['question']       ?? ''), 0, 200),
+        'question' => substr(strip_tags($item['question'] ?? ''), 0, 200),
         'correct_answer' => substr(strip_tags($item['correct_answer'] ?? ''), 0, 200),
-        'explanation'    => substr(strip_tags($item['explanation']    ?? ''), 0, 300),
-        'category'       => substr(preg_replace('/[^a-z_]/', '', $item['category'] ?? ''), 0, 50),
-        'difficulty'     => substr(preg_replace('/[^a-z]/',  '', $item['difficulty'] ?? ''), 0, 20),
+        'explanation' => substr(strip_tags($item['explanation'] ?? ''), 0, 300),
+        'category' => substr(preg_replace('/[^a-z_]/', '', $item['category'] ?? ''), 0, 50),
+        'difficulty' => substr(preg_replace('/[^a-z]/', '', $item['difficulty'] ?? ''), 0, 20),
     ];
 }
 
 // ── Build prompt ──────────────────────────────────────────────────────────────
 $weakCats = [];
 foreach ($catScores as $cat => $cs) {
-    if ($cs < 70) $weakCats[] = str_replace('_', ' ', $cat) . " ({$cs}%)";
+    if ($cs < 70)
+        $weakCats[] = str_replace('_', ' ', $cat) . " ({$cs}%)";
 }
 $weakStr = $weakCats ? implode(', ', $weakCats) : 'none — great work across all categories';
 
 $missedLines = count($missed) > 0
-    ? implode("\n", array_map(fn($a) =>
+    ? implode("\n", array_map(
+        fn($a) =>
         "  - [{$a['category']}] Q: \"{$a['question']}\" | Correct: \"{$a['correct_answer']}\" | Hint: {$a['explanation']}",
-        $missed))
+        $missed
+    ))
     : '  None — all questions answered correctly.';
 
 $catLines = implode("\n", array_map(
     fn($cat, $cs) => "  - " . str_replace('_', ' ', $cat) . ": {$cs}%",
-    array_keys($catScores), $catScores
+    array_keys($catScores),
+    $catScores
 ));
 
 $minutes = round($timeSpent / 60);
@@ -145,21 +149,21 @@ RULES — follow exactly:
 4. quick_wins: exactly 3 short, practical actions the user can take today.
 5. Output ONLY the JSON object — nothing before or after it.
 PROMPT;
- 
+
 // ── Call Anthropic API via cURL ───────────────────────────────────────────────
 $payload = json_encode([
-    'model'      => 'claude-sonnet-4-6',
+    'model' => 'claude-sonnet-4-6',
     'max_tokens' => 1200,
-    'messages'   => [['role' => 'user', 'content' => $prompt]]
+    'messages' => [['role' => 'user', 'content' => $prompt]]
 ]);
 
 $ch = curl_init('https://api.anthropic.com/v1/messages');
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => $payload,
-    CURLOPT_TIMEOUT        => 30,
-    CURLOPT_HTTPHEADER     => [
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => $payload,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_HTTPHEADER => [
         'Content-Type: application/json',
         'x-api-key: ' . $apiKey,
         'anthropic-version: 2023-06-01',
@@ -168,7 +172,7 @@ curl_setopt_array($ch, [
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlErr  = curl_error($ch);
+$curlErr = curl_error($ch);
 curl_close($ch);
 
 if ($curlErr) {
@@ -187,7 +191,8 @@ if ($httpCode !== 200) {
 $apiData = json_decode($response, true);
 $rawText = '';
 foreach ($apiData['content'] ?? [] as $block) {
-    if ($block['type'] === 'text') $rawText .= $block['text'];
+    if ($block['type'] === 'text')
+        $rawText .= $block['text'];
 }
 
 // Strip any accidental markdown fences

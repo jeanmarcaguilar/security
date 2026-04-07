@@ -1298,24 +1298,67 @@ if (!$user) {
     }
 
     /* Form Error */
-    .form-error{
-      font-size:.75rem;
-      color:var(--red);
-      background:rgba(255,59,92,.08);
-      border:1px solid rgba(255,59,92,.2);
-      border-radius:7px;
-      padding:.45rem .75rem;
-      margin-bottom:.65rem
+    .form-error {
+      font-size: .75rem;
+      color: var(--red);
+      background: rgba(255, 59, 92, .08);
+      border: 1px solid rgba(255, 59, 92, .2);
+      border-radius: 7px;
+      padding: .45rem .75rem;
+      margin-bottom: .65rem
     }
 
     /* OTP Modal Styles */
-    .otp-input-group{display:flex;gap:0.5rem;justify-content:center;margin:1.5rem 0}
-    .otp-digit{width:50px;height:60px;text-align:center;font-size:1.5rem;font-family:var(--mono);font-weight:600;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;color:var(--text);outline:none;transition:var(--t)}
-    .otp-digit:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(59,139,255,.2)}
-    .otp-digit::-webkit-outer-spin-button,.otp-digit::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-    .resend-timer{text-align:center;font-size:0.75rem;color:var(--muted2);margin-top:0.75rem}
-    .resend-link{color:var(--blue);cursor:pointer;text-decoration:none;font-weight:500}
-    .resend-link:hover{text-decoration:underline}
+    .otp-input-group {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      margin: 1.5rem 0
+    }
+
+    .otp-digit {
+      width: 50px;
+      height: 60px;
+      text-align: center;
+      font-size: 1.5rem;
+      font-family: var(--mono);
+      font-weight: 600;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      color: var(--text);
+      outline: none;
+      transition: var(--t)
+    }
+
+    .otp-digit:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59, 139, 255, .2)
+    }
+
+    .otp-digit::-webkit-outer-spin-button,
+    .otp-digit::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0
+    }
+
+    .resend-timer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted2);
+      margin-top: 0.75rem
+    }
+
+    .resend-link {
+      color: var(--blue);
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 500
+    }
+
+    .resend-link:hover {
+      text-decoration: underline
+    }
   </style>
 </head>
 
@@ -1378,14 +1421,15 @@ if (!$user) {
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <path d="M10 19l-2 2v-3"/>
-              <path d="M14 19l2 2v-3"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <path d="M10 19l-2 2v-3" />
+              <path d="M14 19l2 2v-3" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1425,7 +1469,8 @@ if (!$user) {
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1465,7 +1510,9 @@ if (!$user) {
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1498,11 +1545,14 @@ if (!$user) {
                   <div style="font-size:.8rem;color:var(--muted2)"><?php echo htmlspecialchars($user['email']); ?></div>
                 </div>
               </div>
-              <div class="fg"><label class="fl">Display Name</label><input class="fi" type="text" id="profile-name" value="<?php echo htmlspecialchars($user['full_name']); ?>" />
+              <div class="fg"><label class="fl">Display Name</label><input class="fi" type="text" id="profile-name"
+                  value="<?php echo htmlspecialchars($user['full_name']); ?>" />
               </div>
-              <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="profile-email" value="<?php echo htmlspecialchars($user['email']); ?>" />
+              <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="profile-email"
+                  value="<?php echo htmlspecialchars($user['email']); ?>" />
               </div>
-              <div class="fg"><label class="fl">Organization</label><input class="fi" type="text" id="profile-company" value="<?php echo htmlspecialchars($user['store_name'] ?? ''); ?>" />
+              <div class="fg"><label class="fl">Organization</label><input class="fi" type="text" id="profile-company"
+                  value="<?php echo htmlspecialchars($user['store_name'] ?? ''); ?>" />
               </div>
               <div class="fg"><label class="fl">Language</label><select class="fi">
                   <option>English</option>
@@ -1514,21 +1564,21 @@ if (!$user) {
                   <option>Eastern Time</option>
                   <option>Pacific Time</option>
                 </select></div>
-              <button class="btn btn-p" style="width:100%;justify-content:center"
-                onclick="requestProfileOTP()">Save Changes</button>
+              <button class="btn btn-p" style="width:100%;justify-content:center" onclick="requestProfileOTP()">Save
+                Changes</button>
             </div>
             <div class="card" style="padding:1.5rem">
               <h3 style="font-family:var(--display);font-size:1rem;font-weight:700;margin-bottom:1.15rem">Change
                 Password</h3>
-              <div class="fg"><label class="fl">Current Password</label><input class="fi" type="password" id="pw-current"
-                  placeholder="•••••••" /></div>
+              <div class="fg"><label class="fl">Current Password</label><input class="fi" type="password"
+                  id="pw-current" placeholder="•••••••" /></div>
               <div class="fg"><label class="fl">New Password</label><input class="fi" type="password" id="pw-new"
                   placeholder="••••••••" />
                 <div style="font-size:.72rem;color:var(--muted2);margin-top:.35rem">Min 8 chars, uppercase, lowercase,
                   numbers.</div>
               </div>
-              <div class="fg"><label class="fl">Confirm New Password</label><input class="fi" type="password" id="pw-confirm"
-                  placeholder="••••••••" /></div>
+              <div class="fg"><label class="fl">Confirm New Password</label><input class="fi" type="password"
+                  id="pw-confirm" placeholder="••••••••" /></div>
               <div id="pw-change-error" class="form-error" style="display:none"></div>
               <button class="btn btn-p" onclick="requestPasswordOTP()">Update Password</button>
             </div>
@@ -1626,61 +1676,85 @@ if (!$user) {
   </div>
   <div id="toast-c"></div>
 
-<!-- OTP Modal for Profile Changes -->
-<div id="otp-profile-modal" class="mo hidden" onclick="if(event.target===this)closeOTPModal('profile')">
-  <div class="modal">
-    <div class="mhdr">
-      <h3>🔐 Verify with OTP</h3>
-      <button class="mcl" onclick="closeOTPModal('profile')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="mbdy">
-      <p style="text-align:center;margin-bottom:0.5rem">A verification code has been sent to your email</p>
-      <p style="text-align:center;font-size:0.75rem;color:var(--muted2);margin-bottom:1rem"><?php echo htmlspecialchars($user['email']); ?></p>
-      <div class="otp-input-group" id="profile-otp-group">
-        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-1" onkeyup="moveToNext(this, 'profile-otp-2')" onkeydown="handleBackspace(event, 'profile-otp-1')">
-        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-2" onkeyup="moveToNext(this, 'profile-otp-3')" onkeydown="handleBackspace(event, 'profile-otp-1')">
-        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-3" onkeyup="moveToNext(this, 'profile-otp-4')" onkeydown="handleBackspace(event, 'profile-otp-2')">
-        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-4" onkeyup="moveToNext(this, 'profile-otp-5')" onkeydown="handleBackspace(event, 'profile-otp-3')">
-        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-5" onkeyup="moveToNext(this, 'profile-otp-6')" onkeydown="handleBackspace(event, 'profile-otp-4')">
-        <input type="text" maxlength="1" class="otp-digit" id="profile-otp-6" onkeyup="verifyProfileOTP()" onkeydown="handleBackspace(event, 'profile-otp-5')">
+  <!-- OTP Modal for Profile Changes -->
+  <div id="otp-profile-modal" class="mo hidden" onclick="if(event.target===this)closeOTPModal('profile')">
+    <div class="modal">
+      <div class="mhdr">
+        <h3>🔐 Verify with OTP</h3>
+        <button class="mcl" onclick="closeOTPModal('profile')"><svg width="13" height="13" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg></button>
       </div>
-      <div id="profile-otp-error" class="form-error" style="display:none;text-align:center"></div>
-      <div class="resend-timer" id="profile-resend-timer">Resend code in <span id="profile-countdown">60</span> seconds</div>
-      <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1rem">
-        <button class="btn btn-s" onclick="closeOTPModal('profile')">Cancel</button>
-        <button class="btn btn-p" onclick="verifyProfileOTP()">Verify & Save</button>
+      <div class="mbdy">
+        <p style="text-align:center;margin-bottom:0.5rem">A verification code has been sent to your email</p>
+        <p style="text-align:center;font-size:0.75rem;color:var(--muted2);margin-bottom:1rem">
+          <?php echo htmlspecialchars($user['email']); ?></p>
+        <div class="otp-input-group" id="profile-otp-group">
+          <input type="text" maxlength="1" class="otp-digit" id="profile-otp-1"
+            onkeyup="moveToNext(this, 'profile-otp-2')" onkeydown="handleBackspace(event, 'profile-otp-1')">
+          <input type="text" maxlength="1" class="otp-digit" id="profile-otp-2"
+            onkeyup="moveToNext(this, 'profile-otp-3')" onkeydown="handleBackspace(event, 'profile-otp-1')">
+          <input type="text" maxlength="1" class="otp-digit" id="profile-otp-3"
+            onkeyup="moveToNext(this, 'profile-otp-4')" onkeydown="handleBackspace(event, 'profile-otp-2')">
+          <input type="text" maxlength="1" class="otp-digit" id="profile-otp-4"
+            onkeyup="moveToNext(this, 'profile-otp-5')" onkeydown="handleBackspace(event, 'profile-otp-3')">
+          <input type="text" maxlength="1" class="otp-digit" id="profile-otp-5"
+            onkeyup="moveToNext(this, 'profile-otp-6')" onkeydown="handleBackspace(event, 'profile-otp-4')">
+          <input type="text" maxlength="1" class="otp-digit" id="profile-otp-6" onkeyup="verifyProfileOTP()"
+            onkeydown="handleBackspace(event, 'profile-otp-5')">
+        </div>
+        <div id="profile-otp-error" class="form-error" style="display:none;text-align:center"></div>
+        <div class="resend-timer" id="profile-resend-timer">Resend code in <span id="profile-countdown">60</span>
+          seconds</div>
+        <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1rem">
+          <button class="btn btn-s" onclick="closeOTPModal('profile')">Cancel</button>
+          <button class="btn btn-p" onclick="verifyProfileOTP()">Verify & Save</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- OTP Modal for Password Change -->
-<div id="otp-password-modal" class="mo hidden" onclick="if(event.target===this)closeOTPModal('password')">
-  <div class="modal">
-    <div class="mhdr">
-      <h3>🔐 Verify with OTP</h3>
-      <button class="mcl" onclick="closeOTPModal('password')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="mbdy">
-      <p style="text-align:center;margin-bottom:0.5rem">A verification code has been sent to your email</p>
-      <p style="text-align:center;font-size:0.75rem;color:var(--muted2);margin-bottom:1rem"><?php echo htmlspecialchars($user['email']); ?></p>
-      <div class="otp-input-group" id="password-otp-group">
-        <input type="text" maxlength="1" class="otp-digit" id="password-otp-1" onkeyup="moveToNext(this, 'password-otp-2')" onkeydown="handleBackspace(event, 'password-otp-1')">
-        <input type="text" maxlength="1" class="otp-digit" id="password-otp-2" onkeyup="moveToNext(this, 'password-otp-3')" onkeydown="handleBackspace(event, 'password-otp-1')">
-        <input type="text" maxlength="1" class="otp-digit" id="password-otp-3" onkeyup="moveToNext(this, 'password-otp-4')" onkeydown="handleBackspace(event, 'password-otp-2')">
-        <input type="text" maxlength="1" class="otp-digit" id="password-otp-4" onkeyup="moveToNext(this, 'password-otp-5')" onkeydown="handleBackspace(event, 'password-otp-3')">
-        <input type="text" maxlength="1" class="otp-digit" id="password-otp-5" onkeyup="moveToNext(this, 'password-otp-6')" onkeydown="handleBackspace(event, 'password-otp-4')">
-        <input type="text" maxlength="1" class="otp-digit" id="password-otp-6" onkeyup="verifyPasswordOTP()" onkeydown="handleBackspace(event, 'password-otp-5')">
+  <!-- OTP Modal for Password Change -->
+  <div id="otp-password-modal" class="mo hidden" onclick="if(event.target===this)closeOTPModal('password')">
+    <div class="modal">
+      <div class="mhdr">
+        <h3>🔐 Verify with OTP</h3>
+        <button class="mcl" onclick="closeOTPModal('password')"><svg width="13" height="13" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg></button>
       </div>
-      <div id="password-otp-error" class="form-error" style="display:none;text-align:center"></div>
-      <div class="resend-timer" id="password-resend-timer">Resend code in <span id="password-countdown">60</span> seconds</div>
-      <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1rem">
-        <button class="btn btn-s" onclick="closeOTPModal('password')">Cancel</button>
-        <button class="btn btn-p" onclick="verifyPasswordOTP()">Verify & Update</button>
+      <div class="mbdy">
+        <p style="text-align:center;margin-bottom:0.5rem">A verification code has been sent to your email</p>
+        <p style="text-align:center;font-size:0.75rem;color:var(--muted2);margin-bottom:1rem">
+          <?php echo htmlspecialchars($user['email']); ?></p>
+        <div class="otp-input-group" id="password-otp-group">
+          <input type="text" maxlength="1" class="otp-digit" id="password-otp-1"
+            onkeyup="moveToNext(this, 'password-otp-2')" onkeydown="handleBackspace(event, 'password-otp-1')">
+          <input type="text" maxlength="1" class="otp-digit" id="password-otp-2"
+            onkeyup="moveToNext(this, 'password-otp-3')" onkeydown="handleBackspace(event, 'password-otp-1')">
+          <input type="text" maxlength="1" class="otp-digit" id="password-otp-3"
+            onkeyup="moveToNext(this, 'password-otp-4')" onkeydown="handleBackspace(event, 'password-otp-2')">
+          <input type="text" maxlength="1" class="otp-digit" id="password-otp-4"
+            onkeyup="moveToNext(this, 'password-otp-5')" onkeydown="handleBackspace(event, 'password-otp-3')">
+          <input type="text" maxlength="1" class="otp-digit" id="password-otp-5"
+            onkeyup="moveToNext(this, 'password-otp-6')" onkeydown="handleBackspace(event, 'password-otp-4')">
+          <input type="text" maxlength="1" class="otp-digit" id="password-otp-6" onkeyup="verifyPasswordOTP()"
+            onkeydown="handleBackspace(event, 'password-otp-5')">
+        </div>
+        <div id="password-otp-error" class="form-error" style="display:none;text-align:center"></div>
+        <div class="resend-timer" id="password-resend-timer">Resend code in <span id="password-countdown">60</span>
+          seconds</div>
+        <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1rem">
+          <button class="btn btn-s" onclick="closeOTPModal('password')">Cancel</button>
+          <button class="btn btn-p" onclick="verifyPasswordOTP()">Verify & Update</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
   <script>
     const MOCK = {
       vendors: [
@@ -1801,313 +1875,313 @@ if (!$user) {
 
     // ==================== OTP Input Handlers ====================
     function moveToNext(current, nextId) {
-        if (current.value.length === 1) {
-            const next = document.getElementById(nextId);
-            if (next) next.focus();
-        }
+      if (current.value.length === 1) {
+        const next = document.getElementById(nextId);
+        if (next) next.focus();
+      }
     }
 
     function handleBackspace(event, prevId) {
-        if (event.key === 'Backspace' && event.target.value === '') {
-            const prev = document.getElementById(prevId);
-            if (prev) prev.focus();
-        }
+      if (event.key === 'Backspace' && event.target.value === '') {
+        const prev = document.getElementById(prevId);
+        if (prev) prev.focus();
+      }
     }
 
     function getOTPValue(prefix) {
-        let otp = '';
-        for (let i = 1; i <= 6; i++) {
-            const digit = document.getElementById(`${prefix}-otp-${i}`).value;
-            if (!digit) return null;
-            otp += digit;
-        }
-        return otp;
+      let otp = '';
+      for (let i = 1; i <= 6; i++) {
+        const digit = document.getElementById(`${prefix}-otp-${i}`).value;
+        if (!digit) return null;
+        otp += digit;
+      }
+      return otp;
     }
 
     function clearOTPInputs(prefix) {
-        for (let i = 1; i <= 6; i++) {
-            const input = document.getElementById(`${prefix}-otp-${i}`);
-            if (input) input.value = '';
-        }
-        const firstInput = document.getElementById(`${prefix}-otp-1`);
-        if (firstInput) firstInput.focus();
+      for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`${prefix}-otp-${i}`);
+        if (input) input.value = '';
+      }
+      const firstInput = document.getElementById(`${prefix}-otp-1`);
+      if (firstInput) firstInput.focus();
     }
 
     function closeOTPModal(type) {
-        const modal = document.getElementById(`otp-${type}-modal`);
-        if (modal) modal.classList.add('hidden');
-        // Clear OTP inputs
-        clearOTPInputs(type);
-        // Clear error message
-        const errorEl = document.getElementById(`${type}-otp-error`);
-        if (errorEl) errorEl.style.display = 'none';
+      const modal = document.getElementById(`otp-${type}-modal`);
+      if (modal) modal.classList.add('hidden');
+      // Clear OTP inputs
+      clearOTPInputs(type);
+      // Clear error message
+      const errorEl = document.getElementById(`${type}-otp-error`);
+      if (errorEl) errorEl.style.display = 'none';
     }
 
     // ==================== Profile OTP Flow ====================
     async function requestProfileOTP() {
-        const fullName = document.getElementById('profile-name').value.trim();
-        const email = document.getElementById('profile-email').value.trim();
-        const storeName = document.getElementById('profile-company').value.trim();
-        
-        if (!fullName) { showToast('Display name is required', 'red'); return; }
-        if (!email) { showToast('Email address is required', 'red'); return; }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) { showToast('Please enter a valid email address', 'red'); return; }
-        
-        // Store pending data
-        pendingProfileData = { full_name: fullName, email: email, store_name: storeName };
-        
-        try {
-            // Send OTP request to server
-            const response = await fetch('../api/send_otp.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'profile' })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                showToast('OTP sent to your email', 'green');
-                // Reset countdown
-                profileCountdown = 60;
-                startProfileResendTimer();
-                // Clear previous OTP inputs
-                clearOTPInputs('profile');
-                // Show OTP modal
-                document.getElementById('otp-profile-modal').classList.remove('hidden');
-                // Clear any previous error
-                document.getElementById('profile-otp-error').style.display = 'none';
-            } else {
-                showToast(result.error || 'Failed to send OTP', 'red');
-            }
-        } catch (error) {
-            console.error('Error sending OTP:', error);
-            showToast('Error connecting to server', 'red');
+      const fullName = document.getElementById('profile-name').value.trim();
+      const email = document.getElementById('profile-email').value.trim();
+      const storeName = document.getElementById('profile-company').value.trim();
+
+      if (!fullName) { showToast('Display name is required', 'red'); return; }
+      if (!email) { showToast('Email address is required', 'red'); return; }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) { showToast('Please enter a valid email address', 'red'); return; }
+
+      // Store pending data
+      pendingProfileData = { full_name: fullName, email: email, store_name: storeName };
+
+      try {
+        // Send OTP request to server
+        const response = await fetch('../api/send_otp.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'profile' })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showToast('OTP sent to your email', 'green');
+          // Reset countdown
+          profileCountdown = 60;
+          startProfileResendTimer();
+          // Clear previous OTP inputs
+          clearOTPInputs('profile');
+          // Show OTP modal
+          document.getElementById('otp-profile-modal').classList.remove('hidden');
+          // Clear any previous error
+          document.getElementById('profile-otp-error').style.display = 'none';
+        } else {
+          showToast(result.error || 'Failed to send OTP', 'red');
         }
+      } catch (error) {
+        console.error('Error sending OTP:', error);
+        showToast('Error connecting to server', 'red');
+      }
     }
 
     function startProfileResendTimer() {
-        if (profileResendTimer) clearInterval(profileResendTimer);
-        const timerSpan = document.getElementById('profile-countdown');
-        const resendDiv = document.getElementById('profile-resend-timer');
-        
-        profileResendTimer = setInterval(() => {
-            if (profileCountdown <= 1) {
-                clearInterval(profileResendTimer);
-                resendDiv.innerHTML = '<span class="resend-link" onclick="resendProfileOTP()">Resend Code</span>';
-            } else {
-                profileCountdown--;
-                timerSpan.textContent = profileCountdown;
-            }
-        }, 1000);
+      if (profileResendTimer) clearInterval(profileResendTimer);
+      const timerSpan = document.getElementById('profile-countdown');
+      const resendDiv = document.getElementById('profile-resend-timer');
+
+      profileResendTimer = setInterval(() => {
+        if (profileCountdown <= 1) {
+          clearInterval(profileResendTimer);
+          resendDiv.innerHTML = '<span class="resend-link" onclick="resendProfileOTP()">Resend Code</span>';
+        } else {
+          profileCountdown--;
+          timerSpan.textContent = profileCountdown;
+        }
+      }, 1000);
     }
 
     async function resendProfileOTP() {
-        try {
-            const response = await fetch('../api/send_otp.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'profile' })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                showToast('OTP resent to your email', 'green');
-                profileCountdown = 60;
-                startProfileResendTimer();
-            } else {
-                showToast(result.error || 'Failed to resend OTP', 'red');
-            }
-        } catch (error) {
-            console.error('Error resending OTP:', error);
-            showToast('Error connecting to server', 'red');
+      try {
+        const response = await fetch('../api/send_otp.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'profile' })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showToast('OTP resent to your email', 'green');
+          profileCountdown = 60;
+          startProfileResendTimer();
+        } else {
+          showToast(result.error || 'Failed to resend OTP', 'red');
         }
+      } catch (error) {
+        console.error('Error resending OTP:', error);
+        showToast('Error connecting to server', 'red');
+      }
     }
 
     async function verifyProfileOTP() {
-        const otp = getOTPValue('profile');
-        if (!otp) {
-            document.getElementById('profile-otp-error').textContent = 'Please enter 6-digit code';
-            document.getElementById('profile-otp-error').style.display = 'block';
-            return;
-        }
-        
-        const errorEl = document.getElementById('profile-otp-error');
-        errorEl.style.display = 'none';
-        
-        try {
-            // Verify OTP first
-            const verifyRes = await fetch('../api/verify_otp.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'profile', otp: otp })
-            });
-            const verifyResult = await verifyRes.json();
-            
-            if (verifyResult.success) {
-                // OTP is correct, now update profile
-                const updateRes = await fetch('../api/update_profile.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(pendingProfileData)
-                });
-                const updateResult = await updateRes.json();
-                
-                if (updateResult.success) {
-                    closeOTPModal('profile');
-                    showToast('Profile updated successfully!', 'green');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    errorEl.textContent = updateResult.error || 'Error updating profile';
-                    errorEl.style.display = 'block';
-                }
-            } else {
-                errorEl.textContent = verifyResult.error || 'Invalid OTP';
-                if (verifyResult.remaining_attempts !== undefined) {
-                    errorEl.textContent += ` (${verifyResult.remaining_attempts} attempts left)`;
-                }
-                errorEl.style.display = 'block';
-            }
-        } catch (e) {
-            console.error('Error verifying OTP:', e);
-            errorEl.textContent = 'Error connecting to server';
+      const otp = getOTPValue('profile');
+      if (!otp) {
+        document.getElementById('profile-otp-error').textContent = 'Please enter 6-digit code';
+        document.getElementById('profile-otp-error').style.display = 'block';
+        return;
+      }
+
+      const errorEl = document.getElementById('profile-otp-error');
+      errorEl.style.display = 'none';
+
+      try {
+        // Verify OTP first
+        const verifyRes = await fetch('../api/verify_otp.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'profile', otp: otp })
+        });
+        const verifyResult = await verifyRes.json();
+
+        if (verifyResult.success) {
+          // OTP is correct, now update profile
+          const updateRes = await fetch('../api/update_profile.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(pendingProfileData)
+          });
+          const updateResult = await updateRes.json();
+
+          if (updateResult.success) {
+            closeOTPModal('profile');
+            showToast('Profile updated successfully!', 'green');
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            errorEl.textContent = updateResult.error || 'Error updating profile';
             errorEl.style.display = 'block';
+          }
+        } else {
+          errorEl.textContent = verifyResult.error || 'Invalid OTP';
+          if (verifyResult.remaining_attempts !== undefined) {
+            errorEl.textContent += ` (${verifyResult.remaining_attempts} attempts left)`;
+          }
+          errorEl.style.display = 'block';
         }
+      } catch (e) {
+        console.error('Error verifying OTP:', e);
+        errorEl.textContent = 'Error connecting to server';
+        errorEl.style.display = 'block';
+      }
     }
 
     async function requestPasswordOTP() {
-        const current = document.getElementById('pw-current').value;
-        const newPass = document.getElementById('pw-new').value;
-        const confirm = document.getElementById('pw-confirm').value;
-        const errorEl = document.getElementById('pw-change-error');
-        errorEl.style.display = 'none';
-        errorEl.textContent = '';
-        
-        if (!current) { errorEl.textContent = 'Current password is required'; errorEl.style.display = 'block'; return; }
-        if (!newPass) { errorEl.textContent = 'New password is required'; errorEl.style.display = 'block'; return; }
-        if (!confirm) { errorEl.textContent = 'Please confirm your new password'; errorEl.style.display = 'block'; return; }
-        if (newPass !== confirm) { errorEl.textContent = 'Passwords do not match'; errorEl.style.display = 'block'; return; }
-        if (newPass.length < 6) { errorEl.textContent = 'Password must be at least 6 characters'; errorEl.style.display = 'block'; return; }
-        if (newPass === current) { errorEl.textContent = 'New password must be different from current password'; errorEl.style.display = 'block'; return; }
-        
-        // Store pending data
-        pendingPasswordData = { new_password: newPass };
-        
-        try {
-            // Send OTP request to server
-            const response = await fetch('../api/send_otp.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'password' })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                showToast('OTP sent to your email', 'green');
-                passwordCountdown = 60;
-                startPasswordResendTimer();
-                clearOTPInputs('password');
-                document.getElementById('otp-password-modal').classList.remove('hidden');
-                document.getElementById('password-otp-error').style.display = 'none';
-            } else {
-                showToast(result.error || 'Failed to send OTP', 'red');
-            }
-        } catch (error) {
-            console.error('Error sending OTP:', error);
-            showToast('Error connecting to server', 'red');
+      const current = document.getElementById('pw-current').value;
+      const newPass = document.getElementById('pw-new').value;
+      const confirm = document.getElementById('pw-confirm').value;
+      const errorEl = document.getElementById('pw-change-error');
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+
+      if (!current) { errorEl.textContent = 'Current password is required'; errorEl.style.display = 'block'; return; }
+      if (!newPass) { errorEl.textContent = 'New password is required'; errorEl.style.display = 'block'; return; }
+      if (!confirm) { errorEl.textContent = 'Please confirm your new password'; errorEl.style.display = 'block'; return; }
+      if (newPass !== confirm) { errorEl.textContent = 'Passwords do not match'; errorEl.style.display = 'block'; return; }
+      if (newPass.length < 6) { errorEl.textContent = 'Password must be at least 6 characters'; errorEl.style.display = 'block'; return; }
+      if (newPass === current) { errorEl.textContent = 'New password must be different from current password'; errorEl.style.display = 'block'; return; }
+
+      // Store pending data
+      pendingPasswordData = { new_password: newPass };
+
+      try {
+        // Send OTP request to server
+        const response = await fetch('../api/send_otp.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'password' })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showToast('OTP sent to your email', 'green');
+          passwordCountdown = 60;
+          startPasswordResendTimer();
+          clearOTPInputs('password');
+          document.getElementById('otp-password-modal').classList.remove('hidden');
+          document.getElementById('password-otp-error').style.display = 'none';
+        } else {
+          showToast(result.error || 'Failed to send OTP', 'red');
         }
+      } catch (error) {
+        console.error('Error sending OTP:', error);
+        showToast('Error connecting to server', 'red');
+      }
     }
 
     function startPasswordResendTimer() {
-        if (passwordResendTimer) clearInterval(passwordResendTimer);
-        const timerSpan = document.getElementById('password-countdown');
-        const resendDiv = document.getElementById('password-resend-timer');
-        
-        passwordResendTimer = setInterval(() => {
-            if (passwordCountdown <= 1) {
-                clearInterval(passwordResendTimer);
-                resendDiv.innerHTML = '<span class="resend-link" onclick="resendPasswordOTP()">Resend Code</span>';
-            } else {
-                passwordCountdown--;
-                timerSpan.textContent = passwordCountdown;
-            }
-        }, 1000);
+      if (passwordResendTimer) clearInterval(passwordResendTimer);
+      const timerSpan = document.getElementById('password-countdown');
+      const resendDiv = document.getElementById('password-resend-timer');
+
+      passwordResendTimer = setInterval(() => {
+        if (passwordCountdown <= 1) {
+          clearInterval(passwordResendTimer);
+          resendDiv.innerHTML = '<span class="resend-link" onclick="resendPasswordOTP()">Resend Code</span>';
+        } else {
+          passwordCountdown--;
+          timerSpan.textContent = passwordCountdown;
+        }
+      }, 1000);
     }
 
     async function resendPasswordOTP() {
-        try {
-            const response = await fetch('../api/send_otp.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'password' })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                showToast('OTP resent to your email', 'green');
-                passwordCountdown = 60;
-                startPasswordResendTimer();
-            } else {
-                showToast(result.error || 'Failed to resend OTP', 'red');
-            }
-        } catch (error) {
-            console.error('Error resending OTP:', error);
-            showToast('Error connecting to server', 'red');
+      try {
+        const response = await fetch('../api/send_otp.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'password' })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showToast('OTP resent to your email', 'green');
+          passwordCountdown = 60;
+          startPasswordResendTimer();
+        } else {
+          showToast(result.error || 'Failed to resend OTP', 'red');
         }
+      } catch (error) {
+        console.error('Error resending OTP:', error);
+        showToast('Error connecting to server', 'red');
+      }
     }
 
     async function verifyPasswordOTP() {
-        const otp = getOTPValue('password');
-        if (!otp) {
-            document.getElementById('password-otp-error').textContent = 'Please enter 6-digit code';
-            document.getElementById('password-otp-error').style.display = 'block';
-            return;
-        }
-        
-        const errorEl = document.getElementById('password-otp-error');
-        errorEl.style.display = 'none';
-        
-        try {
-            // Verify OTP first
-            const verifyRes = await fetch('../api/verify_otp.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'password', otp: otp })
-            });
-            const verifyResult = await verifyRes.json();
-            
-            if (verifyResult.success) {
-                // OTP is correct, now change password
-                const changeRes = await fetch('../api/change_password.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ new_password: pendingPasswordData.new_password })
-                });
-                const changeResult = await changeRes.json();
-                
-                if (changeResult.success) {
-                    closeOTPModal('password');
-                    document.getElementById('pw-current').value = '';
-                    document.getElementById('pw-new').value = '';
-                    document.getElementById('pw-confirm').value = '';
-                    showToast('Password changed successfully!', 'green');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    errorEl.textContent = changeResult.error || 'Error changing password';
-                    errorEl.style.display = 'block';
-                }
-            } else {
-                errorEl.textContent = verifyResult.error || 'Invalid OTP';
-                if (verifyResult.remaining_attempts !== undefined) {
-                    errorEl.textContent += ` (${verifyResult.remaining_attempts} attempts left)`;
-                }
-                errorEl.style.display = 'block';
-            }
-        } catch (e) {
-            console.error('Error verifying OTP:', e);
-            errorEl.textContent = 'Error connecting to server';
+      const otp = getOTPValue('password');
+      if (!otp) {
+        document.getElementById('password-otp-error').textContent = 'Please enter 6-digit code';
+        document.getElementById('password-otp-error').style.display = 'block';
+        return;
+      }
+
+      const errorEl = document.getElementById('password-otp-error');
+      errorEl.style.display = 'none';
+
+      try {
+        // Verify OTP first
+        const verifyRes = await fetch('../api/verify_otp.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'password', otp: otp })
+        });
+        const verifyResult = await verifyRes.json();
+
+        if (verifyResult.success) {
+          // OTP is correct, now change password
+          const changeRes = await fetch('../api/change_password.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_password: pendingPasswordData.new_password })
+          });
+          const changeResult = await changeRes.json();
+
+          if (changeResult.success) {
+            closeOTPModal('password');
+            document.getElementById('pw-current').value = '';
+            document.getElementById('pw-new').value = '';
+            document.getElementById('pw-confirm').value = '';
+            showToast('Password changed successfully!', 'green');
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            errorEl.textContent = changeResult.error || 'Error changing password';
             errorEl.style.display = 'block';
+          }
+        } else {
+          errorEl.textContent = verifyResult.error || 'Invalid OTP';
+          if (verifyResult.remaining_attempts !== undefined) {
+            errorEl.textContent += ` (${verifyResult.remaining_attempts} attempts left)`;
+          }
+          errorEl.style.display = 'block';
         }
+      } catch (e) {
+        console.error('Error verifying OTP:', e);
+        errorEl.textContent = 'Error connecting to server';
+        errorEl.style.display = 'block';
+      }
     }
   </script>
 </body>

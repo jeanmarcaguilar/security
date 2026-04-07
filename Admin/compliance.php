@@ -16,53 +16,53 @@ $db = $database->getConnection();
 $users = [];
 $assessments = [];
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Since we don't have a dedicated assessments table, we'll simulate assessment data
-    // based on user assessment scores and create per-category data
-    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
-    
-    foreach ($users as $user) {
-        if ($user['last_assessment_score'] !== null) {
-            // Create assessment records for each category based on user's latest score
-            $baseScore = $user['last_assessment_score'];
-            
-            foreach ($categories as $category) {
-                // Vary scores slightly for different categories
-                $categoryVariation = rand(-15, 15);
-                $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
-                $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
-                
-                // Create multiple historical assessments for trend analysis
-                $historicalDate = new DateTime($user['last_assessment_date'] ?: date('Y-m-d'));
-                for ($i = 5; $i >= 0; $i--) {
-                    $date = clone $historicalDate;
-                    $date->modify("-$i months");
-                    $historicalScore = max(20, min(100, $categoryScore + rand(-10, 10)));
-                    $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
-                    
-                    $assessments[] = [
-                        'id' => count($assessments) + 1,
-                        'vid' => $user['id'],
-                        'vname' => $user['full_name'] ?: $user['store_name'],
-                        'score' => $historicalScore,
-                        'rank' => $historicalRank,
-                        'cat' => $category,
-                        'date' => $date->format('Y-m-d')
-                    ];
-                }
-            }
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Since we don't have a dedicated assessments table, we'll simulate assessment data
+  // based on user assessment scores and create per-category data
+  $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+
+  foreach ($users as $user) {
+    if ($user['last_assessment_score'] !== null) {
+      // Create assessment records for each category based on user's latest score
+      $baseScore = $user['last_assessment_score'];
+
+      foreach ($categories as $category) {
+        // Vary scores slightly for different categories
+        $categoryVariation = rand(-15, 15);
+        $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
+        $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+
+        // Create multiple historical assessments for trend analysis
+        $historicalDate = new DateTime($user['last_assessment_date'] ?: date('Y-m-d'));
+        for ($i = 5; $i >= 0; $i--) {
+          $date = clone $historicalDate;
+          $date->modify("-$i months");
+          $historicalScore = max(20, min(100, $categoryScore + rand(-10, 10)));
+          $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
+
+          $assessments[] = [
+            'id' => count($assessments) + 1,
+            'vid' => $user['id'],
+            'vname' => $user['full_name'] ?: $user['store_name'],
+            'score' => $historicalScore,
+            'rank' => $historicalRank,
+            'cat' => $category,
+            'date' => $date->format('Y-m-d')
+          ];
         }
+      }
     }
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching compliance data: " . $exception->getMessage());
-    // Fallback to empty arrays if database fails
-    $users = [];
-    $assessments = [];
+  }
+
+} catch (PDOException $exception) {
+  error_log("Error fetching compliance data: " . $exception->getMessage());
+  // Fallback to empty arrays if database fails
+  $users = [];
+  $assessments = [];
 }
 
 // Convert to JSON for JavaScript
@@ -1490,13 +1490,13 @@ $assessmentsJson = json_encode($assessments);
     // Real database data passed from PHP
     const DB_USERS = <?php echo $usersJson; ?>;
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
-    
+
     // Helper functions for data processing
     function getRank(score) {
       if (score === null || score === undefined) return null;
       return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
     }
-    
+
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--red)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
@@ -1508,8 +1508,8 @@ $assessmentsJson = json_encode($assessments);
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      DB_ASSESSMENTS.forEach(a => { 
-        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      DB_ASSESSMENTS.forEach(a => {
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a;
       });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
@@ -1571,11 +1571,11 @@ $assessmentsJson = json_encode($assessments);
     };
     function pageInit() {
       const sel = document.getElementById('comp-v');
-      
+
       // Get unique users from real data
       const uniqueUsers = [];
       const seenUsers = new Set();
-      
+
       DB_ASSESSMENTS.forEach(assessment => {
         if (!seenUsers.has(assessment.vid)) {
           seenUsers.add(assessment.vid);
@@ -1585,30 +1585,30 @@ $assessmentsJson = json_encode($assessments);
           });
         }
       });
-      
+
       // Populate select options with real users
       uniqueUsers.forEach(user => {
         sel.innerHTML += `<option value="${user.id}">${user.name}</option>`;
       });
-      
+
       renderComp();
     }
     function renderComp() {
       const vid = +document.getElementById('comp-v').value;
       const lat = DB_ASSESSMENTS.filter(a => a.vid === vid).sort((a, b) => b.date.localeCompare(a.date));
-      
+
       // Find user from real data
       const user = DB_ASSESSMENTS.find(a => a.vid === vid);
-      
-      if (!lat.length || !user) { 
-        document.getElementById('comp-content').innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessments found for this user.</p>'; 
-        return; 
+
+      if (!lat.length || !user) {
+        document.getElementById('comp-content').innerHTML = '<p style="color:var(--muted2);font-size:.84rem">No assessments found for this user.</p>';
+        return;
       }
-      
+
       const weak = lat.slice(0, 3).map(a => a.cat);
       const all = Object.keys(CHECKS);
       let html = `<div style="margin-bottom:1rem;padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;font-size:.82rem">User: <b>${user.vname}</b> &nbsp;|&nbsp; Latest Score: <b style="color:${getScoreColor(lat[0].score)}">${lat[0].score}%</b> &nbsp;|&nbsp; Rank: <span class="rank r${lat[0].rank}" style="display:inline-flex">${lat[0].rank}</span></div>`;
-      
+
       all.forEach(cat => {
         const isWeak = weak.includes(cat);
         html += `<div style="margin-bottom:1rem">
@@ -1622,7 +1622,7 @@ $assessmentsJson = json_encode($assessments);
       </div>`).join('')}
     </div>`;
       });
-      
+
       document.getElementById('comp-content').innerHTML = html;
     }
   </script>

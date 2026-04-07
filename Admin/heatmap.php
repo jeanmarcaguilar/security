@@ -26,29 +26,29 @@ $db = $database->getConnection();
 
 // Get current admin user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -68,31 +68,31 @@ $assessments = [];
 
 try {
 
-    // Get all users
+  // Get all users
 
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
 
-    $stmt->execute();
+  $stmt->execute();
 
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    
 
-    // Check if assessments table has data
 
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments");
+  // Check if assessments table has data
 
-    $stmt->execute();
+  $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments");
 
-    $assessmentCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+  $stmt->execute();
 
-    
+  $assessmentCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-    if ($assessmentCount > 0) {
 
-        // Get real assessment data from assessments table with individual category breakdowns
 
-        $stmt = $db->prepare("
+  if ($assessmentCount > 0) {
+
+    // Get real assessment data from assessments table with individual category breakdowns
+
+    $stmt = $db->prepare("
 
             SELECT 
 
@@ -130,189 +130,189 @@ try {
 
         ");
 
-        $stmt->execute();
+    $stmt->execute();
 
-        $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        
 
-        // Create category-based assessments from individual scores
 
-        $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+    // Create category-based assessments from individual scores
 
-        $categoryFields = ['password_score', 'network_score', 'data_handling_score', 'social_engineering_score', 'device_score', 'phishing_score'];
+    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
 
-        
+    $categoryFields = ['password_score', 'network_score', 'data_handling_score', 'social_engineering_score', 'device_score', 'phishing_score'];
 
-        foreach ($assessmentData as $assessment) {
 
-            // Create separate assessment records for each category
 
-            foreach ($categories as $index => $category) {
+    foreach ($assessmentData as $assessment) {
 
-                $categoryField = $categoryFields[$index];
+      // Create separate assessment records for each category
 
-                $categoryScore = $assessment[$categoryField];
+      foreach ($categories as $index => $category) {
 
-                
+        $categoryField = $categoryFields[$index];
 
-                if ($categoryScore > 0) { // Only include categories that have scores
+        $categoryScore = $assessment[$categoryField];
 
-                    $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
 
-                    
 
-                    $assessments[] = [
+        if ($categoryScore > 0) { // Only include categories that have scores
 
-                        'id' => $assessment['id'] . '_' . $index, // Unique ID for each category
+          $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
 
-                        'vid' => $assessment['vid'],
 
-                        'vname' => $assessment['full_name'] ?: $assessment['store_name'],
 
-                        'score' => (int)$categoryScore,
+          $assessments[] = [
 
-                        'rank' => $rank,
+            'id' => $assessment['id'] . '_' . $index, // Unique ID for each category
 
-                        'cat' => $category,
+            'vid' => $assessment['vid'],
 
-                        'date' => $assessment['date']
+            'vname' => $assessment['full_name'] ?: $assessment['store_name'],
 
-                    ];
+            'score' => (int) $categoryScore,
 
-                }
+            'rank' => $rank,
 
-            }
+            'cat' => $category,
+
+            'date' => $assessment['date']
+
+          ];
 
         }
 
-    } else {
+      }
 
-        // Create persistent demo data that won't change on refresh
+    }
 
-        // First, check if we already have persistent demo data
+  } else {
 
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments");
+    // Create persistent demo data that won't change on refresh
 
-        $stmt->execute();
+    // First, check if we already have persistent demo data
 
-        $assessmentCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments");
 
-        
+    $stmt->execute();
 
-        if ($assessmentCount == 0 && !empty($users)) {
+    $assessmentCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-            // Create persistent demo data in database (runs only once)
 
-            $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
 
-            $categoryFields = ['password_score', 'phishing_score', 'device_score', 'network_score', 'social_engineering_score', 'data_handling_score'];
+    if ($assessmentCount == 0 && !empty($users)) {
 
-            
+      // Create persistent demo data in database (runs only once)
 
-            foreach ($users as $user) {
+      $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
 
-                // Use a deterministic score based on user ID (same every time)
+      $categoryFields = ['password_score', 'phishing_score', 'device_score', 'network_score', 'social_engineering_score', 'data_handling_score'];
 
-                $baseScore = 50 + (($user['id'] * 7) % 45); // Range 50-95
 
-                
 
-                $totalScore = 0;
+      foreach ($users as $user) {
 
-                $validCategories = 0;
+        // Use a deterministic score based on user ID (same every time)
 
-                
+        $baseScore = 50 + (($user['id'] * 7) % 45); // Range 50-95
 
-                foreach ($categories as $index => $category) {
 
-                    // Use deterministic variation based on user ID and category index (NOT random)
 
-                    $categoryVariation = (($user['id'] + $index) % 31) - 15;
+        $totalScore = 0;
 
-                    $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
+        $validCategories = 0;
 
-                    
 
-                    $totalScore += $categoryScore;
 
-                    $validCategories++;
+        foreach ($categories as $index => $category) {
 
-                    
+          // Use deterministic variation based on user ID and category index (NOT random)
 
-                    // Prepare data for insertion
+          $categoryVariation = (($user['id'] + $index) % 31) - 15;
 
-                    $insertData = [
+          $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
 
-                        'vendor_id' => $user['id'],
 
-                        'score' => $categoryScore,
 
-                        'time_spent' => 300, // 5 minutes
+          $totalScore += $categoryScore;
 
-                        'questions_answered' => 5,
+          $validCategories++;
 
-                        'total_questions' => 5,
 
-                        'assessment_date' => date('Y-m-d H:i:s'),
 
-                        'assessment_token' => uniqid('demo_', true),
+          // Prepare data for insertion
 
-                        'session_id' => session_id()
+          $insertData = [
 
-                    ];
+            'vendor_id' => $user['id'],
 
-                    
+            'score' => $categoryScore,
 
-                    // Set individual category scores
+            'time_spent' => 300, // 5 minutes
 
-                    $insertData[$categoryFields[$index]] = $categoryScore;
+            'questions_answered' => 5,
 
-                    
+            'total_questions' => 5,
 
-                    // Calculate overall rank
+            'assessment_date' => date('Y-m-d H:i:s'),
 
-                    $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+            'assessment_token' => uniqid('demo_', true),
 
-                    $insertData['rank'] = $rank;
+            'session_id' => session_id()
 
-                    
+          ];
 
-                    // Build dynamic INSERT query
 
-                    $fields = array_keys($insertData);
 
-                    $placeholders = array_fill(0, count($fields), '?');
+          // Set individual category scores
 
-                    
+          $insertData[$categoryFields[$index]] = $categoryScore;
 
-                    $sql = "INSERT INTO assessments (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
 
-                    $stmt = $db->prepare($sql);
 
-                    $stmt->execute(array_values($insertData));
+          // Calculate overall rank
 
-                }
+          $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
 
-                
+          $insertData['rank'] = $rank;
 
-                // Update user with average score
 
-                $avgScore = round($totalScore / $validCategories);
 
-                $stmt = $db->prepare("UPDATE users SET last_assessment_score = ?, total_assessments = ?, last_assessment_date = NOW() WHERE id = ?");
+          // Build dynamic INSERT query
 
-                $stmt->execute([$avgScore, $validCategories, $user['id']]);
+          $fields = array_keys($insertData);
 
-            }
+          $placeholders = array_fill(0, count($fields), '?');
+
+
+
+          $sql = "INSERT INTO assessments (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
+
+          $stmt = $db->prepare($sql);
+
+          $stmt->execute(array_values($insertData));
 
         }
 
-        
 
-        // Now fetch the data we just created
 
-        $stmt = $db->prepare("
+        // Update user with average score
+
+        $avgScore = round($totalScore / $validCategories);
+
+        $stmt = $db->prepare("UPDATE users SET last_assessment_score = ?, total_assessments = ?, last_assessment_date = NOW() WHERE id = ?");
+
+        $stmt->execute([$avgScore, $validCategories, $user['id']]);
+
+      }
+
+    }
+
+
+
+    // Now fetch the data we just created
+
+    $stmt = $db->prepare("
 
             SELECT 
 
@@ -346,75 +346,75 @@ try {
 
         ");
 
-        $stmt->execute();
+    $stmt->execute();
 
-        $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        
 
-        // Create category-based assessments from individual scores
 
-        $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+    // Create category-based assessments from individual scores
 
-        $categoryFields = ['password_score', 'network_score', 'data_handling_score', 'social_engineering_score', 'device_score', 'phishing_score'];
+    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
 
-        
+    $categoryFields = ['password_score', 'network_score', 'data_handling_score', 'social_engineering_score', 'device_score', 'phishing_score'];
 
-        foreach ($assessmentData as $assessment) {
 
-            // Create separate assessment records for each category
 
-            foreach ($categories as $index => $category) {
+    foreach ($assessmentData as $assessment) {
 
-                $categoryField = $categoryFields[$index];
+      // Create separate assessment records for each category
 
-                $categoryScore = $assessment[$categoryField];
+      foreach ($categories as $index => $category) {
 
-                
+        $categoryField = $categoryFields[$index];
 
-                if ($categoryScore > 0) { // Only include categories that have scores
+        $categoryScore = $assessment[$categoryField];
 
-                    $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
 
-                    
 
-                    $assessments[] = [
+        if ($categoryScore > 0) { // Only include categories that have scores
 
-                        'id' => $assessment['id'] . '_' . $index, // Unique ID for each category
+          $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
 
-                        'vid' => $assessment['vid'],
 
-                        'vname' => $assessment['full_name'] ?: $assessment['store_name'],
 
-                        'score' => (int)$categoryScore,
+          $assessments[] = [
 
-                        'rank' => $rank,
+            'id' => $assessment['id'] . '_' . $index, // Unique ID for each category
 
-                        'cat' => $category,
+            'vid' => $assessment['vid'],
 
-                        'date' => $assessment['date']
+            'vname' => $assessment['full_name'] ?: $assessment['store_name'],
 
-                    ];
+            'score' => (int) $categoryScore,
 
-                }
+            'rank' => $rank,
 
-            }
+            'cat' => $category,
+
+            'date' => $assessment['date']
+
+          ];
 
         }
 
+      }
+
     }
 
-    
+  }
 
-} catch(PDOException $exception) {
 
-    error_log("Error fetching heatmap data: " . $exception->getMessage());
 
-    // Fallback to empty arrays if database fails
+} catch (PDOException $exception) {
 
-    $users = [];
+  error_log("Error fetching heatmap data: " . $exception->getMessage());
 
-    $assessments = [];
+  // Fallback to empty arrays if database fails
+
+  $users = [];
+
+  $assessments = [];
 
 }
 
@@ -445,7 +445,6 @@ $assessmentsJson = json_encode($assessments);
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
   <style>
-
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 
@@ -473,7 +472,6 @@ $assessmentsJson = json_encode($assessments);
       --red: #FF3B5C;
 
       --t: .18s ease
-
     }
 
 
@@ -499,7 +497,6 @@ $assessmentsJson = json_encode($assessments);
       --card-bg: #0a1020;
 
       --shadow: 0 4px 24px rgba(0, 0, 0, .5)
-
     }
 
 
@@ -525,7 +522,6 @@ $assessmentsJson = json_encode($assessments);
       --card-bg: #fff;
 
       --shadow: 0 4px 24px rgba(0, 0, 0, .1)
-
     }
 
 
@@ -541,7 +537,6 @@ $assessmentsJson = json_encode($assessments);
       margin: 0;
 
       padding: 0
-
     }
 
 
@@ -553,7 +548,6 @@ $assessmentsJson = json_encode($assessments);
       height: 100%;
 
       overflow: hidden
-
     }
 
 
@@ -567,7 +561,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--text);
 
       transition: background .18s, color .18s
-
     }
 
 
@@ -585,7 +578,6 @@ $assessmentsJson = json_encode($assessments);
       background-image: linear-gradient(rgba(59, 139, 255, .025) 1px, transparent 1px), linear-gradient(90deg, rgba(59, 139, 255, .025) 1px, transparent 1px);
 
       background-size: 40px 40px
-
     }
 
 
@@ -599,7 +591,6 @@ $assessmentsJson = json_encode($assessments);
       position: relative;
 
       z-index: 1
-
     }
 
 
@@ -625,7 +616,6 @@ $assessmentsJson = json_encode($assessments);
       z-index: 10;
 
       flex-shrink: 0
-
     }
 
 
@@ -635,7 +625,6 @@ $assessmentsJson = json_encode($assessments);
       width: 58px;
 
       min-width: 58px
-
     }
 
 
@@ -653,7 +642,6 @@ $assessmentsJson = json_encode($assessments);
       border-bottom: 1px solid var(--border);
 
       flex-shrink: 0
-
     }
 
 
@@ -675,7 +663,6 @@ $assessmentsJson = json_encode($assessments);
       flex-shrink: 0;
 
       box-shadow: 0 0 16px rgba(59, 139, 255, .3)
-
     }
 
 
@@ -687,7 +674,6 @@ $assessmentsJson = json_encode($assessments);
       overflow: hidden;
 
       white-space: nowrap
-
     }
 
 
@@ -701,7 +687,6 @@ $assessmentsJson = json_encode($assessments);
       font-weight: 700;
 
       letter-spacing: 1px
-
     }
 
 
@@ -729,7 +714,6 @@ $assessmentsJson = json_encode($assessments);
       display: inline-block;
 
       margin-top: .1rem
-
     }
 
 
@@ -757,7 +741,6 @@ $assessmentsJson = json_encode($assessments);
       flex-shrink: 0;
 
       transition: var(--t)
-
     }
 
 
@@ -767,7 +750,6 @@ $assessmentsJson = json_encode($assessments);
       border-color: var(--blue);
 
       color: var(--text)
-
     }
 
 
@@ -775,7 +757,6 @@ $assessmentsJson = json_encode($assessments);
     #sidebar.collapsed .sb-toggle svg {
 
       transform: rotate(180deg)
-
     }
 
 
@@ -789,7 +770,6 @@ $assessmentsJson = json_encode($assessments);
       overflow-x: hidden;
 
       padding: .65rem 0
-
     }
 
 
@@ -797,7 +777,6 @@ $assessmentsJson = json_encode($assessments);
     .sb-section::-webkit-scrollbar {
 
       width: 3px
-
     }
 
 
@@ -807,7 +786,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--border2);
 
       border-radius: 2px
-
     }
 
 
@@ -829,7 +807,6 @@ $assessmentsJson = json_encode($assessments);
       white-space: nowrap;
 
       overflow: hidden
-
     }
 
 
@@ -837,7 +814,6 @@ $assessmentsJson = json_encode($assessments);
     #sidebar.collapsed .sb-label {
 
       opacity: 0
-
     }
 
 
@@ -849,7 +825,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--border);
 
       margin: .5rem .9rem
-
     }
 
 
@@ -881,7 +856,6 @@ $assessmentsJson = json_encode($assessments);
       overflow: hidden;
 
       position: relative
-
     }
 
 
@@ -891,7 +865,6 @@ $assessmentsJson = json_encode($assessments);
       background: rgba(59, 139, 255, .07);
 
       color: var(--text)
-
     }
 
 
@@ -901,7 +874,6 @@ $assessmentsJson = json_encode($assessments);
       background: rgba(59, 139, 255, .1);
 
       color: var(--blue)
-
     }
 
 
@@ -923,7 +895,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--blue);
 
       border-radius: 0 3px 3px 0
-
     }
 
 
@@ -939,7 +910,6 @@ $assessmentsJson = json_encode($assessments);
       width: 18px;
 
       flex-shrink: 0
-
     }
 
 
@@ -947,7 +917,6 @@ $assessmentsJson = json_encode($assessments);
     .sb-text {
 
       overflow: hidden
-
     }
 
 
@@ -955,7 +924,6 @@ $assessmentsJson = json_encode($assessments);
     #sidebar.collapsed .sb-text {
 
       display: none
-
     }
 
 
@@ -967,7 +935,6 @@ $assessmentsJson = json_encode($assessments);
       padding: .75rem .9rem;
 
       flex-shrink: 0
-
     }
 
 
@@ -981,7 +948,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .65rem;
 
       overflow: hidden
-
     }
 
 
@@ -1009,7 +975,6 @@ $assessmentsJson = json_encode($assessments);
       flex-shrink: 0;
 
       font-family: var(--display)
-
     }
 
 
@@ -1019,7 +984,6 @@ $assessmentsJson = json_encode($assessments);
       overflow: hidden;
 
       white-space: nowrap
-
     }
 
 
@@ -1029,7 +993,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: .82rem;
 
       font-weight: 600
-
     }
 
 
@@ -1039,7 +1002,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: .68rem;
 
       color: var(--muted2)
-
     }
 
 
@@ -1047,7 +1009,6 @@ $assessmentsJson = json_encode($assessments);
     #sidebar.collapsed .sb-user-info {
 
       display: none
-
     }
 
 
@@ -1083,7 +1044,6 @@ $assessmentsJson = json_encode($assessments);
       cursor: pointer;
 
       transition: var(--t)
-
     }
 
 
@@ -1091,7 +1051,6 @@ $assessmentsJson = json_encode($assessments);
     .btn-sb-logout:hover {
 
       background: rgba(255, 59, 92, .15)
-
     }
 
 
@@ -1099,7 +1058,6 @@ $assessmentsJson = json_encode($assessments);
     #sidebar.collapsed .btn-sb-logout span {
 
       display: none
-
     }
 
 
@@ -1115,7 +1073,6 @@ $assessmentsJson = json_encode($assessments);
       overflow: hidden;
 
       min-width: 0
-
     }
 
 
@@ -1141,7 +1098,6 @@ $assessmentsJson = json_encode($assessments);
       gap: 1rem;
 
       flex-shrink: 0
-
     }
 
 
@@ -1153,7 +1109,6 @@ $assessmentsJson = json_encode($assessments);
       align-items: center;
 
       gap: .4rem
-
     }
 
 
@@ -1167,7 +1122,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted);
 
       letter-spacing: .5px
-
     }
 
 
@@ -1179,7 +1133,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: 1.05rem;
 
       letter-spacing: 1px
-
     }
 
 
@@ -1195,7 +1148,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted);
 
       margin-top: 1px
-
     }
 
 
@@ -1207,7 +1159,6 @@ $assessmentsJson = json_encode($assessments);
       align-items: center;
 
       gap: .55rem
-
     }
 
 
@@ -1215,7 +1166,6 @@ $assessmentsJson = json_encode($assessments);
     .tb-search-wrap {
 
       position: relative
-
     }
 
 
@@ -1233,7 +1183,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted2);
 
       pointer-events: none
-
     }
 
 
@@ -1259,7 +1208,6 @@ $assessmentsJson = json_encode($assessments);
       width: 200px;
 
       transition: var(--t)
-
     }
 
 
@@ -1267,7 +1215,6 @@ $assessmentsJson = json_encode($assessments);
     .tb-search:focus {
 
       border-color: rgba(59, 139, 255, .4)
-
     }
 
 
@@ -1275,7 +1222,6 @@ $assessmentsJson = json_encode($assessments);
     .tb-search::placeholder {
 
       color: var(--muted)
-
     }
 
 
@@ -1289,7 +1235,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted2);
 
       white-space: nowrap
-
     }
 
 
@@ -1303,7 +1248,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--border2);
 
       margin: 0 .2rem
-
     }
 
 
@@ -1331,7 +1275,6 @@ $assessmentsJson = json_encode($assessments);
       transition: var(--t);
 
       flex-shrink: 0
-
     }
 
 
@@ -1341,7 +1284,6 @@ $assessmentsJson = json_encode($assessments);
       border-color: var(--blue);
 
       color: var(--text)
-
     }
 
 
@@ -1365,7 +1307,6 @@ $assessmentsJson = json_encode($assessments);
       cursor: pointer;
 
       transition: var(--t)
-
     }
 
 
@@ -1375,7 +1316,6 @@ $assessmentsJson = json_encode($assessments);
       border-color: rgba(255, 59, 92, .28);
 
       background: rgba(255, 59, 92, .06)
-
     }
 
 
@@ -1403,7 +1343,6 @@ $assessmentsJson = json_encode($assessments);
       flex-shrink: 0;
 
       font-family: var(--display)
-
     }
 
 
@@ -1413,7 +1352,6 @@ $assessmentsJson = json_encode($assessments);
       display: flex;
 
       flex-direction: column
-
     }
 
 
@@ -1425,7 +1363,6 @@ $assessmentsJson = json_encode($assessments);
       font-weight: 600;
 
       line-height: 1.2
-
     }
 
 
@@ -1439,7 +1376,6 @@ $assessmentsJson = json_encode($assessments);
       letter-spacing: .5px;
 
       font-family: var(--mono)
-
     }
 
 
@@ -1447,7 +1383,6 @@ $assessmentsJson = json_encode($assessments);
     .notif-wrap {
 
       position: relative
-
     }
 
 
@@ -1469,7 +1404,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--red);
 
       border: 1.5px solid var(--bg2)
-
     }
 
 
@@ -1493,7 +1427,6 @@ $assessmentsJson = json_encode($assessments);
       box-shadow: var(--shadow);
 
       z-index: 100
-
     }
 
 
@@ -1501,7 +1434,6 @@ $assessmentsJson = json_encode($assessments);
     .np.hidden {
 
       display: none
-
     }
 
 
@@ -1521,7 +1453,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: .82rem;
 
       font-weight: 600
-
     }
 
 
@@ -1537,7 +1468,6 @@ $assessmentsJson = json_encode($assessments);
       border: none;
 
       cursor: pointer
-
     }
 
 
@@ -1551,7 +1481,6 @@ $assessmentsJson = json_encode($assessments);
       padding: 1rem;
 
       text-align: center
-
     }
 
 
@@ -1567,7 +1496,6 @@ $assessmentsJson = json_encode($assessments);
       border-bottom: 1px solid var(--border);
 
       font-size: .78rem
-
     }
 
 
@@ -1575,7 +1503,6 @@ $assessmentsJson = json_encode($assessments);
     .np-item:last-child {
 
       border-bottom: none
-
     }
 
 
@@ -1593,7 +1520,6 @@ $assessmentsJson = json_encode($assessments);
       flex-shrink: 0;
 
       margin-top: 4px
-
     }
 
 
@@ -1605,7 +1531,6 @@ $assessmentsJson = json_encode($assessments);
       overflow-y: auto;
 
       padding: 1.5rem
-
     }
 
 
@@ -1613,7 +1538,6 @@ $assessmentsJson = json_encode($assessments);
     .content::-webkit-scrollbar {
 
       width: 4px
-
     }
 
 
@@ -1623,7 +1547,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--border2);
 
       border-radius: 2px
-
     }
 
 
@@ -1631,7 +1554,6 @@ $assessmentsJson = json_encode($assessments);
     .sec-hdr {
 
       margin-bottom: 1.25rem
-
     }
 
 
@@ -1645,7 +1567,6 @@ $assessmentsJson = json_encode($assessments);
       font-weight: 700;
 
       letter-spacing: .5px
-
     }
 
 
@@ -1657,7 +1578,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted2);
 
       margin-top: .2rem
-
     }
 
 
@@ -1673,7 +1593,6 @@ $assessmentsJson = json_encode($assessments);
       box-shadow: var(--shadow);
 
       transition: border-color .18s
-
     }
 
 
@@ -1681,7 +1600,6 @@ $assessmentsJson = json_encode($assessments);
     .card:hover {
 
       border-color: var(--border2)
-
     }
 
 
@@ -1695,7 +1613,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .9rem;
 
       margin-bottom: 1.25rem
-
     }
 
 
@@ -1707,7 +1624,6 @@ $assessmentsJson = json_encode($assessments);
       position: relative;
 
       overflow: hidden
-
     }
 
 
@@ -1729,7 +1645,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--accent, var(--blue));
 
       opacity: .7
-
     }
 
 
@@ -1747,7 +1662,6 @@ $assessmentsJson = json_encode($assessments);
       place-items: center;
 
       margin-bottom: .65rem
-
     }
 
 
@@ -1765,7 +1679,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted2);
 
       margin-bottom: .3rem
-
     }
 
 
@@ -1779,7 +1692,6 @@ $assessmentsJson = json_encode($assessments);
       font-weight: 700;
 
       line-height: 1
-
     }
 
 
@@ -1791,7 +1703,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted);
 
       margin-top: .3rem
-
     }
 
 
@@ -1803,7 +1714,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .9rem;
 
       margin-bottom: 1.25rem
-
     }
 
 
@@ -1811,7 +1721,6 @@ $assessmentsJson = json_encode($assessments);
     .chart-card {
 
       padding: 1.15rem 1.25rem
-
     }
 
 
@@ -1835,7 +1744,6 @@ $assessmentsJson = json_encode($assessments);
       align-items: center;
 
       gap: .5rem
-
     }
 
 
@@ -1853,7 +1761,6 @@ $assessmentsJson = json_encode($assessments);
       border-radius: 2px;
 
       flex-shrink: 0
-
     }
 
 
@@ -1861,7 +1768,6 @@ $assessmentsJson = json_encode($assessments);
     .cw {
 
       width: 100%
-
     }
 
 
@@ -1869,7 +1775,6 @@ $assessmentsJson = json_encode($assessments);
     .cw.sm {
 
       height: 160px
-
     }
 
 
@@ -1877,7 +1782,6 @@ $assessmentsJson = json_encode($assessments);
     .cw.md {
 
       height: 190px
-
     }
 
 
@@ -1885,7 +1789,6 @@ $assessmentsJson = json_encode($assessments);
     .cw.lg {
 
       height: 240px
-
     }
 
 
@@ -1893,7 +1796,6 @@ $assessmentsJson = json_encode($assessments);
     .tbl-card {
 
       padding: 1.25rem 1.5rem
-
     }
 
 
@@ -1911,7 +1813,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .65rem;
 
       margin-bottom: 1rem
-
     }
 
 
@@ -1923,7 +1824,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: 1rem;
 
       font-weight: 700
-
     }
 
 
@@ -1937,7 +1837,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .5rem;
 
       flex-wrap: wrap
-
     }
 
 
@@ -1963,7 +1862,6 @@ $assessmentsJson = json_encode($assessments);
       outline: none;
 
       transition: var(--t)
-
     }
 
 
@@ -1971,7 +1869,6 @@ $assessmentsJson = json_encode($assessments);
     .fsel:focus {
 
       border-color: var(--blue)
-
     }
 
 
@@ -1979,7 +1876,6 @@ $assessmentsJson = json_encode($assessments);
     [data-theme=light] .fsel {
 
       background: #fff
-
     }
 
 
@@ -1987,7 +1883,6 @@ $assessmentsJson = json_encode($assessments);
     .tw {
 
       overflow-x: auto
-
     }
 
 
@@ -1997,7 +1892,6 @@ $assessmentsJson = json_encode($assessments);
       width: 100%;
 
       border-collapse: collapse
-
     }
 
 
@@ -2021,7 +1915,6 @@ $assessmentsJson = json_encode($assessments);
       border-bottom: 1px solid var(--border);
 
       white-space: nowrap
-
     }
 
 
@@ -2031,7 +1924,6 @@ $assessmentsJson = json_encode($assessments);
       border-bottom: 1px solid var(--border);
 
       transition: background .18s
-
     }
 
 
@@ -2039,7 +1931,6 @@ $assessmentsJson = json_encode($assessments);
     tbody tr:last-child {
 
       border-bottom: none
-
     }
 
 
@@ -2047,7 +1938,6 @@ $assessmentsJson = json_encode($assessments);
     tbody tr:hover {
 
       background: rgba(59, 139, 255, .04)
-
     }
 
 
@@ -2057,7 +1947,6 @@ $assessmentsJson = json_encode($assessments);
       padding: .65rem .75rem;
 
       font-size: .82rem
-
     }
 
 
@@ -2081,7 +1970,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: .7rem;
 
       font-weight: 700
-
     }
 
 
@@ -2091,7 +1979,6 @@ $assessmentsJson = json_encode($assessments);
       background: rgba(16, 217, 130, .15);
 
       color: var(--green)
-
     }
 
 
@@ -2101,7 +1988,6 @@ $assessmentsJson = json_encode($assessments);
       background: rgba(245, 183, 49, .15);
 
       color: var(--yellow)
-
     }
 
 
@@ -2111,7 +1997,6 @@ $assessmentsJson = json_encode($assessments);
       background: rgba(255, 140, 66, .15);
 
       color: var(--orange)
-
     }
 
 
@@ -2121,7 +2006,6 @@ $assessmentsJson = json_encode($assessments);
       background: rgba(255, 59, 92, .15);
 
       color: var(--red)
-
     }
 
 
@@ -2133,7 +2017,6 @@ $assessmentsJson = json_encode($assessments);
       align-items: center;
 
       gap: .6rem
-
     }
 
 
@@ -2147,7 +2030,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--border2);
 
       border-radius: 2px
-
     }
 
 
@@ -2157,7 +2039,6 @@ $assessmentsJson = json_encode($assessments);
       height: 100%;
 
       border-radius: 2px
-
     }
 
 
@@ -2173,7 +2054,6 @@ $assessmentsJson = json_encode($assessments);
       min-width: 32px;
 
       text-align: right
-
     }
 
 
@@ -2189,7 +2069,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .4rem;
 
       margin-top: 1rem
-
     }
 
 
@@ -2219,7 +2098,6 @@ $assessmentsJson = json_encode($assessments);
       place-items: center;
 
       transition: var(--t)
-
     }
 
 
@@ -2233,7 +2111,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--blue);
 
       background: rgba(59, 139, 255, .07)
-
     }
 
 
@@ -2263,7 +2140,6 @@ $assessmentsJson = json_encode($assessments);
       border: none;
 
       text-decoration: none
-
     }
 
 
@@ -2273,7 +2149,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--blue);
 
       color: #fff
-
     }
 
 
@@ -2281,7 +2156,6 @@ $assessmentsJson = json_encode($assessments);
     .btn-p:hover {
 
       background: #2e7ae8
-
     }
 
 
@@ -2293,7 +2167,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--muted2);
 
       border: 1px solid var(--border2)
-
     }
 
 
@@ -2303,7 +2176,6 @@ $assessmentsJson = json_encode($assessments);
       border-color: var(--blue);
 
       color: var(--text)
-
     }
 
 
@@ -2315,7 +2187,6 @@ $assessmentsJson = json_encode($assessments);
       color: var(--red);
 
       border: 1px solid rgba(255, 59, 92, .2)
-
     }
 
 
@@ -2323,7 +2194,6 @@ $assessmentsJson = json_encode($assessments);
     .btn-d:hover {
 
       background: rgba(255, 59, 92, .2)
-
     }
 
 
@@ -2333,7 +2203,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: .72rem;
 
       padding: .32rem .7rem
-
     }
 
 
@@ -2349,7 +2218,6 @@ $assessmentsJson = json_encode($assessments);
       display: inline-block;
 
       flex-shrink: 0
-
     }
 
 
@@ -2359,7 +2227,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--green);
 
       box-shadow: 0 0 6px rgba(16, 217, 130, .5)
-
     }
 
 
@@ -2367,7 +2234,6 @@ $assessmentsJson = json_encode($assessments);
     .sdot-y {
 
       background: var(--yellow)
-
     }
 
 
@@ -2377,7 +2243,6 @@ $assessmentsJson = json_encode($assessments);
       background: var(--red);
 
       box-shadow: 0 0 6px rgba(255, 59, 92, .5)
-
     }
 
 
@@ -2397,7 +2262,6 @@ $assessmentsJson = json_encode($assessments);
       z-index: 200;
 
       backdrop-filter: blur(4px)
-
     }
 
 
@@ -2405,7 +2269,6 @@ $assessmentsJson = json_encode($assessments);
     .mo.hidden {
 
       display: none
-
     }
 
 
@@ -2423,7 +2286,6 @@ $assessmentsJson = json_encode($assessments);
       box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
 
       animation: su .2s ease
-
     }
 
 
@@ -2435,7 +2297,6 @@ $assessmentsJson = json_encode($assessments);
         opacity: 0;
 
         transform: translateY(20px)
-
       }
 
 
@@ -2445,7 +2306,6 @@ $assessmentsJson = json_encode($assessments);
         opacity: 1;
 
         transform: none
-
       }
 
     }
@@ -2463,7 +2323,6 @@ $assessmentsJson = json_encode($assessments);
       padding: 1rem 1.25rem;
 
       border-bottom: 1px solid var(--border)
-
     }
 
 
@@ -2475,7 +2334,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: 1rem;
 
       font-weight: 700
-
     }
 
 
@@ -2501,7 +2359,6 @@ $assessmentsJson = json_encode($assessments);
       place-items: center;
 
       transition: var(--t)
-
     }
 
 
@@ -2511,7 +2368,6 @@ $assessmentsJson = json_encode($assessments);
       border-color: var(--red);
 
       color: var(--red)
-
     }
 
 
@@ -2519,7 +2375,6 @@ $assessmentsJson = json_encode($assessments);
     .mbdy {
 
       padding: 1.25rem
-
     }
 
 
@@ -2535,7 +2390,6 @@ $assessmentsJson = json_encode($assessments);
       height: 21px;
 
       flex-shrink: 0
-
     }
 
 
@@ -2547,7 +2401,6 @@ $assessmentsJson = json_encode($assessments);
       width: 0;
 
       height: 0
-
     }
 
 
@@ -2565,7 +2418,6 @@ $assessmentsJson = json_encode($assessments);
       border-radius: 21px;
 
       transition: var(--t)
-
     }
 
 
@@ -2589,7 +2441,6 @@ $assessmentsJson = json_encode($assessments);
       border-radius: 50%;
 
       transition: var(--t)
-
     }
 
 
@@ -2597,7 +2448,6 @@ $assessmentsJson = json_encode($assessments);
     .ts input:checked+.tsl {
 
       background: var(--blue)
-
     }
 
 
@@ -2607,7 +2457,6 @@ $assessmentsJson = json_encode($assessments);
       transform: translateX(17px);
 
       background: #fff
-
     }
 
 
@@ -2627,7 +2476,6 @@ $assessmentsJson = json_encode($assessments);
       gap: .5rem;
 
       z-index: 300
-
     }
 
 
@@ -2655,7 +2503,6 @@ $assessmentsJson = json_encode($assessments);
       animation: sl .2s ease;
 
       min-width: 240px
-
     }
 
 
@@ -2667,7 +2514,6 @@ $assessmentsJson = json_encode($assessments);
         opacity: 0;
 
         transform: translateX(20px)
-
       }
 
 
@@ -2677,7 +2523,6 @@ $assessmentsJson = json_encode($assessments);
         opacity: 1;
 
         transform: none
-
       }
 
     }
@@ -2693,7 +2538,6 @@ $assessmentsJson = json_encode($assessments);
       border-radius: 50%;
 
       flex-shrink: 0
-
     }
 
 
@@ -2719,7 +2563,6 @@ $assessmentsJson = json_encode($assessments);
       transition: var(--t);
 
       width: 100%
-
     }
 
 
@@ -2727,7 +2570,6 @@ $assessmentsJson = json_encode($assessments);
     .fi:focus {
 
       border-color: var(--blue)
-
     }
 
 
@@ -2739,7 +2581,6 @@ $assessmentsJson = json_encode($assessments);
       opacity: .6;
 
       cursor: not-allowed
-
     }
 
 
@@ -2747,7 +2588,6 @@ $assessmentsJson = json_encode($assessments);
     textarea.fi {
 
       resize: vertical
-
     }
 
 
@@ -2755,7 +2595,6 @@ $assessmentsJson = json_encode($assessments);
     [data-theme=light] .fi {
 
       background: #f8fafc
-
     }
 
 
@@ -2775,7 +2614,6 @@ $assessmentsJson = json_encode($assessments);
       display: block;
 
       margin-bottom: .4rem
-
     }
 
 
@@ -2783,7 +2621,6 @@ $assessmentsJson = json_encode($assessments);
     .fg {
 
       margin-bottom: .85rem
-
     }
 
 
@@ -2799,7 +2636,6 @@ $assessmentsJson = json_encode($assessments);
       padding: .6rem 0;
 
       border-bottom: 1px solid var(--border)
-
     }
 
 
@@ -2807,7 +2643,6 @@ $assessmentsJson = json_encode($assessments);
     .pref-r:last-child {
 
       border-bottom: none
-
     }
 
 
@@ -2819,7 +2654,6 @@ $assessmentsJson = json_encode($assessments);
       gap: 4px;
 
       min-width: 640px
-
     }
 
 
@@ -2839,7 +2673,6 @@ $assessmentsJson = json_encode($assessments);
       padding: .3rem .4rem;
 
       text-align: center
-
     }
 
 
@@ -2861,7 +2694,6 @@ $assessmentsJson = json_encode($assessments);
       overflow: hidden;
 
       max-width: 140px
-
     }
 
 
@@ -2885,7 +2717,6 @@ $assessmentsJson = json_encode($assessments);
       cursor: pointer;
 
       transition: transform .15s, box-shadow .15s
-
     }
 
 
@@ -2899,7 +2730,6 @@ $assessmentsJson = json_encode($assessments);
       z-index: 1;
 
       position: relative
-
     }
 
 
@@ -2917,7 +2747,6 @@ $assessmentsJson = json_encode($assessments);
       font-size: .72rem;
 
       color: var(--muted2)
-
     }
 
 
@@ -2933,9 +2762,7 @@ $assessmentsJson = json_encode($assessments);
       border-radius: 4px;
 
       background: linear-gradient(90deg, var(--red), var(--yellow), var(--green))
-
     }
-
   </style>
 
 </head>
@@ -2955,7 +2782,6 @@ $assessmentsJson = json_encode($assessments);
       <div class="sb-brand">
 
         <div class="shield"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white"
-
             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -2969,7 +2795,6 @@ $assessmentsJson = json_encode($assessments);
         </div>
 
         <button class="sb-toggle" onclick="toggleSidebar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-
             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 
             <polyline points="15 18 9 12 15 6" />
@@ -2983,7 +2808,6 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-label">Navigation</div>
 
         <a class="sb-item" href="dashboard.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <rect x="3" y="3" width="7" height="7" rx="1.2" />
@@ -2997,7 +2821,6 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Dashboard</span></a>
 
         <a class="sb-item" href="reports.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <line x1="18" y1="20" x2="18" y2="10" />
@@ -3009,7 +2832,6 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Reports</span></a>
 
         <a class="sb-item" href="users.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -3021,9 +2843,7 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Users</span></a>
 
         <a class="sb-item active" href="heatmap.php"><span class="sb-icon"><svg width="15" height="15"
-
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
-
               stroke-linejoin="round">
 
               <rect x="3" y="3" width="7" height="7" />
@@ -3037,7 +2857,6 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Risk Heatmap</span></a>
 
         <a class="sb-item" href="activity.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -3051,7 +2870,6 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Activity Log</span></a>
 
         <a class="sb-item" href="settings.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <circle cx="12" cy="8" r="4" />
@@ -3060,21 +2878,21 @@ $assessmentsJson = json_encode($assessments);
 
             </svg></span><span class="sb-text">Settings</span></a>
 
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
 
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
 
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8" />
 
-              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13" />
 
-              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17" />
 
-              <line x1="16" y1="17" x2="8" y2="17"/>
+              <path d="M10 19l-2 2v-3" />
 
-              <path d="M10 19l-2 2v-3"/>
-
-              <path d="M14 19l2 2v-3"/>
+              <path d="M14 19l2 2v-3" />
 
             </svg></span><span class="sb-text">Certificates</span></a>
 
@@ -3083,7 +2901,6 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-label">Tools</div>
 
         <a class="sb-item" href="compare.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <line x1="18" y1="8" x2="6" y2="8" />
@@ -3093,7 +2910,6 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Compare</span></a>
 
         <a class="sb-item" href="email.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-
               fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
 
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -3107,9 +2923,7 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-label">Quick Actions</div>
 
         <a class="sb-item" onclick="showToast('CSV exported','green')"><span class="sb-icon"><svg width="15" height="15"
-
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
-
               stroke-linejoin="round">
 
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -3121,9 +2935,7 @@ $assessmentsJson = json_encode($assessments);
             </svg></span><span class="sb-text">Export CSV</span></a>
 
         <a class="sb-item" onclick="showToast('PDF exported','green')"><span class="sb-icon"><svg width="15" height="15"
-
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
-
               stroke-linejoin="round">
 
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -3132,11 +2944,9 @@ $assessmentsJson = json_encode($assessments);
 
             </svg></span><span class="sb-text">Export PDF</span></a>
 
-        <a class="sb-item" onclick="location.reload()"><span class="sb-icon"><svg width="15"
-
-              height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-
-              stroke-linecap="round" stroke-linejoin="round">
+        <a class="sb-item" onclick="location.reload()"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
 
               <polyline points="23 4 23 10 17 10" />
 
@@ -3154,7 +2964,8 @@ $assessmentsJson = json_encode($assessments);
 
           <div class="sb-user-info">
 
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
 
           </div>
 
@@ -3163,7 +2974,6 @@ $assessmentsJson = json_encode($assessments);
         <button class="btn-sb-logout" onclick="doLogout()">
 
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-
             stroke-linecap="round" stroke-linejoin="round">
 
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -3195,7 +3005,6 @@ $assessmentsJson = json_encode($assessments);
             <span class="tb-app">CyberShield</span>
 
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
-
               stroke-linecap="round">
 
               <path d="M6 4l4 4-4 4" />
@@ -3222,7 +3031,8 @@ $assessmentsJson = json_encode($assessments);
 
               </svg></span>
 
-            <input type="text" class="tb-search" id="searchInput" placeholder="Search vendors..." autocomplete="off" onkeyup="filterHeatmap()" />
+            <input type="text" class="tb-search" id="searchInput" placeholder="Search vendors..." autocomplete="off"
+              onkeyup="filterHeatmap()" />
 
           </div>
 
@@ -3233,7 +3043,6 @@ $assessmentsJson = json_encode($assessments);
           <button class="tb-icon-btn" onclick="toggleTheme()" title="Toggle theme">
 
             <svg id="tmoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-
               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -3241,7 +3050,6 @@ $assessmentsJson = json_encode($assessments);
             </svg>
 
             <svg id="tsun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-
               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
 
               <circle cx="12" cy="12" r="5" />
@@ -3267,7 +3075,6 @@ $assessmentsJson = json_encode($assessments);
             <button class="tb-icon-btn" onclick="toggleNotif()" title="Alerts" style="position:relative">
 
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-
                 stroke-linecap="round" stroke-linejoin="round">
 
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -3302,12 +3109,13 @@ $assessmentsJson = json_encode($assessments);
 
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
 
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
 
             </div>
 
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
-
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
 
               <path d="M4 6l4 4 4-4" />
@@ -3346,7 +3154,8 @@ $assessmentsJson = json_encode($assessments);
 
           </div>
 
-          <div style="margin-top:1rem;padding:0.75rem;background:var(--bg2);border-radius:8px;font-size:0.75rem;color:var(--muted2);text-align:center">
+          <div
+            style="margin-top:1rem;padding:0.75rem;background:var(--bg2);border-radius:8px;font-size:0.75rem;color:var(--muted2);text-align:center">
 
             📊 Data is persistent and does not change on refresh | 🖱️ Click any cell for details
 
@@ -3370,9 +3179,8 @@ $assessmentsJson = json_encode($assessments);
 
       <div class="mhdr">
 
-        <h3 id="modal-title">Assessment Detail</h3><button class="mcl" onclick="closeModal()"><svg width="13" height="13"
-
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <h3 id="modal-title">Assessment Detail</h3><button class="mcl" onclick="closeModal()"><svg width="13"
+            height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
 
             <line x1="18" y1="6" x2="6" y2="18" />
 
@@ -3398,13 +3206,13 @@ $assessmentsJson = json_encode($assessments);
 
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
 
-    
+
 
     console.log('📊 Loaded assessments count:', DB_ASSESSMENTS.length);
 
     console.log('👥 Loaded users count:', DB_USERS.length);
 
-    
+
 
     // Helper functions
 
@@ -3416,7 +3224,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function getScoreOpacity(score) {
 
@@ -3426,7 +3234,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function getRankLabel(rank) {
 
@@ -3446,11 +3254,11 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 
-    
+
 
     function toggleSidebar() {
 
@@ -3460,7 +3268,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function toggleTheme() {
 
@@ -3480,7 +3288,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function toggleNotif() {
 
@@ -3490,7 +3298,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function clearNotifs() {
 
@@ -3508,7 +3316,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function showToast(msg, color = 'blue') {
 
@@ -3524,7 +3332,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function doLogout() {
 
@@ -3536,11 +3344,11 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
 
-    
+
 
     function viewAssessmentDetail(vendorName, category, score, rank, date) {
 
@@ -3548,7 +3356,7 @@ $assessmentsJson = json_encode($assessments);
 
       const scoreColor = getScoreColor(score);
 
-      
+
 
       document.getElementById('modal-title').textContent = `${vendorName} - ${category}`;
 
@@ -3592,9 +3400,9 @@ $assessmentsJson = json_encode($assessments);
 
           <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted);margin-bottom:.5rem">Recommendations</div>
 
-          ${score >= 80 ? '<span style="color:var(--green)">✓ Excellent security posture in this category. Maintain current practices.</span>' : 
+          ${score >= 80 ? '<span style="color:var(--green)">✓ Excellent security posture in this category. Maintain current practices.</span>' :
 
-            score >= 60 ? '<span style="color:var(--yellow)">⚠ Moderate risk. Review and improve security controls for this category.</span>' :
+          score >= 60 ? '<span style="color:var(--yellow)">⚠ Moderate risk. Review and improve security controls for this category.</span>' :
 
             '<span style="color:var(--red)">✗ Critical risk. Immediate action required for this category.</span>'}
 
@@ -3606,7 +3414,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function filterHeatmap() {
 
@@ -3616,7 +3424,7 @@ $assessmentsJson = json_encode($assessments);
 
     }
 
-    
+
 
     function renderHeatmap(searchTerm = '') {
 
@@ -3624,7 +3432,7 @@ $assessmentsJson = json_encode($assessments);
 
       const categories = [...new Set(DB_ASSESSMENTS.map(a => a.cat))];
 
-      
+
 
       // Get unique users
 
@@ -3632,7 +3440,7 @@ $assessmentsJson = json_encode($assessments);
 
       const seenUsers = new Set();
 
-      
+
 
       DB_ASSESSMENTS.forEach(assessment => {
 
@@ -3652,7 +3460,7 @@ $assessmentsJson = json_encode($assessments);
 
       });
 
-      
+
 
       // Filter users by search term
 
@@ -3664,13 +3472,13 @@ $assessmentsJson = json_encode($assessments);
 
       }
 
-      
+
 
       const cols = categories.length;
 
       const grid = document.getElementById('hm-grid');
 
-      
+
 
       if (users.length === 0) {
 
@@ -3680,23 +3488,23 @@ $assessmentsJson = json_encode($assessments);
 
       }
 
-      
+
 
       grid.style.gridTemplateColumns = `160px repeat(${cols},1fr)`;
 
-      
+
 
       let html = '<div class="hm-hdr"></div>';
 
       categories.forEach(c => html += `<div class="hm-hdr">${c.split(' ').slice(0, 2).join(' ')}</div>`);
 
-      
+
 
       users.forEach(user => {
 
         html += `<div class="hm-label" title="${user.name}">${user.name.length > 15 ? user.name.substring(0, 12) + '...' : user.name}</div>`;
 
-        
+
 
         categories.forEach(category => {
 
@@ -3710,7 +3518,7 @@ $assessmentsJson = json_encode($assessments);
 
           const assessment = assessments[0]; // Most recent assessment
 
-          
+
 
           if (assessment) {
 
@@ -3736,13 +3544,13 @@ $assessmentsJson = json_encode($assessments);
 
       });
 
-      
+
 
       grid.innerHTML = html;
 
     }
 
-    
+
 
     document.addEventListener('DOMContentLoaded', () => {
 
@@ -3764,7 +3572,7 @@ $assessmentsJson = json_encode($assessments);
 
       if (d) d.textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
-      
+
 
       renderHeatmap();
 

@@ -55,33 +55,33 @@ if (empty($userId)) {
 try {
     $database = new Database();
     $db = $database->getConnection();
-    
+
     error_log("Database connection established");
-    
+
     // Get user data
     $user_query = "SELECT id, full_name, email, store_name, last_assessment_score, last_assessment_date FROM users WHERE id = :user_id";
     $user_stmt = $db->prepare($user_query);
     $user_stmt->bindParam(':user_id', $userId);
     $user_stmt->execute();
     $user = $user_stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     error_log("User query executed, found user: " . ($user ? 'yes' : 'no'));
-    
+
     if (!$user) {
         error_log("Email send failed: User not found - ID: $userId");
         echo json_encode(['success' => false, 'error' => 'User not found']);
         exit();
     }
-    
+
     // Send assessment report email
     error_log("Attempting to send email to $recipientEmail");
     $emailSent = sendAssessmentReportEmail($recipientEmail, $user, $subject, $note);
-    
+
     error_log("Email sending result: " . ($emailSent ? 'success' : 'failed'));
-    
+
     if ($emailSent) {
         echo json_encode([
-            'success' => true, 
+            'success' => true,
             'message' => 'Assessment report sent successfully',
             'recipient' => $recipientEmail,
             'userName' => $user['full_name'] ?: $user['store_name']
@@ -90,7 +90,7 @@ try {
         error_log("Email send failed: Email function returned false");
         echo json_encode(['success' => false, 'error' => 'Failed to send assessment report email']);
     }
-    
+
 } catch (PDOException $e) {
     error_log("Assessment report email sending error: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
@@ -99,7 +99,8 @@ try {
     echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
 }
 
-function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
+function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note)
+{
     // Constants are always accessible - no 'global' keyword needed
     if (empty(MAIL_USERNAME) || empty(MAIL_PASSWORD)) {
         error_log('[CyberShield] MAIL_USERNAME or MAIL_PASSWORD constant is not set.');
@@ -107,39 +108,39 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
     }
 
     $mail = new PHPMailer(true);
-    
+
     try {
         error_log("Starting email sending process to $recipientEmail");
-        
+
         // Server settings
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = MAIL_USERNAME;
-        $mail->Password   = MAIL_PASSWORD;
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = MAIL_USERNAME;
+        $mail->Password = MAIL_PASSWORD;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Port       = 465;
-        
+        $mail->Port = 465;
+
         error_log("SMTP settings configured");
-        
+
         // Recipients
         $mail->setFrom(MAIL_USERNAME, 'CyberShield Security');
         $mail->addAddress($recipientEmail);
-        
+
         error_log("Recipients set");
-        
+
         // Content
         $mail->isHTML(true);
         $mail->Subject = $subject;
-        
+
         error_log("Email subject set: $subject");
-        
+
         $userName = $user['full_name'] ?: $user['store_name'];
         $score = $user['last_assessment_score'];
         $date = $user['last_assessment_date'] ? date('F j, Y', strtotime($user['last_assessment_date'])) : 'N/A';
-        
+
         error_log("User data: name=$userName, score=$score, date=$date");
-        
+
         // Determine rank and color
         if ($score >= 80) {
             $rank = 'A';
@@ -158,9 +159,9 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
             $riskLevel = 'Critical';
             $rankColor = '#FF4D6A';
         }
-        
+
         error_log("Rank calculated: $rank - $riskLevel");
-        
+
         $mail->Body = '
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #030508; color: #dde4f0; padding: 40px; border-radius: 12px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -200,7 +201,7 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
                     </div>
                 </div>
             </div>';
-        
+
         if (!empty($note)) {
             $mail->Body .= '
             <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
@@ -208,7 +209,7 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
                 <p style="color: #8898b4; margin: 0; font-size: 14px; line-height: 1.6; font-style: italic;">' . htmlspecialchars($note) . '</p>
             </div>';
         }
-        
+
         $mail->Body .= '
             <div style="background: rgba(0, 255, 148, 0.05); border: 1px solid rgba(0, 255, 148, 0.2); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                 <h3 style="color: #00ff94; font-size: 16px; margin: 0 0 10px;">🔍 What This Means</h3>
@@ -228,30 +229,30 @@ function sendAssessmentReportEmail($recipientEmail, $user, $subject, $note) {
                 </p>
             </div>
         </div>';
-        
+
         error_log("Email body created");
-        
+
         $mail->AltBody = "CyberShield Risk Assessment Report\n\n" .
-                        "Dear " . $userName . ",\n\n" .
-                        "Your latest CyberShield risk assessment results:\n\n" .
-                        "Score: " . $score . "%\n" .
-                        "Rank: " . $rank . " - " . $riskLevel . "\n" .
-                        "Category: Overall Assessment\n" .
-                        "Date: " . $date . "\n\n" .
-                        (!empty($note) ? "Additional Note:\n" . $note . "\n\n" : "") .
-                        "What This Means:\n" .
-                        "- Your score reflects your current security posture\n" .
-                        "- Regular assessments help maintain compliance\n" .
-                        "- Review detailed recommendations in your dashboard\n\n" .
-                        "Best regards,\n" .
-                        "CyberShield Admin\n\n" .
-                        "&copy; 2025 CyberShield - Philippine E-Commerce Security Platform";
-        
+            "Dear " . $userName . ",\n\n" .
+            "Your latest CyberShield risk assessment results:\n\n" .
+            "Score: " . $score . "%\n" .
+            "Rank: " . $rank . " - " . $riskLevel . "\n" .
+            "Category: Overall Assessment\n" .
+            "Date: " . $date . "\n\n" .
+            (!empty($note) ? "Additional Note:\n" . $note . "\n\n" : "") .
+            "What This Means:\n" .
+            "- Your score reflects your current security posture\n" .
+            "- Regular assessments help maintain compliance\n" .
+            "- Review detailed recommendations in your dashboard\n\n" .
+            "Best regards,\n" .
+            "CyberShield Admin\n\n" .
+            "&copy; 2025 CyberShield - Philippine E-Commerce Security Platform";
+
         error_log("Attempting to send email via SMTP");
         $mail->send();
         error_log("Email sent successfully");
         return true;
-        
+
     } catch (Exception $e) {
         error_log("Email sending failed: " . $mail->ErrorInfo);
         return false;

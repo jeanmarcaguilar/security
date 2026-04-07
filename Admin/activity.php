@@ -15,29 +15,29 @@ $db = $database->getConnection();
 
 // Get current admin user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -47,48 +47,48 @@ if (!$user) {
 
 // Handle clear log action
 if (isset($_POST['action']) && $_POST['action'] === 'clear_log') {
-    try {
-        $database = new Database();
-        $db = $database->getConnection();
-        
-        // Only clear logs older than 30 days for safety
-        $query = "DELETE FROM audit_log WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
-        $stmt = $db->prepare($query);
-        $stmt->execute();
-        
-        logActivity('data_clear', 'Admin cleared activity log (30+ days old)');
-        echo json_encode(['success' => true, 'message' => 'Activity log cleared']);
-        exit;
-    } catch(PDOException $exception) {
-        echo json_encode(['success' => false, 'message' => 'Error clearing log']);
-        exit;
-    }
+  try {
+    $database = new Database();
+    $db = $database->getConnection();
+
+    // Only clear logs older than 30 days for safety
+    $query = "DELETE FROM audit_log WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+
+    logActivity('data_clear', 'Admin cleared activity log (30+ days old)');
+    echo json_encode(['success' => true, 'message' => 'Activity log cleared']);
+    exit;
+  } catch (PDOException $exception) {
+    echo json_encode(['success' => false, 'message' => 'Error clearing log']);
+    exit;
+  }
 }
 
 // Handle API requests for pagination
 if (isset($_GET['page']) || isset($_GET['count'])) {
-    header('Content-Type: application/json');
-    
-    try {
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
-        $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
-        $offset = ($page - 1) * $limit;
-        
-        if (isset($_GET['count'])) {
-            // Return total count
-            $count = getActivitiesCount($filter);
-            echo json_encode(['count' => $count]);
-        } else {
-            // Return activities for current page
-            $activities = getRecentActivities($limit, $filter, $offset);
-            echo json_encode(['activities' => $activities]);
-        }
-        exit;
-    } catch(Exception $e) {
-        echo json_encode(['error' => 'Error fetching data']);
-        exit;
+  header('Content-Type: application/json');
+
+  try {
+    $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
+    $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 20;
+    $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+    $offset = ($page - 1) * $limit;
+
+    if (isset($_GET['count'])) {
+      // Return total count
+      $count = getActivitiesCount($filter);
+      echo json_encode(['count' => $count]);
+    } else {
+      // Return activities for current page
+      $activities = getRecentActivities($limit, $filter, $offset);
+      echo json_encode(['activities' => $activities]);
     }
+    exit;
+  } catch (Exception $e) {
+    echo json_encode(['error' => 'Error fetching data']);
+    exit;
+  }
 }
 ?>
 <!DOCTYPE html>
@@ -1344,14 +1344,15 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <path d="M10 19l-2 2v-3"/>
-              <path d="M14 19l2 2v-3"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <path d="M10 19l-2 2v-3" />
+              <path d="M14 19l2 2v-3" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1391,7 +1392,8 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1465,7 +1467,9 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1523,11 +1527,11 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
     let currentPage = 1;
     let totalItems = 0;
     let currentFilter = '';
-    
+
     // Get real activity data from database
     const ACTIVITY_COUNT = <?php echo json_encode(getActivitiesCount()); ?>;
     totalItems = ACTIVITY_COUNT;
-    
+
     function sc(s) { return s >= 80 ? 'var(--green)' : s >= 60 ? 'var(--yellow)' : s >= 40 ? 'var(--orange)' : 'var(--red)' }
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark' }
     function ax() { return isDark() ? { tick: '#8898b4', grid: 'rgba(59,139,255,.04)', tt: '#0d1421', ttB: 'rgba(255,255,255,.1)', tc: '#dde4f0', bc: '#8898b4' } : { tick: '#64748b', grid: 'rgba(0,0,0,.06)', tt: '#fff', ttB: 'rgba(0,0,0,.1)', tc: '#0f172a', bc: '#475569' } }
@@ -1590,19 +1594,19 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
       if (typeof pageInit === 'function') pageInit();
     });
 
-    const ACT_ICONS = { 
-      login: '🔐', 
-      profile_update: '👤', 
-      password_change: '🔒', 
-      assessment_complete: '📋', 
+    const ACT_ICONS = {
+      login: '🔐',
+      profile_update: '👤',
+      password_change: '🔒',
+      assessment_complete: '📋',
       data_clear: '🗑️',
-      export: '⬇️', 
-      alert: '🚨', 
-      refresh: '🔄', 
-      flag: '🚩', 
-      other: '📝' 
+      export: '⬇️',
+      alert: '🚨',
+      refresh: '🔄',
+      flag: '🚩',
+      other: '📝'
     };
-    
+
     function formatActivityTimeJS(datetime) {
       const now = new Date();
       const activityTime = new Date(datetime);
@@ -1610,7 +1614,7 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
       const diffMins = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
+
       if (diffDays > 0) {
         return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
       } else if (diffHours > 0) {
@@ -1621,16 +1625,16 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
         return 'Just now';
       }
     }
-    
-    function pageInit() { 
+
+    function pageInit() {
       currentPage = 1;
-      renderAct(); 
+      renderAct();
     }
-    
+
     function renderAct() {
       const f = document.getElementById('act-f').value;
       currentFilter = f;
-      
+
       // Update total count based on filter
       fetchActivitiesCount(f).then(count => {
         totalItems = count;
@@ -1643,20 +1647,20 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
         document.getElementById('act-list').innerHTML = '<p style="color:var(--muted2);font-size:.84rem;padding:.5rem 0">Error loading activities.</p>';
       });
     }
-    
+
     function fetchActivities(page, limit, filter = '') {
       const offset = (page - 1) * limit;
       return fetch(`activity.php?page=${page}&limit=${limit}&filter=${filter}`)
         .then(response => response.json())
         .then(data => data.activities || []);
     }
-    
+
     function fetchActivitiesCount(filter = '') {
       return fetch(`activity.php?count=true&filter=${filter}`)
         .then(response => response.json())
         .then(data => data.count || 0);
     }
-    
+
     function displayActivities(activities) {
       document.getElementById('act-list').innerHTML = activities.length ? activities.map(a => {
         const userDisplay = a.full_name || a.username || 'Unknown User';
@@ -1665,7 +1669,7 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
         const ipAddress = a.ip_address || 'Unknown';
         const userAgent = a.user_agent || '';
         const deviceInfo = getDeviceInfo(userAgent);
-        
+
         return `
     <div style="display:flex;align-items:flex-start;gap:.85rem;padding:.65rem 0;border-bottom:1px solid var(--border)">
       <span style="font-size:1rem;width:24px;text-align:center;flex-shrink:0">${ACT_ICONS[a.action_type] || '📝'}</span>
@@ -1708,76 +1712,76 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
     </div>`;
       }).join('') : '<p style="color:var(--muted2);font-size:.84rem;padding:.5rem 0">No activity found.</p>';
     }
-    
+
     function renderPagination() {
       const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
       const paginationContainer = document.getElementById('pagination');
-      
+
       if (totalPages <= 1) {
         paginationContainer.innerHTML = '';
         return;
       }
-      
+
       let paginationHTML = '<div class="pgn">';
-      
+
       // Previous button
       paginationHTML += `<button class="pb" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
-      
+
       // Page numbers
       const maxVisiblePages = 5;
       let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
       let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-      
+
       if (endPage - startPage < maxVisiblePages - 1) {
         startPage = Math.max(1, endPage - maxVisiblePages + 1);
       }
-      
+
       if (startPage > 1) {
         paginationHTML += `<button class="pb" onclick="goToPage(1)">1</button>`;
         if (startPage > 2) {
           paginationHTML += `<span style="padding:0 .5rem;color:var(--muted2)">...</span>`;
         }
       }
-      
+
       for (let i = startPage; i <= endPage; i++) {
         paginationHTML += `<button class="pb ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
       }
-      
+
       if (endPage < totalPages) {
         if (endPage < totalPages - 1) {
           paginationHTML += `<span style="padding:0 .5rem;color:var(--muted2)">...</span>`;
         }
         paginationHTML += `<button class="pb" onclick="goToPage(${totalPages})">${totalPages}</button>`;
       }
-      
+
       // Next button
       paginationHTML += `<button class="pb" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
-      
+
       paginationHTML += '</div>';
-      
+
       // Add info text
       const startItem = (currentPage - 1) * ITEMS_PER_PAGE + 1;
       const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
       paginationHTML += `<div style="text-align:center;margin-top:.5rem;font-size:.75rem;color:var(--muted2);font-family:var(--mono)">Showing ${startItem}-${endItem} of ${totalItems} activities</div>`;
-      
+
       paginationContainer.innerHTML = paginationHTML;
     }
-    
+
     function goToPage(page) {
       const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
       if (page < 1 || page > totalPages) return;
-      
+
       currentPage = page;
       renderAct();
     }
-    
+
     function getDeviceInfo(userAgent) {
       if (!userAgent) return { type: '', os: '', browser: '' };
-      
+
       let deviceType = '';
       let os = '';
       let browser = '';
-      
+
       // Detect device type
       if (/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
         deviceType = 'Mobile';
@@ -1786,24 +1790,24 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
       } else {
         deviceType = 'Desktop';
       }
-      
+
       // Detect OS
       if (/Windows/i.test(userAgent)) os = 'Windows';
       else if (/Mac/i.test(userAgent)) os = 'macOS';
       else if (/Linux/i.test(userAgent)) os = 'Linux';
       else if (/Android/i.test(userAgent)) os = 'Android';
       else if (/iOS|iPhone|iPad/i.test(userAgent)) os = 'iOS';
-      
+
       // Detect Browser
       if (/Chrome/i.test(userAgent)) browser = 'Chrome';
       else if (/Firefox/i.test(userAgent)) browser = 'Firefox';
       else if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) browser = 'Safari';
       else if (/Edge/i.test(userAgent)) browser = 'Edge';
       else if (/Opera/i.test(userAgent)) browser = 'Opera';
-      
+
       return { type: deviceType, os: os, browser: browser };
     }
-    function clearAct() { 
+    function clearAct() {
       if (confirm('Are you sure you want to clear old activity logs (older than 30 days)?')) {
         fetch('activity.php', {
           method: 'POST',
@@ -1812,19 +1816,19 @@ if (isset($_GET['page']) || isset($_GET['count'])) {
           },
           body: 'action=clear_log'
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showToast(data.message, 'green');
-            currentPage = 1; // Reset to first page
-            renderAct(); // Refresh the display
-          } else {
-            showToast(data.message, 'red');
-          }
-        })
-        .catch(error => {
-          showToast('Error clearing log', 'red');
-        });
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showToast(data.message, 'green');
+              currentPage = 1; // Reset to first page
+              renderAct(); // Refresh the display
+            } else {
+              showToast(data.message, 'red');
+            }
+          })
+          .catch(error => {
+            showToast('Error clearing log', 'red');
+          });
       }
     }
   </script>

@@ -14,29 +14,29 @@ $db = $database->getConnection();
 
 // Get current user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -48,25 +48,25 @@ if (!$user) {
 $users = [];
 $assessments = [];
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get real assessment data with overall scores
-    $stmt = $db->prepare("
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Get real assessment data with overall scores
+  $stmt = $db->prepare("
         SELECT a.*, u.full_name, u.store_name 
         FROM assessments a 
         JOIN users u ON a.vendor_id = u.id 
         ORDER BY a.assessment_date DESC
     ");
-    $stmt->execute();
-    $allAssessments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get category scores for each assessment
-    $assessmentCategories = [];
-    foreach ($allAssessments as $assessment) {
-        $stmt = $db->prepare("
+  $stmt->execute();
+  $allAssessments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Get category scores for each assessment
+  $assessmentCategories = [];
+  foreach ($allAssessments as $assessment) {
+    $stmt = $db->prepare("
             SELECT 
                 category,
                 COUNT(*) as total_questions,
@@ -77,101 +77,101 @@ try {
             GROUP BY category 
             ORDER BY category
         ");
-        $stmt->bindParam(':assessment_id', $assessment['id']);
-        $stmt->execute();
-        $categoryScores = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $assessmentCategories[$assessment['id']] = $categoryScores;
-    }
-    
-    // Transform assessment data to match expected format - use overall scores
-    foreach ($allAssessments as $assessment) {
-        $assessments[] = [
-            'id' => $assessment['id'],
-            'vid' => $assessment['vendor_id'],
-            'vname' => $assessment['full_name'] ?: $assessment['store_name'],
-            'score' => $assessment['score'],
-            'rank' => ($assessment['score'] >= 80) ? 'A' : (($assessment['score'] >= 60) ? 'B' : (($assessment['score'] >= 40) ? 'C' : 'D')),
-            'cat' => 'Overall Assessment',
-            'date' => date('Y-m-d', strtotime($assessment['assessment_date'])),
-            'categories' => $assessmentCategories[$assessment['id']] ?? []
-        ];
-    }
-    
-    // If no real assessment data exists, create sample data for demonstration
-    if (empty($assessments) && !empty($users)) {
-        $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
-        
-        foreach ($users as $u) {
-            if ($u['last_assessment_score'] !== null) {
-                $baseScore = $u['last_assessment_score'];
-                
-                foreach ($categories as $index => $category) {
-                    $categoryVariation = (($u['id'] + $index) % 31) - 15;
-                    $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
-                    $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
-                    
-                    $historicalDate = new DateTime($u['last_assessment_date'] ?: date('Y-m-d'));
-                    for ($i = 5; $i >= 0; $i--) {
-                        $date = clone $historicalDate;
-                        $date->modify("-$i months");
-                        $historicalVariation = ((($u['id'] + $index + $i) % 21) - 10);
-                        $historicalScore = max(20, min(100, $categoryScore + $historicalVariation));
-                        $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
-                        
-                        $assessments[] = [
-                            'id' => count($assessments) + 1,
-                            'vid' => $u['id'],
-                            'vname' => $u['full_name'] ?: $u['store_name'],
-                            'score' => $historicalScore,
-                            'rank' => $historicalRank,
-                            'cat' => $category,
-                            'date' => $date->format('Y-m-d')
-                        ];
-                    }
-                }
-            }
+    $stmt->bindParam(':assessment_id', $assessment['id']);
+    $stmt->execute();
+    $categoryScores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $assessmentCategories[$assessment['id']] = $categoryScores;
+  }
+
+  // Transform assessment data to match expected format - use overall scores
+  foreach ($allAssessments as $assessment) {
+    $assessments[] = [
+      'id' => $assessment['id'],
+      'vid' => $assessment['vendor_id'],
+      'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+      'score' => $assessment['score'],
+      'rank' => ($assessment['score'] >= 80) ? 'A' : (($assessment['score'] >= 60) ? 'B' : (($assessment['score'] >= 40) ? 'C' : 'D')),
+      'cat' => 'Overall Assessment',
+      'date' => date('Y-m-d', strtotime($assessment['assessment_date'])),
+      'categories' => $assessmentCategories[$assessment['id']] ?? []
+    ];
+  }
+
+  // If no real assessment data exists, create sample data for demonstration
+  if (empty($assessments) && !empty($users)) {
+    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+
+    foreach ($users as $u) {
+      if ($u['last_assessment_score'] !== null) {
+        $baseScore = $u['last_assessment_score'];
+
+        foreach ($categories as $index => $category) {
+          $categoryVariation = (($u['id'] + $index) % 31) - 15;
+          $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
+          $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+
+          $historicalDate = new DateTime($u['last_assessment_date'] ?: date('Y-m-d'));
+          for ($i = 5; $i >= 0; $i--) {
+            $date = clone $historicalDate;
+            $date->modify("-$i months");
+            $historicalVariation = ((($u['id'] + $index + $i) % 21) - 10);
+            $historicalScore = max(20, min(100, $categoryScore + $historicalVariation));
+            $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
+
+            $assessments[] = [
+              'id' => count($assessments) + 1,
+              'vid' => $u['id'],
+              'vname' => $u['full_name'] ?: $u['store_name'],
+              'score' => $historicalScore,
+              'rank' => $historicalRank,
+              'cat' => $category,
+              'date' => $date->format('Y-m-d')
+            ];
+          }
         }
+      }
     }
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching dashboard data: " . $exception->getMessage());
-    $users = [];
-    $assessments = [];
+  }
+
+} catch (PDOException $exception) {
+  error_log("Error fetching dashboard data: " . $exception->getMessage());
+  $users = [];
+  $assessments = [];
 }
 
 // Fetch audit log / daily login data
 $auditLogs = [];
 $dailyLogins = [];
 try {
-    // Try to fetch from audit_logs table if it exists
-    $stmt = $db->prepare("SHOW TABLES LIKE 'audit_logs'");
-    $stmt->execute();
-    $auditTableExists = $stmt->rowCount() > 0;
+  // Try to fetch from audit_logs table if it exists
+  $stmt = $db->prepare("SHOW TABLES LIKE 'audit_logs'");
+  $stmt->execute();
+  $auditTableExists = $stmt->rowCount() > 0;
 
-    if ($auditTableExists) {
-        $stmt = $db->prepare("
+  if ($auditTableExists) {
+    $stmt = $db->prepare("
             SELECT al.*, u.full_name, u.username, u.store_name
             FROM audit_logs al
             LEFT JOIN users u ON al.user_id = u.id
             ORDER BY al.created_at DESC
             LIMIT 50
         ");
-        $stmt->execute();
-        $auditLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute();
+    $auditLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // FIXED: Daily logins for last 7 days - NO DUPLICATE DATES
-        // Generate proper date range for last 7 days
-        $dailyLogins = [];
-        $endDate = new DateTime();
-        $startDate = clone $endDate;
-        $startDate->modify('-6 days'); // Last 7 days including today
-        $endDate->modify('+1 day');
-        $interval = new DateInterval('P1D');
-        $dateRange = new DatePeriod($startDate, $interval, $endDate);
-        
-        // Get real login counts from database
-        $realLogins = [];
-        $stmt = $db->prepare("
+    // FIXED: Daily logins for last 7 days - NO DUPLICATE DATES
+    // Generate proper date range for last 7 days
+    $dailyLogins = [];
+    $endDate = new DateTime();
+    $startDate = clone $endDate;
+    $startDate->modify('-6 days'); // Last 7 days including today
+    $endDate->modify('+1 day');
+    $interval = new DateInterval('P1D');
+    $dateRange = new DatePeriod($startDate, $interval, $endDate);
+
+    // Get real login counts from database
+    $realLogins = [];
+    $stmt = $db->prepare("
             SELECT DATE(created_at) as login_date, COUNT(*) as login_count
             FROM audit_logs
             WHERE action = 'login' 
@@ -179,83 +179,83 @@ try {
               AND created_at <= :end_date
             GROUP BY DATE(created_at)
         ");
-        $stmt->bindParam(':start_date', $startDate->format('Y-m-d'));
-        $stmt->bindParam(':end_date', $endDate->format('Y-m-d 23:59:59'));
-        $stmt->execute();
-        $realLoginsResult = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($realLoginsResult as $row) {
-            $realLogins[$row['login_date']] = (int)$row['login_count'];
-        }
-        
-        // Build the 7-day list with proper counts
-        foreach ($dateRange as $date) {
-            $dateStr = $date->format('Y-m-d');
-            $count = isset($realLogins[$dateStr]) ? $realLogins[$dateStr] : 0;
-            $dailyLogins[] = [
-                'login_date' => $dateStr,
-                'login_count' => (string)$count
-            ];
-        }
-        
-    } else {
-        // If audit_logs table doesn't exist, generate demo data for last 7 days
-        $dailyLogins = [];
-        $endDate = new DateTime();
-        $startDate = clone $endDate;
-        $startDate->modify('-6 days'); // Last 7 days including today
-        $endDate->modify('+1 day');
-        $interval = new DateInterval('P1D');
-        $dateRange = new DatePeriod($startDate, $interval, $endDate);
-        
-        $userCount = count($users);
-        foreach ($dateRange as $date) {
-            $dateStr = $date->format('Y-m-d');
-            // Demo login counts - deterministic based on date
-            $dateHash = abs(crc32($dateStr) % max(1, $userCount + 5));
-            $loginCount = $dateHash % 12;
-            $dailyLogins[] = [
-                'login_date' => $dateStr,
-                'login_count' => (string)$loginCount
-            ];
-        }
-        
-        // Generate consistent audit logs
-        $actions = ['login', 'login', 'login', 'logout', 'view_report', 'update_profile', 'take_assessment', 'login', 'view_dashboard', 'login'];
-        $actionLabels = [
-            'login' => 'User Login',
-            'logout' => 'User Logout',
-            'view_report' => 'Viewed Report',
-            'update_profile' => 'Updated Profile',
-            'take_assessment' => 'Completed Assessment',
-            'view_dashboard' => 'Viewed Dashboard'
-        ];
-        $now = new DateTime();
-        $auditLogs = [];
-        foreach ($users as $i => $u) {
-            for ($j = 0; $j < 3; $j++) {
-                $hoursAgo = ($i * 3 + $j * 7 + ($u['id'] % 12));
-                $ts = clone $now;
-                $ts->modify("-{$hoursAgo} hours");
-                $action = $actions[($i + $j + $u['id']) % count($actions)];
-                $auditLogs[] = [
-                    'id' => count($auditLogs) + 1,
-                    'user_id' => $u['id'],
-                    'username' => $u['username'],
-                    'full_name' => $u['full_name'] ?: $u['store_name'],
-                    'action' => $action,
-                    'action_label' => $actionLabels[$action] ?? ucfirst(str_replace('_', ' ', $action)),
-                    'ip_address' => '192.168.' . ((($u['id'] * 7) % 10) + 1) . '.' . (($u['id'] * 13) % 254 + 1),
-                    'created_at' => $ts->format('Y-m-d H:i:s')
-                ];
-            }
-        }
-        usort($auditLogs, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
-        $auditLogs = array_slice($auditLogs, 0, 50);
+    $stmt->bindParam(':start_date', $startDate->format('Y-m-d'));
+    $stmt->bindParam(':end_date', $endDate->format('Y-m-d 23:59:59'));
+    $stmt->execute();
+    $realLoginsResult = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($realLoginsResult as $row) {
+      $realLogins[$row['login_date']] = (int) $row['login_count'];
     }
-} catch(PDOException $e) {
-    error_log("Audit log error: " . $e->getMessage());
-    $auditLogs = [];
+
+    // Build the 7-day list with proper counts
+    foreach ($dateRange as $date) {
+      $dateStr = $date->format('Y-m-d');
+      $count = isset($realLogins[$dateStr]) ? $realLogins[$dateStr] : 0;
+      $dailyLogins[] = [
+        'login_date' => $dateStr,
+        'login_count' => (string) $count
+      ];
+    }
+
+  } else {
+    // If audit_logs table doesn't exist, generate demo data for last 7 days
     $dailyLogins = [];
+    $endDate = new DateTime();
+    $startDate = clone $endDate;
+    $startDate->modify('-6 days'); // Last 7 days including today
+    $endDate->modify('+1 day');
+    $interval = new DateInterval('P1D');
+    $dateRange = new DatePeriod($startDate, $interval, $endDate);
+
+    $userCount = count($users);
+    foreach ($dateRange as $date) {
+      $dateStr = $date->format('Y-m-d');
+      // Demo login counts - deterministic based on date
+      $dateHash = abs(crc32($dateStr) % max(1, $userCount + 5));
+      $loginCount = $dateHash % 12;
+      $dailyLogins[] = [
+        'login_date' => $dateStr,
+        'login_count' => (string) $loginCount
+      ];
+    }
+
+    // Generate consistent audit logs
+    $actions = ['login', 'login', 'login', 'logout', 'view_report', 'update_profile', 'take_assessment', 'login', 'view_dashboard', 'login'];
+    $actionLabels = [
+      'login' => 'User Login',
+      'logout' => 'User Logout',
+      'view_report' => 'Viewed Report',
+      'update_profile' => 'Updated Profile',
+      'take_assessment' => 'Completed Assessment',
+      'view_dashboard' => 'Viewed Dashboard'
+    ];
+    $now = new DateTime();
+    $auditLogs = [];
+    foreach ($users as $i => $u) {
+      for ($j = 0; $j < 3; $j++) {
+        $hoursAgo = ($i * 3 + $j * 7 + ($u['id'] % 12));
+        $ts = clone $now;
+        $ts->modify("-{$hoursAgo} hours");
+        $action = $actions[($i + $j + $u['id']) % count($actions)];
+        $auditLogs[] = [
+          'id' => count($auditLogs) + 1,
+          'user_id' => $u['id'],
+          'username' => $u['username'],
+          'full_name' => $u['full_name'] ?: $u['store_name'],
+          'action' => $action,
+          'action_label' => $actionLabels[$action] ?? ucfirst(str_replace('_', ' ', $action)),
+          'ip_address' => '192.168.' . ((($u['id'] * 7) % 10) + 1) . '.' . (($u['id'] * 13) % 254 + 1),
+          'created_at' => $ts->format('Y-m-d H:i:s')
+        ];
+      }
+    }
+    usort($auditLogs, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
+    $auditLogs = array_slice($auditLogs, 0, 50);
+  }
+} catch (PDOException $e) {
+  error_log("Audit log error: " . $e->getMessage());
+  $auditLogs = [];
+  $dailyLogins = [];
 }
 
 $auditLogsJson = json_encode($auditLogs);
@@ -1518,11 +1518,12 @@ $assessmentsJson = json_encode($assessments);
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <path d="M9 15l2 2 4-4"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <path d="M9 15l2 2 4-4" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1562,7 +1563,8 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1636,7 +1638,9 @@ $assessmentsJson = json_encode($assessments);
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1729,7 +1733,8 @@ $assessmentsJson = json_encode($assessments);
             <div class="cw sm"><canvas id="pie-chart"></canvas></div>
           </div>
           <div class="card chart-card">
-            <h3>Daily Logins — Last 7 Days (<?php echo $startDate->format('M j'); ?> - <?php echo (clone $endDate)->modify('-1 day')->format('M j'); ?>)</h3>
+            <h3>Daily Logins — Last 7 Days (<?php echo $startDate->format('M j'); ?> -
+              <?php echo (clone $endDate)->modify('-1 day')->format('M j'); ?>)</h3>
             <div class="cw sm"><canvas id="login-bar-chart"></canvas></div>
             <div style="margin-top:0.75rem;text-align:center">
               <button class="btn btn-s btn-sm" onclick="showAuditLogModal()">📋 View Audit Log</button>
@@ -1834,13 +1839,13 @@ $assessmentsJson = json_encode($assessments);
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
     const DB_AUDIT_LOGS = <?php echo $auditLogsJson; ?>;
     const DB_DAILY_LOGINS = <?php echo $dailyLoginsJson; ?>;
-    
+
     // Helper functions for data processing
     function getRank(score) {
       if (score === null || score === undefined) return null;
       return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
     }
-    
+
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--red)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
@@ -1852,8 +1857,8 @@ $assessmentsJson = json_encode($assessments);
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      DB_ASSESSMENTS.forEach(a => { 
-        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      DB_ASSESSMENTS.forEach(a => {
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a;
       });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
@@ -1899,7 +1904,7 @@ $assessmentsJson = json_encode($assessments);
     function closeModal() { document.getElementById('modal-overlay').classList.add('hidden') }
     function showAuditLogModal() {
       document.getElementById('modal-title').textContent = 'Audit Log';
-      
+
       const actionColors = {
         login: 'var(--green)', logout: 'var(--muted2)', take_assessment: 'var(--blue)',
         view_report: 'var(--teal)', update_profile: 'var(--yellow)', view_dashboard: 'var(--purple)'
@@ -1907,22 +1912,22 @@ $assessmentsJson = json_encode($assessments);
       const actionIcons = {
         login: '→', logout: '←', take_assessment: '✓', view_report: '📋', update_profile: '✎', view_dashboard: '⊞'
       };
-      
+
       const auditLogHtml = DB_AUDIT_LOGS.slice(0, 20).map((a, idx) => {
         const color = actionColors[a.action] || 'var(--muted2)';
         const icon = actionIcons[a.action] || '•';
-        const label = a.action_label || a.action.replace(/_/g,' ').replace(/\b\w/g, c=>c.toUpperCase());
+        const label = a.action_label || a.action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         const name = a.full_name || a.username || 'Unknown';
-        const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
         const ts = a.created_at ? new Date(a.created_at) : new Date();
-        
+
         const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const fullDateTime = `${dateStr} ${timeStr}`;
-        
+
         const ipAddress = a.ip_address || '127.0.0.1';
         const ipDisplay = ipAddress.length > 15 ? `${ipAddress.substring(0, 12)}...` : ipAddress;
-        
+
         return `
           <div style="display:flex;align-items:center;gap:.8rem;padding:.75rem;border-bottom:1px solid var(--border);border-radius:6px;margin-bottom:.5rem;background:rgba(255,255,255,.02)">
             <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:grid;place-items:center;font-size:.7rem;font-weight:700;flex-shrink:0;font-family:var(--display)">${initials}</div>
@@ -1935,11 +1940,11 @@ $assessmentsJson = json_encode($assessments);
                 <span style="font-family:var(--mono);font-size:.7rem;color:var(--muted2)">${timeStr}</span>
               </div>
             </div>
-            <span class="sdot ${a.action==='login'?'sdot-g':a.action==='logout'?'sdot-r':'sdot-y'}" style="display:inline-block"></span>
+            <span class="sdot ${a.action === 'login' ? 'sdot-g' : a.action === 'logout' ? 'sdot-r' : 'sdot-y'}" style="display:inline-block"></span>
           </div>
         `;
       }).join('');
-      
+
       document.getElementById('modal-body').innerHTML = `
         <div style="max-height:500px;overflow-y:auto;padding:.5rem">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding:0 .5rem">
@@ -1968,14 +1973,14 @@ $assessmentsJson = json_encode($assessments);
     function pageInit() {
       const c = riskCounts(), tot = DB_USERS.length;
       const avg = DB_ASSESSMENTS.length > 0 ? Math.round(DB_ASSESSMENTS.reduce((a, b) => a + b.score, 0) / DB_ASSESSMENTS.length) : 0;
-      
+
       document.getElementById('sv-total').textContent = tot;
       document.getElementById('sv-avg').textContent = avg + '%';
       document.getElementById('sv-a').textContent = c.A;
       document.getElementById('sv-b').textContent = c.B;
       document.getElementById('sv-c').textContent = c.C;
       document.getElementById('sv-d').textContent = c.D;
-      
+
       if (DB_ASSESSMENTS.length > 0) {
         const hi = DB_ASSESSMENTS.reduce((a, b) => b.score > a.score ? b : a);
         const lo = DB_ASSESSMENTS.reduce((a, b) => b.score < a.score ? b : a);
@@ -1984,14 +1989,14 @@ $assessmentsJson = json_encode($assessments);
         document.getElementById('an-lo').textContent = lo.score + '%';
         document.getElementById('an-lo-v').textContent = lo.vname;
       }
-      
+
       document.getElementById('an-tot').textContent = DB_ASSESSMENTS.length;
-      
+
       renderTbl(); renderCharts(); renderAuditCharts();
     }
     function renderTbl() {
       const f = document.getElementById('rank-filter').value;
-      
+
       // Group assessments by user and get only the latest overall score for each user
       const userLatestScores = {};
       DB_ASSESSMENTS.forEach(a => {
@@ -1999,14 +2004,14 @@ $assessmentsJson = json_encode($assessments);
           userLatestScores[a.vid] = a;
         }
       });
-      
+
       // Convert to array and filter by rank if specified
       let d = Object.values(userLatestScores);
       if (f) d = d.filter(a => a.rank === f);
-      
+
       // Sort by date (most recent first)
       d.sort((a, b) => new Date(b.date) - new Date(a.date));
-      
+
       const tp = Math.ceil(d.length / PS);
       if (pg > tp) pg = 1;
       const sl = d.slice((pg - 1) * PS, pg * PS);
@@ -2027,9 +2032,9 @@ $assessmentsJson = json_encode($assessments);
     function openModal(id) {
       const a = DB_ASSESSMENTS.find(x => x.id === id);
       if (!a) return;
-      
+
       document.getElementById('modal-title').textContent = a.vname + ' - Assessment Details';
-      
+
       // Build category scores HTML
       let categoriesHtml = '';
       if (a.categories && a.categories.length > 0) {
@@ -2048,7 +2053,7 @@ $assessmentsJson = json_encode($assessments);
       } else {
         categoriesHtml = '<div style="text-align:center;padding:2rem;color:var(--muted2)">No category data available</div>';
       }
-      
+
       document.getElementById('modal-body').innerHTML = `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1rem">
           <div style="padding:.75rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
@@ -2072,7 +2077,7 @@ $assessmentsJson = json_encode($assessments);
           ${a.rank === 'D' ? '<br><div style="color:var(--red);font-weight:600">⚠ Critical Risk — immediate action required.</div>' : ''}
         </div>
       `;
-      
+
       document.getElementById('modal-overlay').classList.remove('hidden');
     }
     function renderCharts() {
@@ -2100,17 +2105,17 @@ $assessmentsJson = json_encode($assessments);
 
       // Daily login bar chart - USING FIXED DATA FROM PHP (NO DUPLICATES)
       console.log('Daily Logins Data:', DB_DAILY_LOGINS);
-      
+
       const labels = DB_DAILY_LOGINS.map(d => {
         const dt = new Date(d.login_date + 'T12:00:00');
         return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       });
-      
+
       const counts = DB_DAILY_LOGINS.map(d => parseInt(d.login_count));
-      
+
       console.log('Labels:', labels);
       console.log('Counts:', counts);
-      
+
       const lbCtx = document.getElementById('login-bar-chart');
       if (lbCtx) {
         charts.loginBar = new Chart(lbCtx, {
@@ -2152,19 +2157,19 @@ $assessmentsJson = json_encode($assessments);
             scales: {
               y: {
                 beginAtZero: true,
-                ticks: { 
-                  stepSize: 1, 
-                  color: a.tick, 
-                  font: { size: 10 } 
+                ticks: {
+                  stepSize: 1,
+                  color: a.tick,
+                  font: { size: 10 }
                 },
                 grid: { color: a.grid }
               },
               x: {
-                ticks: { 
-                  color: a.tick, 
-                  font: { size: 10 }, 
-                  maxRotation: 45, 
-                  minRotation: 45 
+                ticks: {
+                  color: a.tick,
+                  font: { size: 10 },
+                  maxRotation: 45,
+                  minRotation: 45
                 },
                 grid: { display: false }
               }
@@ -2175,14 +2180,14 @@ $assessmentsJson = json_encode($assessments);
 
       // Action breakdown pie chart
       const actionCounts = {};
-      DB_AUDIT_LOGS.forEach(l => { 
-        actionCounts[l.action] = (actionCounts[l.action] || 0) + 1; 
+      DB_AUDIT_LOGS.forEach(l => {
+        actionCounts[l.action] = (actionCounts[l.action] || 0) + 1;
       });
-      const actionLabelsArr = Object.keys(actionCounts).map(k => 
-        k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
+      const actionLabelsArr = Object.keys(actionCounts).map(k =>
+        k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
       );
       const actionVals = Object.values(actionCounts);
-      const pieColors = ['#00D4AA','#3B8BFF','#7B72F0','#F5B731','#FF8C42','#FF3B5C'];
+      const pieColors = ['#00D4AA', '#3B8BFF', '#7B72F0', '#F5B731', '#FF8C42', '#FF3B5C'];
       const apCtx = document.getElementById('action-pie-chart');
       if (apCtx) {
         if (charts.actionPie) charts.actionPie.destroy();
@@ -2190,10 +2195,10 @@ $assessmentsJson = json_encode($assessments);
           type: 'doughnut',
           data: {
             labels: actionLabelsArr,
-            datasets: [{ 
-              data: actionVals, 
-              backgroundColor: pieColors.slice(0, actionVals.length), 
-              borderWidth: 2, 
+            datasets: [{
+              data: actionVals,
+              backgroundColor: pieColors.slice(0, actionVals.length),
+              borderWidth: 2,
               borderColor: isDark() ? '#030508' : '#fff',
               hoverOffset: 5
             }]
@@ -2202,20 +2207,20 @@ $assessmentsJson = json_encode($assessments);
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { 
-                position: 'bottom', 
-                labels: { 
-                  font: { size: 9 }, 
-                  padding: 8, 
-                  color: a.tick 
-                } 
+              legend: {
+                position: 'bottom',
+                labels: {
+                  font: { size: 9 },
+                  padding: 8,
+                  color: a.tick
+                }
               },
-              tooltip: { 
-                backgroundColor: a.tt, 
-                borderColor: a.ttB, 
-                borderWidth: 1, 
-                titleColor: a.tc, 
-                bodyColor: a.bc 
+              tooltip: {
+                backgroundColor: a.tt,
+                borderColor: a.ttB,
+                borderWidth: 1,
+                titleColor: a.tc,
+                bodyColor: a.bc
               }
             }
           }
@@ -2224,4 +2229,5 @@ $assessmentsJson = json_encode($assessments);
     }
   </script>
 </body>
+
 </html>

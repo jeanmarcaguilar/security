@@ -14,29 +14,29 @@ $db = $database->getConnection();
 
 // Get current admin user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -48,13 +48,13 @@ if (!$user) {
 $users = [];
 $assessments = [];
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get real assessment data for each user
-    $stmt = $db->prepare("
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Get real assessment data for each user
+  $stmt = $db->prepare("
         SELECT 
             vendor_id,
             COUNT(*) as assessment_count,
@@ -64,95 +64,96 @@ try {
         FROM assessments 
         GROUP BY vendor_id
     ");
-    $stmt->execute();
-    $assessmentStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Create lookup array for assessment stats
-    $assessmentLookup = [];
-    foreach ($assessmentStats as $stat) {
-        $assessmentLookup[$stat['vendor_id']] = $stat;
+  $stmt->execute();
+  $assessmentStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Create lookup array for assessment stats
+  $assessmentLookup = [];
+  foreach ($assessmentStats as $stat) {
+    $assessmentLookup[$stat['vendor_id']] = $stat;
+  }
+
+  // Merge assessment data with user data
+  foreach ($users as &$u) {
+    $userId = $u['id'];
+
+    if (isset($assessmentLookup[$userId])) {
+      $stats = $assessmentLookup[$userId];
+      $u['latest_score'] = (int) $stats['latest_score'];
+      $u['latest_date'] = $stats['latest_date'];
+      $u['assessment_count'] = (int) $stats['assessment_count'];
+      $u['avg_score'] = (int) $stats['avg_score'];
+    } else {
+      // Fallback to users table data if no assessments found
+      $u['latest_score'] = $u['last_assessment_score'] ? (int) $u['last_assessment_score'] : null;
+      $u['latest_date'] = $u['last_assessment_date'];
+      $u['assessment_count'] = (int) $u['total_assessments'];
+      $u['avg_score'] = $u['last_assessment_score'] ? (int) $u['last_assessment_score'] : null;
     }
-    
-    // Merge assessment data with user data
-    foreach ($users as &$u) {
-        $userId = $u['id'];
-        
-        if (isset($assessmentLookup[$userId])) {
-            $stats = $assessmentLookup[$userId];
-            $u['latest_score'] = (int)$stats['latest_score'];
-            $u['latest_date'] = $stats['latest_date'];
-            $u['assessment_count'] = (int)$stats['assessment_count'];
-            $u['avg_score'] = (int)$stats['avg_score'];
-        } else {
-            // Fallback to users table data if no assessments found
-            $u['latest_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
-            $u['latest_date'] = $u['last_assessment_date'];
-            $u['assessment_count'] = (int)$u['total_assessments'];
-            $u['avg_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
-        }
-    }
-    unset($u); // break reference to avoid variable shadowing
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching users: " . $exception->getMessage());
-    // Fallback to empty arrays if database fails
-    $users = [];
-    $assessments = [];
+  }
+  unset($u); // break reference to avoid variable shadowing
+
+} catch (PDOException $exception) {
+  error_log("Error fetching users: " . $exception->getMessage());
+  // Fallback to empty arrays if database fails
+  $users = [];
+  $assessments = [];
 }
 
 // Calculate statistics
 $totalUsers = count($users);
-$activeUsers = count(array_filter($users, function($user) { return $user['is_active']; }));
+$activeUsers = count(array_filter($users, function ($user) {
+  return $user['is_active']; }));
 $inactiveUsers = $totalUsers - $activeUsers;
-$highRiskUsers = count(array_filter($users, function($user) { 
-    return $user['latest_score'] !== null && $user['latest_score'] < 40; 
+$highRiskUsers = count(array_filter($users, function ($user) {
+  return $user['latest_score'] !== null && $user['latest_score'] < 40;
 }));
 
 // Handle add user request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
-    $response = ['success' => false, 'message' => ''];
-    
-    try {
-        // Validate input
-        $full_name = sanitizeInput($_POST['full_name'] ?? '');
-        $email = sanitizeInput($_POST['email'] ?? '');
-        $store_name = sanitizeInput($_POST['store_name'] ?? '');
-        $username = sanitizeInput($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $role = sanitizeInput($_POST['role'] ?? 'Seller');
-        
-        if (empty($full_name) || empty($email) || empty($username) || empty($password)) {
-            $response['message'] = 'All required fields must be filled';
-        } elseif (!validateEmail($email)) {
-            $response['message'] = 'Invalid email format';
-        } else {
-            // Check if username or email already exists
-            $check_stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
-            $check_stmt->execute([$username, $email]);
-            
-            if ($check_stmt->fetch()) {
-                $response['message'] = 'Username or email already exists';
-            } else {
-                // Hash password
-                $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                
-                // Insert new user
-                $insert_stmt = $db->prepare("
+  $response = ['success' => false, 'message' => ''];
+
+  try {
+    // Validate input
+    $full_name = sanitizeInput($_POST['full_name'] ?? '');
+    $email = sanitizeInput($_POST['email'] ?? '');
+    $store_name = sanitizeInput($_POST['store_name'] ?? '');
+    $username = sanitizeInput($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $role = sanitizeInput($_POST['role'] ?? 'Seller');
+
+    if (empty($full_name) || empty($email) || empty($username) || empty($password)) {
+      $response['message'] = 'All required fields must be filled';
+    } elseif (!validateEmail($email)) {
+      $response['message'] = 'Invalid email format';
+    } else {
+      // Check if username or email already exists
+      $check_stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+      $check_stmt->execute([$username, $email]);
+
+      if ($check_stmt->fetch()) {
+        $response['message'] = 'Username or email already exists';
+      } else {
+        // Hash password
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+        // Insert new user
+        $insert_stmt = $db->prepare("
                     INSERT INTO users (username, password_hash, email, full_name, store_name, role, is_active) 
                     VALUES (?, ?, ?, ?, ?, ?, 1)
                 ");
-                
-                if ($insert_stmt->execute([$username, $password_hash, $email, $full_name, $store_name, $role])) {
-                    $response['success'] = true;
-                    $response['message'] = 'User added successfully';
-                    
-                    // Refresh users data with real assessment data
-                    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-                    $stmt->execute();
-                    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Get real assessment data for each user
-                    $stmt = $db->prepare("
+
+        if ($insert_stmt->execute([$username, $password_hash, $email, $full_name, $store_name, $role])) {
+          $response['success'] = true;
+          $response['message'] = 'User added successfully';
+
+          // Refresh users data with real assessment data
+          $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+          $stmt->execute();
+          $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+          // Get real assessment data for each user
+          $stmt = $db->prepare("
                         SELECT 
                             vendor_id,
                             COUNT(*) as assessment_count,
@@ -162,56 +163,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         FROM assessments 
                         GROUP BY vendor_id
                     ");
-                    $stmt->execute();
-                    $assessmentStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Create lookup array for assessment stats
-                    $assessmentLookup = [];
-                    foreach ($assessmentStats as $stat) {
-                        $assessmentLookup[$stat['vendor_id']] = $stat;
-                    }
-                    
-                    // Merge assessment data with user data
-                    foreach ($users as &$u) {
-                        $userId = $u['id'];
-                        
-                        if (isset($assessmentLookup[$userId])) {
-                            $stats = $assessmentLookup[$userId];
-                            $u['latest_score'] = (int)$stats['latest_score'];
-                            $u['latest_date'] = $stats['latest_date'];
-                            $u['assessment_count'] = (int)$stats['assessment_count'];
-                            $u['avg_score'] = (int)$stats['avg_score'];
-                        } else {
-                            // Fallback to users table data if no assessments found
-                            $u['latest_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
-                            $u['latest_date'] = $u['last_assessment_date'];
-                            $u['assessment_count'] = (int)$u['total_assessments'];
-                            $u['avg_score'] = $u['last_assessment_score'] ? (int)$u['last_assessment_score'] : null;
-                        }
-                    }
-    unset($u); // break reference to avoid variable shadowing
-                    
-                    // Update statistics
-                    $totalUsers = count($users);
-                    $activeUsers = count(array_filter($users, function($user) { return $user['is_active']; }));
-                    $inactiveUsers = $totalUsers - $activeUsers;
-                    $highRiskUsers = count(array_filter($users, function($user) { 
-                        return $user['latest_score'] !== null && $user['latest_score'] < 40; 
-                    }));
-                    
-                    $usersJson = json_encode($users);
-                } else {
-                    $response['message'] = 'Failed to add user';
-                }
+          $stmt->execute();
+          $assessmentStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+          // Create lookup array for assessment stats
+          $assessmentLookup = [];
+          foreach ($assessmentStats as $stat) {
+            $assessmentLookup[$stat['vendor_id']] = $stat;
+          }
+
+          // Merge assessment data with user data
+          foreach ($users as &$u) {
+            $userId = $u['id'];
+
+            if (isset($assessmentLookup[$userId])) {
+              $stats = $assessmentLookup[$userId];
+              $u['latest_score'] = (int) $stats['latest_score'];
+              $u['latest_date'] = $stats['latest_date'];
+              $u['assessment_count'] = (int) $stats['assessment_count'];
+              $u['avg_score'] = (int) $stats['avg_score'];
+            } else {
+              // Fallback to users table data if no assessments found
+              $u['latest_score'] = $u['last_assessment_score'] ? (int) $u['last_assessment_score'] : null;
+              $u['latest_date'] = $u['last_assessment_date'];
+              $u['assessment_count'] = (int) $u['total_assessments'];
+              $u['avg_score'] = $u['last_assessment_score'] ? (int) $u['last_assessment_score'] : null;
             }
+          }
+          unset($u); // break reference to avoid variable shadowing
+
+          // Update statistics
+          $totalUsers = count($users);
+          $activeUsers = count(array_filter($users, function ($user) {
+            return $user['is_active']; }));
+          $inactiveUsers = $totalUsers - $activeUsers;
+          $highRiskUsers = count(array_filter($users, function ($user) {
+            return $user['latest_score'] !== null && $user['latest_score'] < 40;
+          }));
+
+          $usersJson = json_encode($users);
+        } else {
+          $response['message'] = 'Failed to add user';
         }
-    } catch (PDOException $exception) {
-        $response['message'] = 'Database error: ' . $exception->getMessage();
+      }
     }
-    
-    header('Content-Type: application/json');
-    echo json_encode($response);
-    exit;
+  } catch (PDOException $exception) {
+    $response['message'] = 'Database error: ' . $exception->getMessage();
+  }
+
+  header('Content-Type: application/json');
+  echo json_encode($response);
+  exit;
 }
 
 // Convert users to JSON for JavaScript
@@ -1410,8 +1412,13 @@ $usersJson = json_encode($users);
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
@@ -1474,14 +1481,15 @@ $usersJson = json_encode($users);
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <path d="M10 19l-2 2v-3"/>
-              <path d="M14 19l2 2v-3"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <path d="M10 19l-2 2v-3" />
+              <path d="M14 19l2 2v-3" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1521,7 +1529,8 @@ $usersJson = json_encode($users);
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1595,7 +1604,9 @@ $usersJson = json_encode($users);
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1712,18 +1723,18 @@ $usersJson = json_encode($users);
   <script>
     // Real database data passed from PHP
     const DB_USERS = <?php echo $usersJson; ?>;
-    
+
     // Helper functions for data processing
     function getRank(score) {
       if (score === null || score === undefined) return null;
       return score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
     }
-    
+
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--muted2)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
     }
-    
+
     function formatDate(dateStr) {
       if (!dateStr) return '—';
       const date = new Date(dateStr);
@@ -1802,29 +1813,29 @@ $usersJson = json_encode($users);
     function renderUTbl() {
       const s = (document.getElementById('u-search').value || '').toLowerCase();
       const rf = document.getElementById('u-rank').value;
-      
+
       // Filter users based on search and rank
       let d = DB_USERS.filter(user => {
-        const matchesSearch = !s || 
+        const matchesSearch = !s ||
           user.full_name.toLowerCase().includes(s) ||
           user.store_name.toLowerCase().includes(s) ||
           user.email.toLowerCase().includes(s) ||
           user.username.toLowerCase().includes(s);
-        
+
         const rank = getRank(user.latest_score);
         const matchesRank = !rf || rank === rf;
-        
+
         return matchesSearch && matchesRank;
       });
-      
+
       const tp = Math.ceil(d.length / uPS); if (up > tp) up = 1;
       const sl = d.slice((up - 1) * uPS, up * uPS);
-      
+
       document.getElementById('u-tbl').innerHTML = sl.map(user => {
         const score = user.latest_score;
         const rank = getRank(score);
         const active = user.is_active;
-        
+
         return `<tr>
       <td style="font-weight:600">${user.full_name || user.store_name}</td>
       <td style="color:var(--muted2);font-size:.78rem">${user.email}</td>
@@ -1835,7 +1846,7 @@ $usersJson = json_encode($users);
       <td><div style="display:flex;gap:.35rem"><button class="btn btn-s btn-sm" onclick="viewAssessmentDetails(${user.id}, '${user.full_name.replace(/'/g, "\\'")}')">View</button><button class="btn btn-d btn-sm" onclick="showToast('Deleted','red')">Delete</button></div></td>
     </tr>`;
       }).join('');
-      
+
       let ph = ''; for (let i = 1; i <= tp; i++)ph += `<button class="pb ${i === up ? 'active' : ''}" onclick="up=${i};renderUTbl()">${i}</button>`;
       document.getElementById('u-pgn').innerHTML = ph;
     }
@@ -1862,7 +1873,7 @@ $usersJson = json_encode($users);
     </form>`;
       document.getElementById('modal-overlay').classList.remove('hidden');
     }
-    
+
     async function viewAssessmentDetails(userId, userName) {
       try {
         // Show loading state
@@ -1874,18 +1885,18 @@ $usersJson = json_encode($users);
           </div>
         `;
         document.getElementById('modal-overlay').classList.remove('hidden');
-        
+
         // Fetch assessment details
         const response = await fetch(`../api/get_assessment_details.php?user_id=${userId}`);
         const result = await response.json();
-        
+
         if (result.error) {
           throw new Error(result.error);
         }
-        
+
         // Display assessment details
         displayAssessmentDetails(result);
-        
+
       } catch (error) {
         console.error('Error fetching assessment details:', error);
         document.getElementById('modal-body').innerHTML = `
@@ -1904,18 +1915,18 @@ $usersJson = json_encode($users);
         `;
       }
     }
-    
+
     function displayAssessmentDetails(data) {
       const { user, assessment } = data;
       const categoryColors = {
         'password': 'var(--blue)',
-        'phishing': 'var(--red)', 
+        'phishing': 'var(--red)',
         'device': 'var(--green)',
         'network': 'var(--yellow)',
         'social_engineering': 'var(--orange)',
         'data_handling': 'var(--purple)'
       };
-      
+
       const categoryIcons = {
         'password': '🔐',
         'phishing': '🎣',
@@ -1924,7 +1935,7 @@ $usersJson = json_encode($users);
         'social_engineering': '👥',
         'data_handling': '📊'
       };
-      
+
       const categoryLabels = {
         'password': 'Password Security',
         'phishing': 'Phishing Awareness',
@@ -1933,12 +1944,12 @@ $usersJson = json_encode($users);
         'social_engineering': 'Social Engineering',
         'data_handling': 'Data Handling'
       };
-      
+
       let categoryScoresHtml = assessment.category_scores.map(category => {
         const color = categoryColors[category.category] || 'var(--muted2)';
         const icon = categoryIcons[category.category] || '📋';
         const label = categoryLabels[category.category] || category.category;
-        
+
         return `
           <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
@@ -1960,16 +1971,16 @@ $usersJson = json_encode($users);
           </div>
         `;
       }).join('');
-      
-      const overallScoreColor = assessment.overall_score >= 80 ? 'var(--green)' : 
-                              assessment.overall_score >= 60 ? 'var(--yellow)' : 
-                              assessment.overall_score >= 40 ? 'var(--orange)' : 'var(--red)';
-      
+
+      const overallScoreColor = assessment.overall_score >= 80 ? 'var(--green)' :
+        assessment.overall_score >= 60 ? 'var(--yellow)' :
+          assessment.overall_score >= 40 ? 'var(--orange)' : 'var(--red)';
+
       const rank = getRank(assessment.overall_score);
-      const rankColor = rank === 'A' ? 'var(--green)' : 
-                       rank === 'B' ? 'var(--yellow)' : 
-                       rank === 'C' ? 'var(--orange)' : 'var(--red)';
-      
+      const rankColor = rank === 'A' ? 'var(--green)' :
+        rank === 'B' ? 'var(--yellow)' :
+          rank === 'C' ? 'var(--orange)' : 'var(--red)';
+
       document.getElementById('modal-title').textContent = `Assessment Details - ${user.full_name}`;
       document.getElementById('modal-body').innerHTML = `
         <div style="margin-bottom: 1.5rem;">
@@ -2006,21 +2017,21 @@ $usersJson = json_encode($users);
         </div>
       `;
     }
-    
+
     async function handleAddUser(event) {
       event.preventDefault();
-      
+
       const formData = new FormData(event.target);
       formData.append('action', 'add_user');
-      
+
       try {
         const response = await fetch('users.php', {
           method: 'POST',
           body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           showToast('User added successfully', 'green');
           closeModal();

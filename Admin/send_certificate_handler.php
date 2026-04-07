@@ -75,33 +75,33 @@ use PHPMailer\PHPMailer\Exception;
 try {
   // Create certificate HTML
   $certificateHtml = generateCertificateHTML($vname, $score, $rank, $certId, $currentDate, $type);
-  
+
   // Create mailer instance using working configuration
   $mail = new PHPMailer(true);
-  
+
   // Server settings - Same as working 2FA system
   $mail->isSMTP();
-  $mail->Host       = 'smtp.gmail.com';
-  $mail->SMTPAuth   = true;
-  $mail->Username   = MAIL_USERNAME; // Use the same working credentials
-  $mail->Password   = MAIL_PASSWORD; // Use the same working credentials
+  $mail->Host = 'smtp.gmail.com';
+  $mail->SMTPAuth = true;
+  $mail->Username = MAIL_USERNAME; // Use the same working credentials
+  $mail->Password = MAIL_PASSWORD; // Use the same working credentials
   $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-  $mail->Port       = 465;
-  
+  $mail->Port = 465;
+
   // Enable debug for troubleshooting (set to 0 for production, 2 for debugging)
   $mail->SMTPDebug = 0;
   $mail->Debugoutput = 'html';
-  
+
   // Sender information
   $mail->setFrom(MAIL_USERNAME, 'CyberShield Admin');
-  
+
   // Recipients
   $mail->addAddress($email, $vname);
-  
+
   // Content
   $mail->isHTML(true);
   $mail->Subject = $subject;
-  
+
   // Email body with certificate
   $emailBody = '
     <div style="font-family:Arial,sans-serif;background:linear-gradient(135deg,#0f1419 0%,#1a1f2e 50%,#0f1419 100%);color:#ffffff;padding:0;margin:0;min-height:100vh;">
@@ -186,54 +186,54 @@ try {
         </div>
       </div>
     </div>';
-  
+
   $mail->Body = $emailBody;
-  
+
   // Send email
   if ($mail->send()) {
     // Log certificate to database
     try {
-        $user_id = $data['user_id'] ?? null;
-        $recipient_name = $vname;
-        $cert_type_label = getTypeLabel($type);
-        
-        $stmt = $db->prepare("
+      $user_id = $data['user_id'] ?? null;
+      $recipient_name = $vname;
+      $cert_type_label = getTypeLabel($type);
+
+      $stmt = $db->prepare("
             INSERT INTO sent_certificates 
             (user_id, cert_id, cert_type, recipient_email, recipient_name, score, rank, subject_line, personal_message, sent_at, status) 
             VALUES 
             (:user_id, :cert_id, :cert_type, :recipient_email, :recipient_name, :score, :rank, :subject_line, :personal_message, NOW(), 'sent')
         ");
-        
-        $stmt->bindParam(':user_id', $user_id);
-        $stmt->bindParam(':cert_id', $certId);
-        $stmt->bindParam(':cert_type', $cert_type_label);
-        $stmt->bindParam(':recipient_email', $email);
-        $stmt->bindParam(':recipient_name', $recipient_name);
-        $stmt->bindParam(':score', $score);
-        $stmt->bindParam(':rank', $rank);
-        $stmt->bindParam(':subject_line', $subject);
-        $stmt->bindParam(':personal_message', $message);
-        
-        $stmt->execute();
-        
-        error_log("[Certificate Send] Successfully logged to database: User ID $user_id, Email: $email");
-        
+
+      $stmt->bindParam(':user_id', $user_id);
+      $stmt->bindParam(':cert_id', $certId);
+      $stmt->bindParam(':cert_type', $cert_type_label);
+      $stmt->bindParam(':recipient_email', $email);
+      $stmt->bindParam(':recipient_name', $recipient_name);
+      $stmt->bindParam(':score', $score);
+      $stmt->bindParam(':rank', $rank);
+      $stmt->bindParam(':subject_line', $subject);
+      $stmt->bindParam(':personal_message', $message);
+
+      $stmt->execute();
+
+      error_log("[Certificate Send] Successfully logged to database: User ID $user_id, Email: $email");
+
     } catch (PDOException $e) {
-        error_log("[Certificate Send] Database logging failed: " . $e->getMessage());
-        // Continue even if logging fails - email was sent successfully
+      error_log("[Certificate Send] Database logging failed: " . $e->getMessage());
+      // Continue even if logging fails - email was sent successfully
     }
-    
+
     header('Content-Type: application/json');
     echo json_encode(['success' => true, 'message' => "Certificate sent successfully to $email"]);
   } else {
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Failed to send email: ' . $mail->ErrorInfo]);
   }
-  
+
 } catch (Exception $e) {
   // Log detailed error for debugging
   error_log("SMTP Error: " . $e->getMessage());
-  
+
   // Provide user-friendly error messages
   $errorMessage = $e->getMessage();
   if (strpos($errorMessage, 'SMTP Error: Could not authenticate') !== false) {
@@ -245,14 +245,15 @@ try {
   } else {
     $userMessage = "Email sending failed: " . $errorMessage;
   }
-  
+
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => $userMessage, 'debug' => $errorMessage]);
 }
 
-function generateCertificateHTML($vname, $score, $rank, $certId, $currentDate, $type) {
+function generateCertificateHTML($vname, $score, $rank, $certId, $currentDate, $type)
+{
   $typeInfo = getTypeInfo($type);
-  
+
   return "
     <div style='text-align: center; padding: 30px; background: linear-gradient(135deg, #f0f8ff, #e6f2ff); border-radius: 10px;'>
       <div style='width: 80px; height: 80px; background: linear-gradient(135deg, #3B8BFF, #7B72F0); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold;'>
@@ -277,7 +278,8 @@ function generateCertificateHTML($vname, $score, $rank, $certId, $currentDate, $
   ";
 }
 
-function getTypeInfo($type) {
+function getTypeInfo($type)
+{
   $types = [
     'compliance' => [
       'title' => 'Certificate of Compliance',
@@ -300,18 +302,19 @@ function getTypeInfo($type) {
       'body' => 'Has successfully completed the CyberShield Security Awareness Training gaining essential knowledge in cybersecurity best practices.'
     ]
   ];
-  
+
   return $types[$type] ?? $types['compliance'];
 }
 
-function getTypeLabel($type) {
+function getTypeLabel($type)
+{
   $labels = [
     'compliance' => 'Cybersecurity Compliance Certificate',
     'assessment' => 'Assessment Completion Certificate',
     'excellence' => 'Certificate of Excellence',
     'training' => 'Security Awareness Training Certificate'
   ];
-  
+
   return $labels[$type] ?? 'Certificate';
 }
 ?>

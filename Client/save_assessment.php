@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // ── DB connection ─────────────────────────────────────────────────────────────
-$host   = 'localhost';
+$host = 'localhost';
 $dbname = 'cybershield';
 $dbuser = 'root';
 $dbpass = '';
@@ -47,23 +47,23 @@ if ($tok_check->fetch()) {
 }
 
 // ── Read & sanitize inputs ────────────────────────────────────────────────────
-$user_id                  = (int) $_SESSION['user_id'];   // ALWAYS from session
-$score                    = min(100, max(0, (int)($_POST['score']                    ?? 0)));
-$rank                     = in_array($_POST['rank'] ?? '', ['A','B','C','D','F']) ? $_POST['rank'] : 'F';
-$password_score           = min(100, max(0, (int)($_POST['password_score']           ?? 0)));
-$phishing_score           = min(100, max(0, (int)($_POST['phishing_score']           ?? 0)));
-$device_score             = min(100, max(0, (int)($_POST['device_score']             ?? 0)));
-$network_score            = min(100, max(0, (int)($_POST['network_score']            ?? 0)));
-$social_engineering_score = min(100, max(0, (int)($_POST['social_engineering_score'] ?? 0)));
-$data_handling_score      = min(100, max(0, (int)($_POST['data_handling_score']      ?? 0)));
-$time_spent               = max(0, (int)($_POST['time_spent']        ?? 0));
-$questions_answered       = max(0, (int)($_POST['questions_answered'] ?? 0));
-$total_questions          = max(1, (int)($_POST['total_questions']    ?? 100));
-$assessment_date          = date('Y-m-d H:i:s'); // always server-side
+$user_id = (int) $_SESSION['user_id'];   // ALWAYS from session
+$score = min(100, max(0, (int) ($_POST['score'] ?? 0)));
+$rank = in_array($_POST['rank'] ?? '', ['A', 'B', 'C', 'D', 'F']) ? $_POST['rank'] : 'F';
+$password_score = min(100, max(0, (int) ($_POST['password_score'] ?? 0)));
+$phishing_score = min(100, max(0, (int) ($_POST['phishing_score'] ?? 0)));
+$device_score = min(100, max(0, (int) ($_POST['device_score'] ?? 0)));
+$network_score = min(100, max(0, (int) ($_POST['network_score'] ?? 0)));
+$social_engineering_score = min(100, max(0, (int) ($_POST['social_engineering_score'] ?? 0)));
+$data_handling_score = min(100, max(0, (int) ($_POST['data_handling_score'] ?? 0)));
+$time_spent = max(0, (int) ($_POST['time_spent'] ?? 0));
+$questions_answered = max(0, (int) ($_POST['questions_answered'] ?? 0));
+$total_questions = max(1, (int) ($_POST['total_questions'] ?? 100));
+$assessment_date = date('Y-m-d H:i:s'); // always server-side
 
 // Per-question answers payload (JSON string from JS)
 $answers_json = $_POST['answers_json'] ?? '[]';
-$answers      = json_decode($answers_json, true) ?: [];
+$answers = json_decode($answers_json, true) ?: [];
 
 try {
     $pdo->beginTransaction();
@@ -72,7 +72,7 @@ try {
     $existing = $pdo->prepare("SELECT id FROM assessments WHERE vendor_id = :uid LIMIT 1");
     $existing->execute([':uid' => $user_id]);
     $existing_assessment = $existing->fetch();
-    
+
     if ($existing_assessment) {
         // Update existing assessment
         $assessment_id = $existing_assessment['id'];
@@ -97,22 +97,22 @@ try {
         ");
         $upd->execute([
             ':score' => $score,
-            ':rank'  => $rank,
-            ':pw'    => $password_score,
-            ':ph'    => $phishing_score,
-            ':dev'   => $device_score,
-            ':net'   => $network_score,
-            ':se'    => $social_engineering_score,
-            ':dh'    => $data_handling_score,
-            ':ts'    => $time_spent,
-            ':qa'    => $questions_answered,
-            ':tq'    => $total_questions,
+            ':rank' => $rank,
+            ':pw' => $password_score,
+            ':ph' => $phishing_score,
+            ':dev' => $device_score,
+            ':net' => $network_score,
+            ':se' => $social_engineering_score,
+            ':dh' => $data_handling_score,
+            ':ts' => $time_spent,
+            ':qa' => $questions_answered,
+            ':tq' => $total_questions,
             ':adate' => $assessment_date,
             ':token' => $submitted_token,
             ':session_id' => $assessmentSessionId ?? null,
-            ':aid'   => $assessment_id
+            ':aid' => $assessment_id
         ]);
-        
+
         // Delete old answers to replace with new ones
         $del_answers = $pdo->prepare("DELETE FROM assessment_answers WHERE assessment_id = :aid");
         $del_answers->execute([':aid' => $assessment_id]);
@@ -134,18 +134,18 @@ try {
             )
         ");
         $ins->execute([
-            ':uid'   => $user_id,
+            ':uid' => $user_id,
             ':score' => $score,
-            ':rank'  => $rank,
-            ':pw'    => $password_score,
-            ':ph'    => $phishing_score,
-            ':dev'   => $device_score,
-            ':net'   => $network_score,
-            ':se'    => $social_engineering_score,
-            ':dh'    => $data_handling_score,
-            ':ts'    => $time_spent,
-            ':qa'    => $questions_answered,
-            ':tq'    => $total_questions,
+            ':rank' => $rank,
+            ':pw' => $password_score,
+            ':ph' => $phishing_score,
+            ':dev' => $device_score,
+            ':net' => $network_score,
+            ':se' => $social_engineering_score,
+            ':dh' => $data_handling_score,
+            ':ts' => $time_spent,
+            ':qa' => $questions_answered,
+            ':tq' => $total_questions,
             ':adate' => $assessment_date,
             ':token' => $submitted_token,
             ':session_id' => $assessmentSessionId ?? null
@@ -163,13 +163,13 @@ try {
         ");
         foreach ($answers as $a) {
             $ans_ins->execute([
-                ':aid'     => $assessment_id,
-                ':qid'     => $a['question_id']     ?? 0,
-                ':qtxt'    => $a['question_text']    ?? '',
-                ':uans'    => $a['user_answer']      ?? '',
-                ':cans'    => $a['correct_answer']   ?? '',
-                ':correct' => (int)($a['is_correct'] ?? 0),
-                ':cat'     => $a['category']         ?? 'general',
+                ':aid' => $assessment_id,
+                ':qid' => $a['question_id'] ?? 0,
+                ':qtxt' => $a['question_text'] ?? '',
+                ':uans' => $a['user_answer'] ?? '',
+                ':cans' => $a['correct_answer'] ?? '',
+                ':correct' => (int) ($a['is_correct'] ?? 0),
+                ':cat' => $a['category'] ?? 'general',
             ]);
         }
     }
@@ -200,18 +200,19 @@ try {
             INSERT INTO activity_log (user_id, action_type, action_description, ip_address)
             VALUES (:uid, 'assessment', :desc, :ip)
         ")->execute([
-            ':uid'  => $user_id,
-            ':desc' => "Completed assessment — Score: {$score}% Rank: {$rank}",
-            ':ip'   => $_SERVER['REMOTE_ADDR'] ?? null,
-        ]);
-    } catch (PDOException $ignored) {}
+                    ':uid' => $user_id,
+                    ':desc' => "Completed assessment — Score: {$score}% Rank: {$rank}",
+                    ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                ]);
+    } catch (PDOException $ignored) {
+    }
 
     $pdo->commit();
 
     echo json_encode([
-        'success'       => true,
+        'success' => true,
         'assessment_id' => $assessment_id,
-        'message'       => 'Assessment saved successfully',
+        'message' => 'Assessment saved successfully',
     ]);
 
 } catch (PDOException $e) {

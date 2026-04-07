@@ -37,23 +37,23 @@ try {
         echo json_encode(['success' => false, 'error' => 'OTP not requested or expired']);
         exit();
     }
-    
+
     $otpData = $_SESSION['otp_' . $type];
-    
+
     // Check if OTP has expired
     if (time() > $otpData['expires_at']) {
         unset($_SESSION['otp_' . $type]);
         echo json_encode(['success' => false, 'error' => 'OTP has expired']);
         exit();
     }
-    
+
     // Check attempts (max 3 attempts)
     if ($otpData['attempts'] >= 3) {
         unset($_SESSION['otp_' . $type]);
         echo json_encode(['success' => false, 'error' => 'Too many failed attempts. Please request a new OTP.']);
         exit();
     }
-    
+
     // Verify OTP
     if ($otp === $otpData['code']) {
         // OTP is correct, clear it from session
@@ -63,14 +63,14 @@ try {
         // Increment attempts
         $_SESSION['otp_' . $type]['attempts']++;
         $remainingAttempts = 3 - $_SESSION['otp_' . $type]['attempts'];
-        
+
         echo json_encode([
-            'success' => false, 
+            'success' => false,
             'error' => 'Invalid OTP',
             'remaining_attempts' => $remainingAttempts
         ]);
     }
-    
+
 } catch (Exception $e) {
     error_log("OTP verification error: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Server error']);

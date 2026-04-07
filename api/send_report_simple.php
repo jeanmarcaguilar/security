@@ -52,26 +52,26 @@ try {
     // Test database connection
     $database = new Database();
     $db = $database->getConnection();
-    
+
     error_log("Database connected successfully");
-    
+
     // Get user data
     $stmt = $db->prepare("SELECT id, full_name, email, store_name, last_assessment_score FROM users WHERE id = ?");
     $stmt->execute([$userId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$user) {
         error_log("User not found: ID $userId");
         echo json_encode(['success' => false, 'error' => 'User not found']);
         exit();
     }
-    
+
     error_log("User found: " . $user['full_name']);
-    
+
     // Simulate email sending (just log it for now)
     error_log("SIMULATED: Would send email to $recipientEmail");
     error_log("User data: " . print_r($user, true));
-    
+
     echo json_encode([
         'success' => true,
         'message' => 'Email sent successfully (simulated)',
@@ -84,7 +84,7 @@ try {
             'user_id_in_session' => $_SESSION['user_id'] ?? 'none'
         ]
     ]);
-    
+
 } catch (Exception $e) {
     error_log("Error: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);

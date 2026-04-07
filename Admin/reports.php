@@ -14,29 +14,29 @@ $db = $database->getConnection();
 
 // Get current admin user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -49,19 +49,19 @@ $users = [];
 $assessments = [];
 
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Check if assessments table has data
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments");
-    $stmt->execute();
-    $assessmentCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-    
-    if ($assessmentCount > 0) {
-        // Get real assessment data from assessments table
-        $stmt = $db->prepare("
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Check if assessments table has data
+  $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments");
+  $stmt->execute();
+  $assessmentCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+  if ($assessmentCount > 0) {
+    // Get real assessment data from assessments table
+    $stmt = $db->prepare("
             SELECT 
                 a.id,
                 a.vendor_id as vid,
@@ -74,64 +74,64 @@ try {
             JOIN users u ON a.vendor_id = u.id
             ORDER BY a.assessment_date DESC
         ");
-        $stmt->execute();
-        $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Format assessment data for frontend
-        foreach ($assessmentData as $assessment) {
-            $assessments[] = [
-                'id' => $assessment['id'],
-                'vid' => $assessment['vid'],
-                'vname' => $assessment['full_name'] ?: $assessment['store_name'],
-                'store' => $assessment['store_name'],
-                'score' => (int)$assessment['score'],
-                'rank' => $assessment['rank'],
-                'cat' => 'Overall Assessment',
-                'date' => $assessment['date']
-            ];
-        }
-    } else {
-        // Create persistent demo data that won't change on refresh
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments WHERE is_demo = 1");
-        $stmt->execute();
-        $demoExists = $stmt->fetch(PDO::FETCH_ASSOC)['count'] > 0;
-        
-        if (!$demoExists && !empty($users)) {
-            $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
-            
-            foreach ($users as $u) {
-                $baseScore = 50 + (($u['id'] * 7) % 45);
-                
-                foreach ($categories as $index => $category) {
-                    $categoryVariation = (($u['id'] + $index) % 31) - 15;
-                    $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
-                    $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
-                    
-                    for ($i = 5; $i >= 0; $i--) {
-                        $date = new DateTime();
-                        $date->modify("-$i months");
-                        $historicalVariation = ((($u['id'] + $index + $i) % 21) - 10);
-                        $historicalScore = max(20, min(100, $categoryScore + $historicalVariation));
-                        $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
-                        
-                        $stmt = $db->prepare("
+    $stmt->execute();
+    $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Format assessment data for frontend
+    foreach ($assessmentData as $assessment) {
+      $assessments[] = [
+        'id' => $assessment['id'],
+        'vid' => $assessment['vid'],
+        'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+        'store' => $assessment['store_name'],
+        'score' => (int) $assessment['score'],
+        'rank' => $assessment['rank'],
+        'cat' => 'Overall Assessment',
+        'date' => $assessment['date']
+      ];
+    }
+  } else {
+    // Create persistent demo data that won't change on refresh
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM assessments WHERE is_demo = 1");
+    $stmt->execute();
+    $demoExists = $stmt->fetch(PDO::FETCH_ASSOC)['count'] > 0;
+
+    if (!$demoExists && !empty($users)) {
+      $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+
+      foreach ($users as $u) {
+        $baseScore = 50 + (($u['id'] * 7) % 45);
+
+        foreach ($categories as $index => $category) {
+          $categoryVariation = (($u['id'] + $index) % 31) - 15;
+          $categoryScore = max(20, min(100, $baseScore + $categoryVariation));
+          $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+
+          for ($i = 5; $i >= 0; $i--) {
+            $date = new DateTime();
+            $date->modify("-$i months");
+            $historicalVariation = ((($u['id'] + $index + $i) % 21) - 10);
+            $historicalScore = max(20, min(100, $categoryScore + $historicalVariation));
+            $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
+
+            $stmt = $db->prepare("
                             INSERT INTO assessments 
                             (vendor_id, score, rank, category, assessment_date, is_demo, created_at) 
                             VALUES (?, ?, ?, ?, ?, 1, NOW())
                         ");
-                        $stmt->execute([
-                            $u['id'],
-                            $historicalScore,
-                            $historicalRank,
-                            $category,
-                            $date->format('Y-m-d')
-                        ]);
-                    }
-                }
-            }
-            
-            foreach ($users as $u) {
-                $stmt = $db->prepare("
+            $stmt->execute([
+              $u['id'],
+              $historicalScore,
+              $historicalRank,
+              $category,
+              $date->format('Y-m-d')
+            ]);
+          }
+        }
+      }
+
+      foreach ($users as $u) {
+        $stmt = $db->prepare("
                     UPDATE users 
                     SET last_assessment_score = (
                         SELECT AVG(score) FROM assessments WHERE vendor_id = ? 
@@ -140,11 +140,11 @@ try {
                     )
                     WHERE id = ?
                 ");
-                $stmt->execute([$u['id'], $u['id'], $u['id']]);
-            }
-        }
-        
-        $stmt = $db->prepare("
+        $stmt->execute([$u['id'], $u['id'], $u['id']]);
+      }
+    }
+
+    $stmt = $db->prepare("
             SELECT 
                 a.id,
                 a.vendor_id as vid,
@@ -157,47 +157,51 @@ try {
             JOIN users u ON a.vendor_id = u.id
             ORDER BY a.assessment_date DESC
         ");
-        $stmt->execute();
-        $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        foreach ($assessmentData as $assessment) {
-            $assessments[] = [
-                'id' => $assessment['id'],
-                'vid' => $assessment['vid'],
-                'vname' => $assessment['full_name'] ?: $assessment['store_name'],
-                'store' => $assessment['store_name'],
-                'score' => (int)$assessment['score'],
-                'rank' => $assessment['rank'],
-                'cat' => 'Overall Assessment',
-                'date' => $assessment['date']
-            ];
-        }
+    $stmt->execute();
+    $assessmentData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($assessmentData as $assessment) {
+      $assessments[] = [
+        'id' => $assessment['id'],
+        'vid' => $assessment['vid'],
+        'vname' => $assessment['full_name'] ?: $assessment['store_name'],
+        'store' => $assessment['store_name'],
+        'score' => (int) $assessment['score'],
+        'rank' => $assessment['rank'],
+        'cat' => 'Overall Assessment',
+        'date' => $assessment['date']
+      ];
     }
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching reports data: " . $exception->getMessage());
-    if (empty($assessments) && !empty($users)) {
-        foreach ($users as $u) {
-            $deterministicScore = 50 + (($u['id'] * 13) % 50);
-            $assessments[] = [
-                'id' => $u['id'],
-                'vid' => $u['id'],
-                'vname' => $u['full_name'] ?: $u['store_name'],
-                'store' => $u['store_name'],
-                'score' => $deterministicScore,
-                'rank' => getRankFromScore($deterministicScore),
-                'cat' => 'General Assessment',
-                'date' => date('Y-m-d')
-            ];
-        }
+  }
+
+} catch (PDOException $exception) {
+  error_log("Error fetching reports data: " . $exception->getMessage());
+  if (empty($assessments) && !empty($users)) {
+    foreach ($users as $u) {
+      $deterministicScore = 50 + (($u['id'] * 13) % 50);
+      $assessments[] = [
+        'id' => $u['id'],
+        'vid' => $u['id'],
+        'vname' => $u['full_name'] ?: $u['store_name'],
+        'store' => $u['store_name'],
+        'score' => $deterministicScore,
+        'rank' => getRankFromScore($deterministicScore),
+        'cat' => 'General Assessment',
+        'date' => date('Y-m-d')
+      ];
     }
+  }
 }
 
-function getRankFromScore($score) {
-    if ($score >= 80) return 'A';
-    if ($score >= 60) return 'B';
-    if ($score >= 40) return 'C';
-    return 'D';
+function getRankFromScore($score)
+{
+  if ($score >= 80)
+    return 'A';
+  if ($score >= 60)
+    return 'B';
+  if ($score >= 40)
+    return 'C';
+  return 'D';
 }
 
 $usersJson = json_encode($users);
@@ -1457,14 +1461,15 @@ $assessmentsJson = json_encode($assessments);
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <path d="M10 19l-2 2v-3"/>
-              <path d="M14 19l2 2v-3"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <path d="M10 19l-2 2v-3" />
+              <path d="M14 19l2 2v-3" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1504,7 +1509,8 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="doLogout()">
@@ -1578,7 +1584,9 @@ $assessmentsJson = json_encode($assessments);
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1611,13 +1619,14 @@ $assessmentsJson = json_encode($assessments);
           <div class="tbl-bar">
             <h3>All Assessment Records</h3>
             <div class="frow">
-              <input type="text" class="fsel" id="r-search" placeholder="Search user or category..." style="min-width:180px" onkeyup="renderRTbl()">
+              <input type="text" class="fsel" id="r-search" placeholder="Search user or category..."
+                style="min-width:180px" onkeyup="renderRTbl()">
               <select class="fsel" id="r-rank" onchange="renderRTbl()">
                 <option value="">All Ranks</option>
                 <option value="A">A - Excellent (80-100%)</option>
                 <option value="B">B - Good (60-79%)</option>
                 <option value="C">C - Needs Improvement (40-59%)</option>
-                <option value="D">D - Critical (<40%)</option>
+                <option value="D">D - Critical (<40%)< /option>
               </select>
               <select class="fsel" id="r-category" onchange="renderRTbl()">
                 <option value="">All Categories</option>
@@ -1642,7 +1651,8 @@ $assessmentsJson = json_encode($assessments);
             </table>
           </div>
           <div class="pgn" id="r-pgn"></div>
-          <div style="margin-top:1rem;padding:0.75rem;background:var(--bg2);border-radius:8px;font-size:0.75rem;color:var(--muted2);display:flex;justify-content:space-between;align-items:center">
+          <div
+            style="margin-top:1rem;padding:0.75rem;background:var(--bg2);border-radius:8px;font-size:0.75rem;color:var(--muted2);display:flex;justify-content:space-between;align-items:center">
             <span>📋 Total Records: <strong id="total-records">0</strong></span>
             <span>🔄 Data is persistent and does not change on refresh</span>
           </div>
@@ -1671,16 +1681,16 @@ $assessmentsJson = json_encode($assessments);
     // Real database data passed from PHP
     const DB_USERS = <?php echo $usersJson; ?>;
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
-    
+
     console.log('📊 Loaded assessments count:', DB_ASSESSMENTS.length);
     console.log('👥 Loaded users count:', DB_USERS.length);
-    
+
     // Helper functions
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--muted2)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
     }
-    
+
     function getRankLabel(rank) {
       const labels = {
         'A': 'Excellent',
@@ -1690,21 +1700,21 @@ $assessmentsJson = json_encode($assessments);
       };
       return labels[rank] || rank;
     }
-    
+
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
-    function ax() { 
-      return isDark() ? 
-        { tick: '#8898b4', grid: 'rgba(59,139,255,.04)', tt: '#0d1421', ttB: 'rgba(255,255,255,.1)', tc: '#dde4f0', bc: '#8898b4' } : 
+    function ax() {
+      return isDark() ?
+        { tick: '#8898b4', grid: 'rgba(59,139,255,.04)', tt: '#0d1421', ttB: 'rgba(255,255,255,.1)', tc: '#dde4f0', bc: '#8898b4' } :
         { tick: '#64748b', grid: 'rgba(0,0,0,.06)', tt: '#fff', ttB: 'rgba(0,0,0,.1)', tc: '#0f172a', bc: '#475569' };
     }
-    
-    const CC = { 
-      A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, 
-      B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, 
-      C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, 
-      D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } 
+
+    const CC = {
+      A: { s: '#10D982', b: 'rgba(16,217,130,.55)' },
+      B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' },
+      C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' },
+      D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' }
     };
-    
+
     function riskCounts() {
       const c = { A: 0, B: 0, C: 0, D: 0 };
       // Get latest assessment per vendor for accurate rank distribution
@@ -1719,12 +1729,12 @@ $assessmentsJson = json_encode($assessments);
       });
       return c;
     }
-    
+
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('collapsed');
       localStorage.setItem('cs_sb', document.getElementById('sidebar').classList.contains('collapsed') ? '1' : '0');
     }
-    
+
     function toggleTheme() {
       const d = !isDark();
       document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
@@ -1734,12 +1744,12 @@ $assessmentsJson = json_encode($assessments);
       if (s) s.style.display = d ? 'none' : '';
       renderRCharts();
     }
-    
+
     function toggleNotif() {
       const p = document.getElementById('np');
       if (p) p.classList.toggle('hidden');
     }
-    
+
     function clearNotifs() {
       const l = document.getElementById('np-list');
       if (l) l.innerHTML = '<p class="np-empty">No alerts</p>';
@@ -1748,7 +1758,7 @@ $assessmentsJson = json_encode($assessments);
       const p = document.getElementById('np');
       if (p) p.classList.add('hidden');
     }
-    
+
     function showToast(msg, color = 'blue') {
       const cols = { blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', yellow: 'var(--yellow)' };
       const t = document.createElement('div'); t.className = 'toast';
@@ -1756,26 +1766,26 @@ $assessmentsJson = json_encode($assessments);
       document.getElementById('toast-c').appendChild(t);
       setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 2500);
     }
-    
+
     function doLogout() {
       if (confirm('Are you sure you want to sign out?')) {
         window.location.href = 'logout.php';
       }
     }
-    
+
     function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
-    
+
     async function viewDetails(assessment) {
       try {
         // Fetch detailed assessment data including category scores
         const response = await fetch(`../api/get_assessment_details.php?user_id=${assessment.vid}`);
         const data = await response.json();
-        
+
         if (!data.success) {
           showToast('Failed to load assessment details', 'red');
           return;
         }
-        
+
         const categoryScores = data.assessment.category_scores;
         const categoryMap = {
           'password': 'Password Security',
@@ -1785,7 +1795,7 @@ $assessmentsJson = json_encode($assessments);
           'social_engineering': 'Social Engineering',
           'data_handling': 'Data Handling'
         };
-        
+
         let categoryScoresHtml = '';
         if (categoryScores && categoryScores.length > 0) {
           categoryScoresHtml = categoryScores.map(cat => {
@@ -1813,7 +1823,7 @@ $assessmentsJson = json_encode($assessments);
             { name: 'Social Engineering', score: assessment.social_engineering_score || 0 },
             { name: 'Data Handling', score: assessment.data_handling_score || 0 }
           ];
-          
+
           categoryScoresHtml = fallbackCategories.map(cat => {
             const scoreColor = getScoreColor(cat.score);
             return `
@@ -1829,7 +1839,7 @@ $assessmentsJson = json_encode($assessments);
             `;
           }).join('');
         }
-        
+
         document.getElementById('modal-title').textContent = `${assessment.vname} - Assessment Details`;
         document.getElementById('modal-body').innerHTML = `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1rem">
@@ -1856,8 +1866,8 @@ $assessmentsJson = json_encode($assessments);
           </div>
           <div style="padding:.85rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
             <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:1px;color:var(--muted);margin-bottom:.5rem">Recommendations</div>
-            ${assessment.score >= 80 ? '<span style="color:var(--green)">✓ Excellent security posture. Maintain current practices and continue monitoring.</span>' : 
-              assessment.score >= 60 ? '<span style="color:var(--yellow)">⚠ Moderate risk. Review and improve security controls in this category.</span>' :
+            ${assessment.score >= 80 ? '<span style="color:var(--green)">✓ Excellent security posture. Maintain current practices and continue monitoring.</span>' :
+            assessment.score >= 60 ? '<span style="color:var(--yellow)">⚠ Moderate risk. Review and improve security controls in this category.</span>' :
               '<span style="color:var(--red)">✗ Critical risk. Immediate action required. Schedule follow-up assessment and implement security measures.</span>'}
           </div>
         `;
@@ -1867,25 +1877,25 @@ $assessmentsJson = json_encode($assessments);
         showToast('Error loading assessment details', 'red');
       }
     }
-    
+
     function exportData() {
       let data = [...DB_ASSESSMENTS];
       const rankFilter = document.getElementById('r-rank').value;
       const categoryFilter = document.getElementById('r-category').value;
       const searchTerm = document.getElementById('r-search').value.toLowerCase();
-      
+
       if (rankFilter) data = data.filter(a => a.rank === rankFilter);
       if (categoryFilter) data = data.filter(a => a.cat === categoryFilter);
-      if (searchTerm) data = data.filter(a => 
-        a.vname.toLowerCase().includes(searchTerm) || 
+      if (searchTerm) data = data.filter(a =>
+        a.vname.toLowerCase().includes(searchTerm) ||
         a.cat.toLowerCase().includes(searchTerm)
       );
-      
+
       if (data.length === 0) {
         showToast('No data to export', 'yellow');
         return;
       }
-      
+
       const headers = ['Assessment ID', 'Vendor', 'Category', 'Score (%)', 'Rank', 'Date'];
       const csvContent = [
         headers.join(','),
@@ -1898,7 +1908,7 @@ $assessmentsJson = json_encode($assessments);
           a.date
         ].join(','))
       ].join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1908,7 +1918,7 @@ $assessmentsJson = json_encode($assessments);
       URL.revokeObjectURL(url);
       showToast(`Exported ${data.length} assessment records`, 'green');
     }
-    
+
     document.addEventListener('DOMContentLoaded', () => {
       const th = localStorage.getItem('cs_th') || 'dark';
       document.documentElement.setAttribute('data-theme', th);
@@ -1919,7 +1929,7 @@ $assessmentsJson = json_encode($assessments);
       if (sb === '1') document.getElementById('sidebar').classList.add('collapsed');
       const d = document.getElementById('tb-date');
       if (d) d.textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-      
+
       // Populate category filter
       const categories = [...new Set(DB_ASSESSMENTS.map(a => a.cat))];
       const catSelect = document.getElementById('r-category');
@@ -1929,37 +1939,37 @@ $assessmentsJson = json_encode($assessments);
         option.textContent = cat;
         catSelect.appendChild(option);
       });
-      
+
       pageInit();
     });
-    
+
     let rp = 1, rPS = 10, rCharts = {};
     let currentData = DB_ASSESSMENTS;
-    
+
     function pageInit() { renderRTbl(); renderRCharts(); }
-    
+
     function renderRTbl() {
       const rankFilter = document.getElementById('r-rank').value;
       const categoryFilter = document.getElementById('r-category').value;
       const searchTerm = document.getElementById('r-search').value.toLowerCase();
-      
+
       let data = [...DB_ASSESSMENTS];
-      
+
       if (rankFilter) data = data.filter(a => a.rank === rankFilter);
       if (categoryFilter) data = data.filter(a => a.cat === categoryFilter);
-      if (searchTerm) data = data.filter(a => 
-        a.vname.toLowerCase().includes(searchTerm) || 
+      if (searchTerm) data = data.filter(a =>
+        a.vname.toLowerCase().includes(searchTerm) ||
         a.cat.toLowerCase().includes(searchTerm)
       );
-      
+
       currentData = data;
       document.getElementById('total-records').textContent = data.length;
-      
+
       const totalPages = Math.ceil(data.length / rPS);
       if (rp > totalPages) rp = 1;
       const pageData = data.slice((rp - 1) * rPS, rp * rPS);
-      
-      document.getElementById('r-tbl').innerHTML = pageData.map(a => 
+
+      document.getElementById('r-tbl').innerHTML = pageData.map(a =>
         `<tr>
           <td style="font-weight:600;color:var(--blue)">#${a.id}</td>
           <td style="font-weight:600">${a.vname}</td>
@@ -1970,20 +1980,20 @@ $assessmentsJson = json_encode($assessments);
           <td><button class="btn btn-s btn-sm" onclick='viewDetails(${JSON.stringify(a).replace(/'/g, "&#39;")})'>📋 View</button></td>
         </tr>`
       ).join('');
-      
+
       let paginationHtml = '';
       for (let i = 1; i <= totalPages; i++) {
         paginationHtml += `<button class="pb ${i === rp ? 'active' : ''}" onclick="rp=${i};renderRTbl()">${i}</button>`;
       }
       document.getElementById('r-pgn').innerHTML = paginationHtml;
     }
-    
+
     function renderRCharts() {
       const counts = riskCounts();
       const a = ax();
       Object.values(rCharts).forEach(ch => ch && ch.destroy());
       rCharts = {};
-      
+
       // Bar Chart
       const barCtx = document.getElementById('r-bar');
       if (barCtx) {
@@ -2013,7 +2023,7 @@ $assessmentsJson = json_encode($assessments);
           }
         });
       }
-      
+
       // Pie Chart
       const pieCtx = document.getElementById('r-pie');
       if (pieCtx) {
@@ -2039,8 +2049,9 @@ $assessmentsJson = json_encode($assessments);
         });
       }
     }
-    
+
     function onThemeChange() { renderRCharts(); }
   </script>
 </body>
+
 </html>

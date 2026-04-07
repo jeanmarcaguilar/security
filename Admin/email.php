@@ -14,29 +14,29 @@ $db = $database->getConnection();
 
 // Get current admin user data - prioritize session variables set by profile update
 if (isset($_SESSION['user_full_name'])) {
-    // Use session data if available (set by profile update)
-    $user = [
-        'id' => $_SESSION['user_id'],
-        'full_name' => $_SESSION['user_full_name'],
-        'email' => $_SESSION['user_email'],
-        'store_name' => $_SESSION['user_store_name'] ?? '',
-        'role' => $_SESSION['user_role'] ?? 'Admin'
-    ];
+  // Use session data if available (set by profile update)
+  $user = [
+    'id' => $_SESSION['user_id'],
+    'full_name' => $_SESSION['user_full_name'],
+    'email' => $_SESSION['user_email'],
+    'store_name' => $_SESSION['user_store_name'] ?? '',
+    'role' => $_SESSION['user_role'] ?? 'Admin'
+  ];
 } else {
-    // Fallback to database query and initialize session variables
-    $user_query = "SELECT * FROM users WHERE id = :user_id";
-    $stmt = $db->prepare($user_query);
-    $stmt->bindParam(':user_id', $_SESSION['user_id']);
-    $stmt->execute();
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Initialize session variables for consistency
-    if ($user) {
-        $_SESSION['user_full_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_store_name'] = $user['store_name'];
-        $_SESSION['user_role'] = $user['role'];
-    }
+  // Fallback to database query and initialize session variables
+  $user_query = "SELECT * FROM users WHERE id = :user_id";
+  $stmt = $db->prepare($user_query);
+  $stmt->bindParam(':user_id', $_SESSION['user_id']);
+  $stmt->execute();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  // Initialize session variables for consistency
+  if ($user) {
+    $_SESSION['user_full_name'] = $user['full_name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_store_name'] = $user['store_name'];
+    $_SESSION['user_role'] = $user['role'];
+  }
 }
 
 if (!$user) {
@@ -48,56 +48,56 @@ if (!$user) {
 $users = [];
 $assessments = [];
 try {
-    // Get all users
-    $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Categories for assessment
-    $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
-    
-    foreach ($users as $u) {
-        if ($u['last_assessment_score'] !== null) {
-            $baseScore = $u['last_assessment_score'];
-            $assessmentDate = $u['last_assessment_date'] ?: date('Y-m-d');
-            
-            foreach ($categories as $index => $category) {
-                // Deterministic variation based on user ID and category index
-                $seed = $u['id'] * ($index + 1);
-                $variation = ($seed % 31) - 15; // Range: -15 to 15
-                $categoryScore = max(20, min(100, $baseScore + $variation));
-                $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
-                
-                // Create deterministic historical assessments for trend analysis (6 months of data)
-                for ($i = 5; $i >= 0; $i--) {
-                    $date = new DateTime($assessmentDate);
-                    $date->modify("-$i months");
-                    
-                    // Deterministic historical score based on user ID, category index, and month offset
-                    $historySeed = $u['id'] * ($index + 1) * ($i + 1);
-                    $historyVariation = ($historySeed % 21) - 10; // Range: -10 to 10
-                    $historicalScore = max(20, min(100, $categoryScore + $historyVariation));
-                    $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
-                    
-                    $assessments[] = [
-                        'id' => count($assessments) + 1,
-                        'vid' => $u['id'],
-                        'vname' => $u['full_name'] ?: $u['store_name'],
-                        'score' => $historicalScore,
-                        'rank' => $historicalRank,
-                        'cat' => $category,
-                        'date' => $date->format('Y-m-d')
-                    ];
-                }
-            }
+  // Get all users
+  $stmt = $db->prepare("SELECT id, username, email, full_name, store_name, role, is_active, last_assessment_score, last_assessment_date, total_assessments, created_at FROM users ORDER BY created_at DESC");
+  $stmt->execute();
+  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // Categories for assessment
+  $categories = ['Access Control', 'Network Security', 'Data Encryption', 'Compliance', 'Incident Response', 'Physical Security'];
+
+  foreach ($users as $u) {
+    if ($u['last_assessment_score'] !== null) {
+      $baseScore = $u['last_assessment_score'];
+      $assessmentDate = $u['last_assessment_date'] ?: date('Y-m-d');
+
+      foreach ($categories as $index => $category) {
+        // Deterministic variation based on user ID and category index
+        $seed = $u['id'] * ($index + 1);
+        $variation = ($seed % 31) - 15; // Range: -15 to 15
+        $categoryScore = max(20, min(100, $baseScore + $variation));
+        $rank = ($categoryScore >= 80) ? 'A' : (($categoryScore >= 60) ? 'B' : (($categoryScore >= 40) ? 'C' : 'D'));
+
+        // Create deterministic historical assessments for trend analysis (6 months of data)
+        for ($i = 5; $i >= 0; $i--) {
+          $date = new DateTime($assessmentDate);
+          $date->modify("-$i months");
+
+          // Deterministic historical score based on user ID, category index, and month offset
+          $historySeed = $u['id'] * ($index + 1) * ($i + 1);
+          $historyVariation = ($historySeed % 21) - 10; // Range: -10 to 10
+          $historicalScore = max(20, min(100, $categoryScore + $historyVariation));
+          $historicalRank = ($historicalScore >= 80) ? 'A' : (($historicalScore >= 60) ? 'B' : (($historicalScore >= 40) ? 'C' : 'D'));
+
+          $assessments[] = [
+            'id' => count($assessments) + 1,
+            'vid' => $u['id'],
+            'vname' => $u['full_name'] ?: $u['store_name'],
+            'score' => $historicalScore,
+            'rank' => $historicalRank,
+            'cat' => $category,
+            'date' => $date->format('Y-m-d')
+          ];
         }
+      }
     }
-    
-} catch(PDOException $exception) {
-    error_log("Error fetching email data: " . $exception->getMessage());
-    // Fallback to empty arrays if database fails
-    $users = [];
-    $assessments = [];
+  }
+
+} catch (PDOException $exception) {
+  error_log("Error fetching email data: " . $exception->getMessage());
+  // Fallback to empty arrays if database fails
+  $users = [];
+  $assessments = [];
 }
 
 // Convert to JSON for JavaScript
@@ -1297,8 +1297,13 @@ $assessmentsJson = json_encode($assessments);
     }
 
     @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
@@ -1361,14 +1366,15 @@ $assessmentsJson = json_encode($assessments);
               <circle cx="12" cy="8" r="4" />
               <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
             </svg></span><span class="sb-text">Settings</span></a>
-        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <path d="M10 19l-2 2v-3"/>
-              <path d="M14 19l2 2v-3"/>
+        <a class="sb-item" href="send_certificate.php"><span class="sb-icon"><svg width="15" height="15"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <path d="M10 19l-2 2v-3" />
+              <path d="M14 19l2 2v-3" />
             </svg></span><span class="sb-text">Certificates</span></a>
         <div class="sb-divider"></div>
         <div class="sb-label">Tools</div>
@@ -1409,7 +1415,8 @@ $assessmentsJson = json_encode($assessments);
         <div class="sb-user">
           <div class="sb-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
           <div class="sb-user-info">
-            <p><?php echo htmlspecialchars($user['full_name']); ?></p><span><?php echo htmlspecialchars($user['email']); ?></span>
+            <p><?php echo htmlspecialchars($user['full_name']); ?></p>
+            <span><?php echo htmlspecialchars($user['email']); ?></span>
           </div>
         </div>
         <button class="btn-sb-logout" onclick="showToast('Signed out','red')">
@@ -1483,7 +1490,9 @@ $assessmentsJson = json_encode($assessments);
           <div class="tb-divider"></div>
           <a class="tb-admin" href="settings.php">
             <div class="tb-admin-av"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
-            <div class="tb-admin-info"><span class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
+            <div class="tb-admin-info"><span
+                class="tb-admin-name"><?php echo htmlspecialchars($user['full_name']); ?></span><span
+                class="tb-admin-role"><?php echo htmlspecialchars($user['role'] ?? 'Admin'); ?></span>
             </div>
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" style="color:var(--muted);margin-left:.2rem">
@@ -1561,13 +1570,13 @@ $assessmentsJson = json_encode($assessments);
     // Real database data passed from PHP
     const DB_USERS = <?php echo $usersJson; ?>;
     const DB_ASSESSMENTS = <?php echo $assessmentsJson; ?>;
-    
+
     // Helper functions for data processing
     function getRank(score) {
       if (score === null || score === undefined) return null;
       return (score >= 80) ? 'A' : ((score >= 60) ? 'B' : ((score >= 40) ? 'C' : 'D'));
     }
-    
+
     function getScoreColor(score) {
       if (score === null || score === undefined) return 'var(--red)';
       return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
@@ -1579,8 +1588,8 @@ $assessmentsJson = json_encode($assessments);
     const CC = { A: { s: '#10D982', b: 'rgba(16,217,130,.55)' }, B: { s: '#F5B731', b: 'rgba(245,183,49,.55)' }, C: { s: '#FF7A45', b: 'rgba(255,122,69,.55)' }, D: { s: '#FF4D6A', b: 'rgba(255,77,106,.55)' } };
     function riskCounts() {
       const lat = {};
-      DB_ASSESSMENTS.forEach(a => { 
-        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a; 
+      DB_ASSESSMENTS.forEach(a => {
+        if (!lat[a.vid] || a.date > lat[a.vid].date) lat[a.vid] = a;
       });
       const c = { A: 0, B: 0, C: 0, D: 0 };
       Object.values(lat).forEach(a => c[a.rank]++);
@@ -1635,11 +1644,11 @@ $assessmentsJson = json_encode($assessments);
     let sentLog = [];
     function pageInit() {
       const sel = document.getElementById('em-vendor');
-      
+
       // Get unique users from real data
       const uniqueUsers = [];
       const seenUsers = new Set();
-      
+
       DB_ASSESSMENTS.forEach(assessment => {
         if (!seenUsers.has(assessment.vid)) {
           seenUsers.add(assessment.vid);
@@ -1649,32 +1658,32 @@ $assessmentsJson = json_encode($assessments);
           });
         }
       });
-      
+
       // Populate select options with real users
       uniqueUsers.forEach(user => {
         sel.innerHTML += `<option value="${user.id}">${user.name}</option>`;
       });
-      
+
       updatePreview();
     }
     function updatePreview() {
       const vid = +document.getElementById('em-vendor').value;
-      
+
       // Find user from real data
       const user = DB_ASSESSMENTS.find(a => a.vid === vid);
-      
+
       const to = document.getElementById('em-to').value || '[recipient]';
       const sub = document.getElementById('em-sub').value;
       const note = document.getElementById('em-note').value;
-      
+
       // Find the user's actual data from DB_USERS to get the correct overall score
       const userData = DB_USERS.find(u => u.id === vid);
       const lat = DB_ASSESSMENTS.filter(a => a.vid === vid).sort((a, b) => b.date.localeCompare(a.date))[0];
-      
+
       // Use the user's actual last_assessment_score if available, otherwise fall back to category assessment
       const displayScore = userData && userData.last_assessment_score !== null ? userData.last_assessment_score : (lat ? lat.score : null);
       const displayRank = displayScore !== null ? getRank(displayScore) : null;
-      
+
       document.getElementById('em-preview').innerHTML = `
     <div style="font-weight:600;margin-bottom:.4rem">To: <span style="font-weight:400;color:var(--text)">${to}</span></div>
     <div style="font-weight:600;margin-bottom:.65rem">Subject: <span style="font-weight:400;color:var(--text)">${sub}</span></div>
@@ -1688,43 +1697,43 @@ $assessmentsJson = json_encode($assessments);
     }
     async function sendEmail() {
       console.log("=== SEND EMAIL START ===");
-      
+
       const vid = +document.getElementById('em-vendor').value;
       console.log("User ID:", vid);
-      
+
       // Find user from real data
       const user = DB_ASSESSMENTS.find(a => a.vid === vid);
       console.log("User found:", user);
-      
+
       const to = document.getElementById('em-to').value;
       console.log("Recipient email:", to);
-      
-      if (!to) { 
+
+      if (!to) {
         console.log("ERROR: No recipient email");
-        showToast('Please enter a recipient email', 'red'); 
-        return; 
+        showToast('Please enter a recipient email', 'red');
+        return;
       }
-      
+
       // Get email content
       const sub = document.getElementById('em-sub').value;
       const note = document.getElementById('em-note').value;
       console.log("Subject:", sub);
       console.log("Note:", note);
-      
+
       // Show loading state
       const sendBtn = document.querySelector('button[onclick="sendEmail()"]');
       console.log("Send button found:", sendBtn);
-      
+
       if (!sendBtn) {
         console.log("ERROR: Send button not found");
         showToast('Send button not found', 'red');
         return;
       }
-      
+
       const originalText = sendBtn.innerHTML;
       sendBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l4 4"/></svg> Sending...';
       sendBtn.disabled = true;
-      
+
       try {
         const requestData = {
           to: to,
@@ -1732,11 +1741,11 @@ $assessmentsJson = json_encode($assessments);
           subject: sub,
           note: note
         };
-        
+
         console.log('=== MAKING API CALL ===');
         console.log('Request data:', requestData);
         console.log('API URL: ../api/send_report.php');
-        
+
         const response = await fetch('../api/send_report.php', {
           method: 'POST',
           headers: {
@@ -1744,27 +1753,27 @@ $assessmentsJson = json_encode($assessments);
           },
           body: JSON.stringify(requestData)
         });
-        
+
         console.log('=== API RESPONSE RECEIVED ===');
         console.log('Response status:', response.status);
         console.log('Response OK:', response.ok);
         console.log('Response headers:', response.headers);
-        
+
         if (!response.ok) {
           console.log('ERROR: Response not OK');
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const result = await response.json();
         console.log('=== RESPONSE PARSED ===');
         console.log('Response data:', result);
-        
+
         if (result.success) {
           console.log('=== SUCCESS ===');
           const now = new Date().toLocaleString();
-          sentLog.unshift({ 
-            vendor: user ? user.vname : 'Unknown User', 
-            to: to, 
+          sentLog.unshift({
+            vendor: user ? user.vname : 'Unknown User',
+            to: to,
             time: now,
             status: 'Sent'
           });
